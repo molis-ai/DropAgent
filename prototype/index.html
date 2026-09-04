@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DropAgent 原型</title>
+  <style>
+    :root {
+      --desk: #1c1c1e;
+      --panel: #2c2c2e;
+      --panel-2: #3a3a3c;
+      --line: rgba(255,255,255,.09);
+      --text: #f5f5f7;
+      --muted: #c7c7cc;
+      --faint: #8e8e93;
+      --blue: #0a84ff;
+      --blue-press: #0071e3;
+      --green: #30d158;
+      --red: #ff453a;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: var(--font);
+      background: var(--desk);
+      color: var(--text);
+      min-height: 100dvh;
+      overflow: hidden;
+      user-select: none;
+    }
+    button, input { font-family: inherit; }
+    input { user-select: text; caret-color: var(--blue); }
+    ::selection { background: rgba(10,132,255,.38); color: var(--text); }
+    :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    .list::-webkit-scrollbar,
+    .ai-body::-webkit-scrollbar { width: 8px; }
+    .list::-webkit-scrollbar-thumb,
+    .ai-body::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,.16);
+      border-radius: 99px;
+    }
+
+    .desk {
+      position: relative;
+      height: 100dvh;
+      background:
+        radial-gradient(800px 420px at 80% -8%, #2a2a2e 0%, transparent 58%),
+        var(--desk);
+    }
+
+    .menubar {
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px 0 10px;
+      background: rgba(22,22,24,.82);
+      backdrop-filter: blur(28px) saturate(1.5);
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      font-size: 13px;
+      z-index: 20;
+    }
+    .menubar-left { display: flex; align-items: center; gap: 16px; }
+    .apple { width: 14px; height: 14px; opacity: .92; }
+    .menubar-left span:nth-child(2) { font-weight: 600; }
+    .menubar-right { display: flex; align-items: center; gap: 12px; }
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 22px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .status-item:hover,
+    .status-item.open { background: rgba(255,255,255,.12); }
+    .status-item.hot {
+      background: rgba(10,132,255,.28);
+      box-shadow: inset 0 0 0 1px rgba(10,132,255,.5);
+    }
+    .clock { font-variant-numeric: tabular-nums; }
+
+    .edge {
+      position: absolute;
+      top: 28px;
+      left: 50%;
+      transform: translate(-50%, -10px);
+      opacity: 0;
+      pointer-events: none;
+      width: 280px;
+      height: 36px;
+      border-radius: 0 0 10px 10px;
+      background: rgba(28,28,30,.94);
+      border: 1px solid rgba(255,255,255,.12);
+      border-top: none;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 15;
+      transition: opacity .16s ease, transform .15s ease;
+    }
+    .desk.dragging .edge {
+      opacity: 1;
+      transform: translate(-50%, 0);
+      pointer-events: auto;
+    }
+    .edge.hot { color: #fff; background: rgba(10,132,255,.3); }
+
+    .panel {
+      position: absolute;
+      top: 34px;
+      right: 16px;
+      width: 400px;
+      height: min(620px, calc(100dvh - 56px));
+      display: none;
+      flex-direction: column;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 10px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.1),
+        0 18px 48px rgba(0,0,0,.5),
+        0 2px 8px rgba(0,0,0,.32);
+      overflow: hidden;
+      z-index: 30;
+    }
+    .panel.show { display: flex; }
+
+    .head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 36px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .brand { font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
+    .agent-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(48,209,88,.12);
+    }
+    .dot.off { background: var(--red); box-shadow: 0 0 0 3px rgba(255,69,58,.12); }
+
+    .list-wrap {
+      position: relative;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 108px;
+    }
+    .list {
+      flex: 1;
+      overflow: auto;
+    }
+    .list.drop-hot { background: rgba(10,132,255,.12); }
+    .list-hint {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #d7e8ff;
+      background: rgba(10,132,255,.2);
+      pointer-events: none;
+    }
+    .desk.dragging .list-wrap .list-hint { display: flex; }
+
+    .empty {
+      height: 100%;
+      min-height: 108px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 12px 24px;
+    }
+    .empty small { font-size: 11px; color: var(--faint); line-height: 1.4; }
+
+    .row {
+      display: grid;
+      grid-template-columns: auto 1fr auto 18px;
+      grid-template-rows: auto auto;
+      column-gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      cursor: grab;
+      min-height: 44px;
+    }
+    .row:hover { background: rgba(255,255,255,.04); }
+    .row.sel { background: rgba(10,132,255,.14); }
+    .row.dragging-out { opacity: .45; }
+    .row.running { cursor: default; }
+    .tag {
+      grid-row: 1 / span 2;
+      align-self: start;
+      margin-top: 2px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.08);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      display: flex;
+      align-items: center;
+    }
+    .row .name {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: -.015em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .row .time {
+      font-size: 11px;
+      color: var(--faint);
+      font-variant-numeric: tabular-nums;
+      padding-top: 2px;
+    }
+    .row .kill {
+      grid-row: 1;
+      width: 16px;
+      height: 16px;
+      margin-top: 1px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--faint);
+      opacity: 0;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 16px;
+    }
+    .row:hover .kill, .row.sel .kill { opacity: 1; }
+    .row .kill:hover { background: rgba(255,255,255,.1); color: var(--text); }
+    .row .meta {
+      grid-column: 2 / span 3;
+      font-size: 11px;
+      color: var(--faint);
+      margin-top: 2px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      height: 16px;
+      padding: 0 6px;
+      border-radius: 99px;
+      background: rgba(255,255,255,.08);
+      color: var(--muted);
+      font-size: 10px;
+      margin-right: 6px;
+    }
+    .pill.run { background: rgba(255,214,10,.14); color: #ffe08a; }
+    .pill.ok { background: rgba(48,209,88,.16); color: #7dffab; }
+    .pill.sent { background: rgba(10,132,255,.18); color: #9cc7ff; }
+
+    .splitbar {
+      height: 7px;
+      flex-shrink: 0;
+      cursor: ns-resize;
+      background: var(--line);
+      position: relative;
+    }
+    .splitbar::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 2px;
+      width: 28px;
+      height: 3px;
+      margin-left: -14px;
+      border-radius: 99px;
+      background: rgba(255,255,255,.22);
+    }
+    .splitbar:hover { background: rgba(10,132,255,.35); }
+
+    .ai {
+      position: relative;
+      flex: 1;
+      min-height: 168px;
+      display: flex;
+      flex-direction: column;
+      background: #262628;
+    }
+    .ai.drop-hot { box-shadow: inset 0 0 0 1px rgba(10,132,255,.45); }
+    .ai-hint {
+      display: none;
+      position: absolute;
+      inset: 0 0 48px;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #d7e8ff;
+      background: rgba(10,132,255,.22);
+      z-index: 4;
+      pointer-events: none;
+    }
+    .desk.dragging .ai .ai-hint { display: flex; }
+
+    .ai-tabs {
+      display: flex;
+      gap: 2px;
+      padding: 6px 8px 0;
+      flex-shrink: 0;
+    }
+    .ai-tabs button {
+      height: 24px;
+      padding: 0 9px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--faint);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .ai-tabs button.on { background: rgba(255,255,255,.1); color: var(--text); }
+    .ai-tabs button:disabled { opacity: .35; cursor: not-allowed; }
+
+    .ai-body {
+      flex: 1;
+      overflow: auto;
+      padding: 8px 10px 6px;
+    }
+    .recipes {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+    .recipes button,
+    .run,
+    .result-actions button,
+    .composer button,
+    .clip-btn {
+      height: 28px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    .recipes button:hover { background: #48484a; }
+    .recipes button:disabled,
+    .composer button:disabled { opacity: .38; cursor: not-allowed; }
+    .facts {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      background: rgba(0,0,0,.2);
+      margin-bottom: 8px;
+    }
+    .facts div {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 26px;
+      padding: 0 8px;
+      font-size: 11px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+    }
+    .facts div:last-child { border-bottom: 0; }
+    .facts b { font-weight: 500; color: var(--text); }
+    .run {
+      width: 100%;
+      background: var(--blue);
+      border-color: transparent;
+      font-weight: 600;
+    }
+    .run:hover { background: var(--blue-press); }
+    .hint { font-size: 11px; color: var(--faint); line-height: 1.4; margin-top: 8px; }
+    .label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+
+    .tty-line { font-family: var(--mono); font-size: 12px; line-height: 1.55; }
+    .tty-line.sys { color: var(--faint); }
+    .tty-line.in { color: #9cc7ff; }
+    .tty-line.out { color: #d4d4d8; white-space: pre-wrap; }
+    .tty-line.file { color: #ffe08a; }
+
+    .result-doc {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+    .result-doc h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .result-actions { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; margin-top: 10px; }
+    .result-actions .primary {
+      background: var(--blue);
+      border-color: transparent;
+      font-weight: 600;
+      cursor: grab;
+    }
+    .toast { font-size: 11px; color: #7dffab; margin-bottom: 8px; }
+
+    .composer {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 44px;
+      padding: 6px 8px;
+      border-top: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .composer .count {
+      min-width: 32px;
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .composer input {
+      flex: 1;
+      height: 28px;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 6px;
+      background: #1f1f20;
+      color: var(--text);
+      padding: 0 8px;
+      font-size: 12px;
+      outline: none;
+    }
+    .composer input:focus { border-color: rgba(10,132,255,.55); }
+    .composer .go {
+      width: 52px;
+      background: var(--blue);
+      border-color: transparent;
+      font-weight: 600;
+    }
+    .foot-hint {
+      padding: 0 10px 7px;
+      font-size: 10px;
+      color: var(--faint);
+      flex-shrink: 0;
+    }
+
+    .pile {
+      position: absolute;
+      right: 432px;
+      top: 88px;
+      width: 216px;
+      color: var(--muted);
+      z-index: 5;
+    }
+    .pile h1 {
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .pile p {
+      margin: 0 0 12px;
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 32ch;
+    }
+    .chip, .clip-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 208px;
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 8px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.18);
+      font-size: 12px;
+      color: var(--text);
+      cursor: grab;
+    }
+    .chip:active, .clip-chip:active { cursor: grabbing; }
+    .chip .kind, .clip-chip .kind {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: var(--faint);
+      width: 36px;
+    }
+
+    .finder {
+      position: absolute;
+      left: 36px;
+      top: 88px;
+      width: 240px;
+      min-height: 168px;
+      padding: 12px;
+      background: #2a2a2c;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 10px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 32px rgba(0,0,0,.35);
+      z-index: 6;
+    }
+    .finder.hot { box-shadow: inset 0 0 0 1px rgba(10,132,255,.5); }
+    .finder h2 {
+      margin: 0 0 4px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .finder p { margin: 0 0 10px; font-size: 11px; color: var(--faint); line-height: 1.4; }
+    .finder .got {
+      font-size: 12px;
+      padding: 6px 0;
+      border-top: 1px solid var(--line);
+      color: var(--text);
+    }
+    .finder .got:first-of-type { border-top: 0; }
+
+    .scenes {
+      position: absolute;
+      left: 20px;
+      bottom: 22px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      z-index: 40;
+      max-width: 560px;
+    }
+    .scenes span { font-size: 10px; color: var(--faint); }
+    .scenes button {
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 5px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.28);
+      color: var(--muted);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .scenes button.on { color: var(--text); background: rgba(255,255,255,.12); }
+    .note {
+      position: absolute;
+      right: 20px;
+      bottom: 24px;
+      font-size: 11px;
+      color: var(--faint);
+    }
+  </style>
+</head>
+<body>
+  <!--
+    THESIS: One 400px menu extra. Files on top, PTY and results below. Refuses a side-by-side terminal and a clipboard-manager home.
+    OWN-WORLD: Dark HUD, type tags not file pictograms, system blue only on send/select/drop. System text.
+    STORY: Stage above, talk below, take the new file out by drag or clipboard.
+    FIRST VIEWPORT: Panel hung from the status item. List, splitter, Codex pane. Desktop chips and a Finder well to receive drags.
+    FORM: Canon menu-bar utility. code-first. Operate.
+    FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+  -->
+  <div class="desk" id="desk">
+    <header class="menubar">
+      <div class="menubar-left">
+        <svg class="apple" viewBox="0 0 14 16" fill="currentColor" aria-hidden="true">
+          <path d="M11.4 8.3c0-2 1.6-3 1.7-3.1-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.7-.7-1.4 0-2.7.8-3.4 2.1-1.5 2.6-.4 6.4 1 8.5.7 1 1.5 2.2 2.6 2.1 1 .0 1.4-.7 2.7-.7s1.6.7 2.7.6c1.1 0 1.8-1 2.5-2 .8-1.1 1.1-2.2 1.1-2.2s-2.1-.8-2.1-3.2zM9.4 2.7c.6-.7 1-1.7.9-2.7-1 .1-2.1.7-2.7 1.5-.6.7-1.1 1.7-.9 2.7 1.1.1 2.1-.5 2.7-1.5z"/>
+        </svg>
+        <span>Finder</span>
+        <span>文件</span>
+        <span>编辑</span>
+        <span>显示</span>
+      </div>
+      <div class="menubar-right">
+        <button class="status-item" id="status" type="button" aria-label="DropAgent">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 4.5h10v2.2L8 11 3 6.7V4.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M5.5 12.5h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          DropAgent
+        </button>
+        <span class="clock" id="clock">3:20</span>
+      </div>
+    </header>
+
+    <div class="edge" id="edge" data-drop="stage">放到这里，加入架子</div>
+
+    <section class="finder" id="finder" aria-label="桌面投放">
+      <h2>桌面</h2>
+      <p>从 DropAgent 把文件拖到这里，模拟拖到别的窗口。</p>
+      <div id="finderList"></div>
+    </section>
+
+    <aside class="pile">
+      <h1>拖进去</h1>
+      <p>拖的时候：上半是加入，下半 AI 区是发给 Codex。文件行也可以拖出来。</p>
+      <div class="chip" role="button" draggable="true" data-name="Q3-pricing.pdf" data-kind="pdf"><span class="kind">PDF</span>Q3-pricing.pdf</div>
+      <div class="chip" role="button" draggable="true" data-name="截图 09-05.png" data-kind="image"><span class="kind">PNG</span>截图 09-05.png</div>
+      <div class="chip" role="button" draggable="true" data-name="https://dropoverapp.com" data-kind="url"><span class="kind">URL</span>dropoverapp.com</div>
+      <div class="clip-chip" id="clipChip" role="button" draggable="true" data-name="剪贴板" data-kind="clip"><span class="kind">CLIP</span><span id="clipLabel">剪贴板是空的</span></div>
+    </aside>
+
+    <div class="panel" id="panel" role="dialog" aria-label="DropAgent 面板">
+      <div class="head">
+        <div class="brand">DropAgent</div>
+        <div class="agent-pill">
+          <span class="dot" id="agentDot"></span>
+          <span id="agentLabel">Codex</span>
+        </div>
+      </div>
+
+      <div class="list-wrap" id="listWrap">
+        <div class="list" id="list" data-drop="stage"></div>
+        <div class="list-hint">加入架子</div>
+      </div>
+      <div class="splitbar" id="splitbar" title="拖动改变列表高度"></div>
+
+      <div class="ai" id="ai" data-drop="tui">
+        <div class="ai-hint">发给 Codex</div>
+        <div class="ai-tabs">
+          <button type="button" data-ai="work" id="tabWork">动作</button>
+          <button type="button" data-ai="tty" id="tabTty">终端</button>
+          <button type="button" data-ai="result" id="tabResult">结果</button>
+        </div>
+        <div class="ai-body" id="aiView"></div>
+        <div class="composer">
+          <span class="count" id="composeMeta"></span>
+          <input id="prompt" type="text" placeholder="写给 Codex，回车发送" autocomplete="off" />
+          <button class="clip-btn" id="pasteBtn" type="button" title="从剪贴板加入">粘贴</button>
+          <button class="go" id="send" type="button">发送</button>
+        </div>
+        <div class="foot-hint" id="footHint">发送进终端，不是副本沙箱。文件可拖出或复制。</div>
+      </div>
+    </div>
+
+    <nav class="scenes" aria-label="评审场景">
+      <span>评审</span>
+      <button type="button" data-scene="empty">空</button>
+      <button type="button" data-scene="staged">暂存</button>
+      <button type="button" data-scene="multi">多选</button>
+      <button type="button" data-scene="sent">终端</button>
+      <button type="button" data-scene="done">结果</button>
+      <button type="button" data-scene="noagent">无 Agent</button>
+    </nav>
+    <div class="note">合成数据 · 终端是假的</div>
+  </div>
+
+  <script>
+    const recipes = [
+      ["总结", "总结文件"],
+      ["抽取", "提取结构化信息"],
+      ["翻译", "翻译并保留格式"],
+      ["脱敏", "敏感信息脱敏"],
+      ["转 MD", "转换为 Markdown"],
+      ["新交付", "根据多份材料生成一个新交付"]
+    ];
+    const kinds = {
+      pdf: { tag: "PDF", word: "文档" },
+      image: { tag: "PNG", word: "图片" },
+      url: { tag: "URL", word: "链接" },
+      md: { tag: "MD", word: "文稿" },
+      clip: { tag: "CLIP", word: "剪贴板" }
+    };
+    const previews = {
+      "总结文件": "北美上调 8%，渠道折扣从 Q2 的 14% 收到 9%。附件里的三档套餐都还在，没有砍 SKU。\n\n不能对外讲具体折扣数字。",
+      "提取结构化信息": "region: NA\ndelta: +8%\ndiscount: 9%\nsku_cut: false",
+      "翻译并保留格式": "North America +8%.\nChannel discount tightened from 14% to 9%.",
+      "敏感信息脱敏": "客户名、金额、内部代号已替换为 [REDACTED]。",
+      "转换为 Markdown": "# Q3 Pricing\n\n- NA +8%\n- Channel discount 9%",
+      "根据多份材料生成一个新交付": "给销售的一页 briefing：调价、口径、不能对外说的三件事。"
+    };
+    const outputs = {
+      "总结文件": "summary.md",
+      "提取结构化信息": "extracted.json",
+      "翻译并保留格式": "Q3-pricing.zh.md",
+      "敏感信息脱敏": "Q3-pricing.redacted.pdf",
+      "转换为 Markdown": "converted.md",
+      "根据多份材料生成一个新交付": "brief.md"
+    };
+
+    const state = {
+      open: true, agent: true, selected: [], anchor: null, items: [],
+      copied: null, ttyLog: [], ai: "work", listH: 188,
+      clip: "渠道折扣收到 9%，不要对外讲数字。",
+      desk: []
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const desk = $("desk");
+    const promptEl = $("prompt");
+
+    function nowLabel() {
+      const d = new Date();
+      return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+    function itemById(id) { return state.items.find((x) => x.id === id); }
+    function selectedItems() { return state.selected.map(itemById).filter(Boolean); }
+    function kindOf(k) { return kinds[k] || { tag: "FILE", word: "文件" }; }
+
+    function createItem(name, kind) {
+      const id = String(Date.now()) + Math.random().toString(16).slice(2, 6);
+      const item = {
+        id, name, kind, source: name, time: nowLabel(),
+        status: "idle", recipe: null, event: "", output: null
+      };
+      state.items.unshift(item);
+      return item;
+    }
+    function addItem(name, kind) {
+      const item = createItem(name, kind);
+      state.selected = [item.id];
+      state.anchor = item.id;
+      state.open = true;
+      state.ai = "work";
+      render();
+      return item;
+    }
+
+    function facts(count) {
+      if (!state.agent) return [["读", "不能运行"], ["写", "—"], ["网络", "—"], ["隔离", "无 Agent"]];
+      return [
+        ["读", count > 1 ? `${count} 份材料的副本` : "这份材料的副本"],
+        ["写", "仅任务目录"],
+        ["网络", "关"],
+        ["隔离", "Workspace"]
+      ];
+    }
+    function recipeButtons() {
+      const id = state.anchor || state.selected[0] || "";
+      return recipes.map(([short, full]) =>
+        `<button type="button" data-act="recipe" data-id="${id}" data-recipe="${full}" ${state.agent ? "" : "disabled"}>${short}</button>`
+      ).join("");
+    }
+
+    function currentResult() {
+      const it = selectedItems().find((x) => x.status === "done") || selectedItems().find((x) => x.status === "sent");
+      return it || null;
+    }
+
+    function renderAi() {
+      const n = state.selected.length;
+      const view = $("aiView");
+      $("tabWork").classList.toggle("on", state.ai === "work");
+      $("tabTty").classList.toggle("on", state.ai === "tty");
+      $("tabResult").classList.toggle("on", state.ai === "result");
+      const hasResult = !!currentResult();
+      $("tabResult").disabled = !hasResult;
+      $("tabTty").disabled = !state.ttyLog.length && state.ai !== "tty";
+
+      if (state.ai === "tty") {
+        view.innerHTML = state.ttyLog.length
+          ? state.ttyLog.map((l) => `<div class="tty-line ${l.k}">${l.t}</div>`).join("")
+          : `<div class="hint">还没有终端记录。发送或拖到下方 AI 区。</div>`;
+        view.scrollTop = view.scrollHeight;
+        return;
+      }
+      if (state.ai === "result") {
+        const it = currentResult();
+        if (!it) { view.innerHTML = `<div class="hint">点一条已完成的文件查看结果。</div>`; return; }
+        const body = it.status === "done" ? (previews[it.recipe] || "") : state.ttyLog.filter((x) => x.k === "out").map((x) => x.t).join("\n") || "已送到终端，在「终端」里看过程。";
+        view.innerHTML = `<div class="result-doc"><h3>${it.output || it.name}</h3>${body}</div>
+          ${state.copied === it.id ? `<div class="toast">已复制到剪贴板</div>` : ""}
+          <div class="result-actions">
+            <button class="primary" draggable="true" data-act="dragout" data-id="${it.id}">拖出</button>
+            <button type="button" data-act="copy" data-id="${it.id}">复制</button>
+            <button type="button" data-act="preview" data-id="${it.id}">终端</button>
+          </div>`;
+        return;
+      }
+
+      const batch = selectedItems();
+      const idle = batch.filter((x) => x.status === "idle" || x.status === "confirm");
+      const confirming = idle.some((x) => x.status === "confirm");
+      if (!batch.length) {
+        view.innerHTML = `<div class="hint">${state.agent ? "点列表里的文件，或拖到上方加入、拖到这一区发给 Codex。" : "未发现 Codex。仍可把文件放到上面。"}</div>`;
+        return;
+      }
+      if (confirming) {
+        view.innerHTML = `<div class="label">对 ${idle.length} 项 · ${idle[0].recipe}</div>
+          <div class="facts">${facts(idle.length).map(([k, v]) => `<div>${k}<b>${v}</b></div>`).join("")}</div>
+          <button class="run" data-act="run" data-id="${idle[0].id}" ${state.agent ? "" : "disabled"}>在副本中运行</button>`;
+        return;
+      }
+      const running = batch.find((x) => x.status === "running");
+      if (running) {
+        view.innerHTML = `<div class="label">运行中</div><div class="hint">${running.event}</div>
+          <button class="clip-btn" data-act="cancel" data-id="${running.id}" style="margin-top:8px">取消</button>`;
+        return;
+      }
+      view.innerHTML = `<div class="label">${n > 1 ? "对 " + n + " 项" : "动作"}</div>
+        <div class="recipes">${recipeButtons()}</div>
+        ${state.agent ? `<div class="hint">或在下面写一句话，发送到 Codex 终端。</div>` : `<div class="hint">安装 Codex 后可运行。现在只能暂存。</div>`}`;
+    }
+
+    function render() {
+      $("status").classList.toggle("open", state.open);
+      $("panel").classList.toggle("show", state.open);
+      $("agentDot").classList.toggle("off", !state.agent);
+      $("agentLabel").textContent = state.agent ? "Codex" : "未发现 Codex";
+      promptEl.disabled = !state.agent;
+      $("send").disabled = !state.agent;
+      promptEl.placeholder = state.agent ? "写给 Codex，回车发送" : "未发现 Codex";
+      $("listWrap").style.height = state.listH + "px";
+      $("composeMeta").textContent = state.selected.length ? `${state.selected.length} 项` : "";
+      $("footHint").textContent = state.agent
+        ? "发送进终端，不是副本沙箱。文件可拖出或复制。⌘V 从剪贴板加入。"
+        : "没有 Agent，只能先放架子。";
+      $("clipLabel").textContent = state.clip ? state.clip.slice(0, 18) + (state.clip.length > 18 ? "…" : "") : "剪贴板是空的";
+
+      if (!state.items.length) {
+        $("list").innerHTML = `<div class="empty"><div>拖文件、图片、链接或剪贴板到这里</div><small>先放下，或拖到下方发给 Codex</small></div>`;
+      } else {
+        $("list").innerHTML = state.items.map((it) => {
+          const k = kindOf(it.kind);
+          const sel = state.selected.includes(it.id);
+          let meta = `${k.word} · 待处理`;
+          if (it.status === "confirm") meta = `${k.word} · ${it.recipe} · 未运行`;
+          if (it.status === "running") meta = `<span class="pill run">运行中</span>${k.word}`;
+          if (it.status === "done") meta = `<span class="pill ok">可拖出</span>${k.word} · 来自 ${it.source}`;
+          if (it.status === "sent") meta = `<span class="pill sent">已进终端</span>${k.word}`;
+          const drag = it.status !== "running";
+          return `<div class="row ${sel ? "sel" : ""} ${it.status}" data-act="select" data-id="${it.id}" ${drag ? `draggable="true"` : ""}>
+            <span class="tag">${k.tag}</span>
+            <div class="name">${it.name}</div>
+            <div class="time">${it.time}</div>
+            ${it.status !== "running" ? `<button class="kill" data-act="remove" data-id="${it.id}" aria-label="移除">×</button>` : `<span></span>`}
+            <div class="meta">${meta}</div>
+          </div>`;
+        }).join("");
+      }
+
+      renderAi();
+      $("finderList").innerHTML = state.desk.length
+        ? state.desk.map((n) => `<div class="got">${n}</div>`).join("")
+        : `<div class="got" style="color:var(--faint)">还没有拖出来的文件</div>`;
+    }
+
+    function applyRecipe(full) {
+      selectedItems().filter((x) => x.status === "idle" || x.status === "confirm").forEach((x) => {
+        x.recipe = full; x.status = "confirm";
+      });
+      state.ai = "work";
+      render();
+    }
+    function startRun(it) {
+      it.status = "running";
+      it.event = "复制到 input/ 与 work/";
+      render();
+      it._t1 = setTimeout(() => { it.event = "Codex 读取 work/ 中的材料"; render(); }, 700);
+      it._t2 = setTimeout(() => { it.event = "写入 output/" + (outputs[it.recipe] || "summary.md"); render(); }, 1400);
+      it._t3 = setTimeout(() => {
+        it.status = "done";
+        it.output = outputs[it.recipe] || "summary.md";
+        it.name = it.output;
+        it.kind = "md";
+        it.event = "";
+        state.ai = "result";
+        render();
+      }, 2200);
+    }
+    function sendToTui(items, text) {
+      if (!state.agent) return;
+      if (!items.length && !text) return;
+      state.open = true;
+      if (!state.ttyLog.length) state.ttyLog.push({ k: "sys", t: "codex  ·  本机会话" });
+      items.forEach((it) => {
+        if (it.status === "idle" || it.status === "confirm" || it.status === "sent") {
+          it.status = "sent";
+          it.recipe = null;
+          state.ttyLog.push({ k: "file", t: "📎  " + it.name });
+        }
+      });
+      if (text) {
+        state.ttyLog.push({ k: "in", t: "›  " + text });
+        state.ttyLog.push({ k: "out", t: previews["总结文件"] });
+      } else {
+        state.ttyLog.push({ k: "in", t: "›  （没有附带说明）" });
+        state.ttyLog.push({ k: "out", t: "已收到 " + items.length + " 个文件。要做什么，直接打在上面。" });
+      }
+      promptEl.value = "";
+      state.ai = "tty";
+      render();
+    }
+
+    function copyItem(it) {
+      const text = it.output || it.name;
+      const body = it.status === "done" ? (previews[it.recipe] || text) : text;
+      state.clip = body;
+      state.copied = it.id;
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(body);
+      render();
+      setTimeout(() => { if (state.copied === it.id) { state.copied = null; render(); } }, 1200);
+    }
+
+    function pasteClip() {
+      const name = state.clip ? `剪贴板 ${nowLabel()}` : "剪贴板";
+      addItem(name, "clip");
+    }
+
+    $("status").addEventListener("click", () => { state.open = !state.open; render(); });
+    $("send").addEventListener("click", () => sendToTui(selectedItems(), promptEl.value.trim()));
+    $("pasteBtn").addEventListener("click", pasteClip);
+    promptEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); sendToTui(selectedItems(), promptEl.value.trim()); }
+    });
+
+    document.querySelectorAll("[data-ai]").forEach((b) => {
+      b.addEventListener("click", () => {
+        if (b.disabled) return;
+        state.ai = b.dataset.ai;
+        render();
+      });
+    });
+
+    function onAction(e) {
+      const btn = e.target.closest("[data-act]");
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const it = itemById(id);
+      const act = btn.dataset.act;
+      if (act === "remove") {
+        e.stopPropagation();
+        state.items = state.items.filter((x) => x.id !== id);
+        state.selected = state.selected.filter((x) => x !== id);
+        render();
+        return;
+      }
+      if (act === "select") {
+        if (e.target.closest("button")) return;
+        if (!it) return;
+        if (e.metaKey || e.ctrlKey) {
+          state.selected = state.selected.includes(id) ? state.selected.filter((x) => x !== id) : [...state.selected, id];
+          state.anchor = id;
+        } else {
+          state.selected = [id];
+          state.anchor = id;
+        }
+        if (it.status === "done" || it.status === "sent") state.ai = "result";
+        else if (it.status === "running") state.ai = "work";
+        else state.ai = "work";
+        render();
+      }
+      if (act === "recipe") applyRecipe(btn.dataset.recipe);
+      if (act === "run" && state.agent) {
+        selectedItems().filter((x) => x.status === "confirm").forEach((x, i) => setTimeout(() => startRun(x), i * 350));
+      }
+      if (act === "cancel" && it) {
+        clearTimeout(it._t1); clearTimeout(it._t2); clearTimeout(it._t3);
+        it.status = "idle"; it.recipe = null; it.event = "";
+        render();
+      }
+      if (act === "copy" && it) copyItem(it);
+      if (act === "preview") { state.ai = "tty"; render(); }
+    }
+    $("list").addEventListener("click", onAction);
+    $("aiView").addEventListener("click", onAction);
+
+    $("list").addEventListener("dragstart", (e) => {
+      const row = e.target.closest(".row[draggable]");
+      if (!row) return;
+      const it = itemById(row.dataset.id);
+      if (!it) return;
+      e.dataTransfer.setData("shelf-id", it.id);
+      e.dataTransfer.setData("name", it.name);
+      e.dataTransfer.setData("kind", it.kind);
+      e.dataTransfer.setData("text/plain", it.output || it.name);
+      if (it.status === "done" || it.status === "sent") e.dataTransfer.setData("out", it.output || it.name);
+      e.dataTransfer.effectAllowed = "copy";
+      row.classList.add("dragging-out");
+    });
+    $("list").addEventListener("dragend", () => {
+      document.querySelectorAll(".dragging-out").forEach((x) => x.classList.remove("dragging-out"));
+    });
+    $("aiView").addEventListener("dragstart", (e) => {
+      const handle = e.target.closest("[data-act=dragout]");
+      if (!handle) return;
+      const it = itemById(handle.dataset.id);
+      e.dataTransfer.setData("text/plain", it.output || it.name);
+      e.dataTransfer.setData("out", it.output || it.name);
+    });
+
+    function readDrop(e) {
+      return {
+        name: e.dataTransfer.getData("name") || e.dataTransfer.getData("text/plain") || "未命名",
+        kind: e.dataTransfer.getData("kind") || (e.dataTransfer.getData("out") ? "md" : "pdf"),
+        out: e.dataTransfer.getData("out")
+      };
+    }
+    function bindDrop(el, fn) {
+      el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("hot"); el.classList.add("drop-hot"); });
+      el.addEventListener("dragleave", () => { el.classList.remove("hot"); el.classList.remove("drop-hot"); });
+      el.addEventListener("drop", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        el.classList.remove("hot");
+        el.classList.remove("drop-hot");
+        fn(e);
+      });
+    }
+    bindDrop($("list"), (e) => {
+      if (e.dataTransfer.getData("shelf-id")) return;
+      const d = readDrop(e);
+      addItem(d.name, d.kind);
+    });
+    bindDrop($("ai"), (e) => {
+      const sid = e.dataTransfer.getData("shelf-id");
+      if (sid) {
+        const it = itemById(sid);
+        if (it) sendToTui([it], promptEl.value.trim());
+        return;
+      }
+      const d = readDrop(e);
+      if (d.out) return;
+      const item = createItem(d.name, d.kind);
+      state.selected = [item.id];
+      state.anchor = item.id;
+      sendToTui([item], promptEl.value.trim());
+    });
+    bindDrop($("edge"), (e) => { const d = readDrop(e); addItem(d.name, d.kind); });
+    bindDrop($("status"), (e) => { $("status").dataset.drop = "stage"; const d = readDrop(e); addItem(d.name, d.kind); });
+    bindDrop($("finder"), (e) => {
+      const d = readDrop(e);
+      state.desk.unshift(d.out || d.name);
+      render();
+    });
+
+    document.querySelectorAll(".chip, #clipChip").forEach((chip) => {
+      chip.addEventListener("dragstart", (e) => {
+        const name = chip.dataset.kind === "clip" ? (state.clip || "剪贴板") : chip.dataset.name;
+        e.dataTransfer.setData("name", name);
+        e.dataTransfer.setData("kind", chip.dataset.kind);
+        e.dataTransfer.setData("text/plain", name);
+        desk.classList.add("dragging");
+        $("status").classList.add("hot");
+      });
+      chip.addEventListener("dragend", () => {
+        desk.classList.remove("dragging");
+        $("status").classList.remove("hot");
+        document.querySelectorAll(".hot, .drop-hot").forEach((z) => { z.classList.remove("hot"); z.classList.remove("drop-hot"); });
+      });
+    });
+    desk.addEventListener("dragover", (e) => {
+      if ([...e.dataTransfer.types].length) desk.classList.add("dragging");
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "v" && document.activeElement !== promptEl) {
+        e.preventDefault();
+        pasteClip();
+      }
+      if (e.key === "Escape" && document.activeElement !== promptEl) { state.open = false; render(); }
+    });
+
+    const bar = $("splitbar");
+    bar.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const startY = e.clientY;
+      const startH = state.listH;
+      const move = (ev) => {
+        state.listH = Math.max(108, Math.min(320, startH + (ev.clientY - startY)));
+        $("listWrap").style.height = state.listH + "px";
+      };
+      const up = () => {
+        document.removeEventListener("mousemove", move);
+        document.removeEventListener("mouseup", up);
+      };
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", up);
+    });
+
+    document.querySelectorAll(".scenes button").forEach((b) => {
+      b.addEventListener("click", () => {
+        document.querySelectorAll(".scenes button").forEach((x) => x.classList.remove("on"));
+        b.classList.add("on");
+        const scene = b.dataset.scene;
+        state.open = true; state.copied = null; state.ttyLog = []; state.desk = [];
+        promptEl.value = "";
+        const idle = (id, name, kind, time) => ({ id, name, kind, source: name, time, status: "idle", recipe: null, event: "", output: null });
+        if (scene === "empty") {
+          state.agent = true; state.items = []; state.selected = []; state.anchor = null; state.ai = "work";
+        }
+        if (scene === "staged") {
+          state.agent = true;
+          state.items = [idle("1", "Q3-pricing.pdf", "pdf", "2:11"), idle("2", "截图 09-05.png", "image", "2:08")];
+          state.selected = ["1"]; state.anchor = "1"; state.ai = "work";
+        }
+        if (scene === "multi") {
+          state.agent = true;
+          state.items = [idle("1", "Q3-pricing.pdf", "pdf", "2:11"), idle("2", "截图 09-05.png", "image", "2:08"), idle("3", "https://dropoverapp.com", "url", "2:07")];
+          state.selected = ["1", "2"]; state.anchor = "1"; state.ai = "work";
+        }
+        if (scene === "sent") {
+          state.agent = true; state.ai = "tty";
+          state.items = [
+            { id: "1", name: "Q3-pricing.pdf", source: "Q3-pricing.pdf", kind: "pdf", time: "2:11", status: "sent", recipe: null, event: "", output: null },
+            { id: "2", name: "截图 09-05.png", source: "截图 09-05.png", kind: "image", time: "2:08", status: "sent", recipe: null, event: "", output: null }
+          ];
+          state.selected = ["1", "2"]; state.anchor = "1";
+          state.ttyLog = [
+            { k: "sys", t: "codex  ·  本机会话" },
+            { k: "file", t: "📎  Q3-pricing.pdf" },
+            { k: "file", t: "📎  截图 09-05.png" },
+            { k: "in", t: "›  哪几条不能对外说" },
+            { k: "out", t: "渠道折扣收紧不要对外讲具体数字。三档套餐可以讲。" }
+          ];
+        }
+        if (scene === "done") {
+          state.agent = true; state.ai = "result";
+          state.items = [
+            { id: "1", name: "summary.md", source: "Q3-pricing.pdf", kind: "md", time: "2:14", status: "done", recipe: "总结文件", event: "", output: "summary.md" },
+            { id: "2", name: "截图 09-05.png", source: "截图 09-05.png", kind: "image", time: "2:08", status: "idle", recipe: null, event: "", output: null }
+          ];
+          state.selected = ["1"]; state.anchor = "1";
+        }
+        if (scene === "noagent") {
+          state.agent = false; state.ai = "work";
+          state.items = [idle("1", "Q3-pricing.pdf", "pdf", "2:11")];
+          state.selected = ["1"]; state.anchor = "1";
+        }
+        render();
+      });
+    });
+
+    function tickClock() {
+      const d = new Date();
+      $("clock").textContent = `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+    tickClock();
+    setInterval(tickClock, 15000);
+    document.querySelector('[data-scene="staged"]').click();
+  </script>
+</body>
+</html>
