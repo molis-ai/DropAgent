@@ -383,6 +383,49 @@ private func browserFront() throws {
     expectEqual(BrowserFront.Kind.brave.appleScriptName, "Brave Browser")
     expect(BrowserFront.Kind.brave.usesAppleScript, "brave uses applescript")
     expect(BrowserFront.Kind.arc.usesAppleScript == false, "arc ax only")
+    expect(
+        AppleScriptBrowser.shouldUseAppleScript(
+            kind: .chrome,
+            targetPID: 10,
+            runningBundleIDs: [10: "com.google.chrome"]
+        ),
+        "single chrome may applescript"
+    )
+    expect(
+        AppleScriptBrowser.shouldUseAppleScript(
+            kind: .chrome,
+            targetPID: 10,
+            runningBundleIDs: [10: "com.google.chrome", 11: "com.google.chrome"]
+        ) == false,
+        "two chrome processes skip applescript"
+    )
+    expect(
+        AppleScriptBrowser.shouldUseAppleScript(
+            kind: .chrome,
+            targetPID: 10,
+            runningBundleIDs: [10: "com.google.chrome", 11: "com.google.chrome.canary"]
+        ),
+        "chrome plus canary still scripts chrome"
+    )
+    expect(
+        AppleScriptBrowser.shouldUseAppleScript(
+            kind: .arc,
+            targetPID: 12,
+            runningBundleIDs: [12: "company.thebrowser.Browser"]
+        ) == false,
+        "arc never applescript"
+    )
+    expectEqual(
+        BrowserFront.pinned(environmentPID: "44", bundleIDForPID: { _ in "com.google.chrome" })?.pid,
+        44
+    )
+    expectEqual(
+        BrowserFront.pinned(environmentPID: "44", bundleIDForPID: { _ in "com.google.chrome" })?.kind,
+        .chrome
+    )
+    expect(BrowserFront.pinned(environmentPID: "abc", bundleIDForPID: { _ in "com.google.chrome" }) == nil, "junk pid")
+    expect(BrowserFront.pinned(environmentPID: "44", bundleIDForPID: { _ in "com.apple.finder" }) == nil, "non browser pid")
+    expect(BrowserFront.pinned(environmentPID: nil, bundleIDForPID: { _ in "com.google.chrome" }) == nil, "no pin")
     expect(URLSessionFetcher.userAgent.contains("Safari"), "browser user agent")
     expect(BrowserFront.Kind.from(bundleID: "org.mozilla.firefox") == .firefox, "firefox kind")
     let arc = BrowserFront.resolve(

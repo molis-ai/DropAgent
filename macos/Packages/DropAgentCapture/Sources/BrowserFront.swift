@@ -79,6 +79,18 @@ public struct BrowserFront: Equatable, Sendable {
         self.pid = pid
     }
 
+    public static func pinned(pid: pid_t, bundleID: String?) -> BrowserFront? {
+        guard let bundleID, let kind = Kind.from(bundleID: bundleID) else { return nil }
+        return BrowserFront(kind: kind, pid: pid)
+    }
+
+    public static func pinned(environmentPID: String?, bundleIDForPID: (pid_t) -> String?) -> BrowserFront? {
+        guard let environmentPID else { return nil }
+        let trimmed = environmentPID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let pid = pid_t(trimmed) else { return nil }
+        return pinned(pid: pid, bundleID: bundleIDForPID(pid))
+    }
+
     public static func resolve(
         frontmostBundle: String?,
         frontmostPID: pid_t,

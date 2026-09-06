@@ -19,7 +19,12 @@ public struct AppleScriptBrowser: FrontBrowserReading {
         guard allowAppleScript else {
             throw CaptureError.noURL
         }
-        let bundleID = NSRunningApplication(processIdentifier: target.pid)?.bundleIdentifier
+        let running = Self.runningBundleIDs()
+        guard Self.shouldUseAppleScript(kind: target.kind, targetPID: target.pid, runningBundleIDs: running) else {
+            throw CaptureError.noURL
+        }
+        let bundleID = running[target.pid]
+            ?? NSRunningApplication(processIdentifier: target.pid)?.bundleIdentifier
             ?? target.kind.primaryBundleIdentifier
         guard AutomationAccess.isAllowed(bundleIdentifier: bundleID) else {
             throw CaptureError.noURL
@@ -54,6 +59,29 @@ public struct AppleScriptBrowser: FrontBrowserReading {
         }
         let title = parts.count > 1 ? String(parts[1]) : url.absoluteString
         return (url, title)
+    }
+
+    public static func shouldUseAppleScript(
+        kind: BrowserFront.Kind,
+        targetPID: pid_t,
+        runningBundleIDs: [pid_t: String]
+    ) -> Bool {
+        guard kind.usesAppleScript else { return false }
+        let targetBundle = runningBundleIDs[targetPID] ?? kind.primaryBundleIdentifier
+        let peers = runningBundleIDs.values.filter { $0.caseInsensitiveCompare(targetBundle) == .orderedSame }
+        return peers.count <= 1
+    }
+
+    public static func runningBundleIDs(
+        from applications: [NSRunningApplication] = NSWorkspace.shared.runningApplications
+    ) -> [pid_t: String] {
+        var ids: [pid_t: String] = [:]
+        for app in applications {
+            if let bundle = app.bundleIdentifier {
+                ids[app.processIdentifier] = bundle
+            }
+        }
+        return ids
     }
 }
 

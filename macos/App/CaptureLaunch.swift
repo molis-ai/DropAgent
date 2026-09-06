@@ -1,3 +1,4 @@
+import AppKit
 import DropAgentCapture
 import Foundation
 
@@ -7,7 +8,12 @@ final class CaptureLaunchBox: @unchecked Sendable {
     private var stored: BrowserFront?
 
     func freeze() {
-        let value = BrowserFront.current()
+        let pinned = BrowserFront.pinned(
+            environmentPID: ProcessInfo.processInfo.environment["DROPAGENT_CAPTURE_PID"]
+        ) { pid in
+            NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        }
+        let value = pinned ?? BrowserFront.current()
         lock.lock()
         if stored == nil {
             stored = value

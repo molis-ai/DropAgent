@@ -29,7 +29,7 @@ struct PageCapture {
 | 目标 | 策略 |
 |------|------|
 | Safari | Accessibility 先读 focused/main 窗的 `AXDocument`；失败再 AppleScript |
-| Chrome | 同上，窗级属性之后先找 `AXWebArea` 的 URL，再 toolbar；AppleScript 3s 超时是退路 |
+| Chrome | 同上，窗级属性之后先找 `AXWebArea` 的 URL，再 toolbar；同一 `com.google.chrome` 只有一个进程时，AppleScript 3s 超时是退路。多实例时只读该 pid 的 AX，不 `tell application "Google Chrome"` |
 | Edge | 尽量；失败进 failures |
 | 其他 | 读不到：抛 `unsupportedBrowser`，Ingest 不造 WEB 条 |
 
