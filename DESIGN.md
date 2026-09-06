@@ -10,7 +10,7 @@ colors:
   ai: "#f7f7f5"
   text: "#111111"
   muted: "#5a5a5a"
-  faint: "#787878"
+  faint: "#6e6e6e"
   line: "rgba(0,0,0,.1)"
   primary: "#111111"
   primary-press: "#000000"
@@ -76,7 +76,7 @@ SF Pro for chrome. New York for the wordmark. SF Mono only inside the terminal l
 
 ## Layout
 
-400px panel. Header 44px. Empty shelf about 140px; with items it hugs the rows and can be dragged 56–320px. AI chrome stays on the same paper. The terminal well is near-black.
+400px panel hung from the menu bar. Header 44px; the DropAgent wordmark is centered, engine chip and close sit on the right. Empty shelf about 140px; with items it hugs the rows and can be dragged 56–320px. AI chrome stays on the same paper. The terminal well is near-black.
 
 ## Elevation & Depth
 

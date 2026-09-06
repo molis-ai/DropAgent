@@ -12,6 +12,7 @@
 
 - 浅纸底、墨色字。发送 / 选中 / 投放用黑，不用彩色强调。
 - 失败、运行中、已连接：靠字重、灰阶和图标，不用语义彩点。
+- 脚注、占位、次要说明在纸面 `#f7f7f5` 上对比度至少 4.5:1。`faint` 用 `#6e6e6e`，不再用 `#787878`（约 4.1:1）。作曲家占位跟 Palette，不写死 120。
 - SF Symbols 一律单色渲染，不走系统绿勾 / 红斜杠 / 蓝波纹。
 - 终端井近黑。打开中、空态也是同一口井，不用白纸挡住。
 - 动作（发送、粘贴、复制、拖出、Recipe、终端、关闭、空态）用 SF Symbols。
@@ -45,6 +46,7 @@
 1. 预览 `01-empty` / `03-idle` / `06-result`：浅底深字，发送/拖出是黑底白字，没有绿/蓝强调。
 2. 头上状态、Recipe、粘贴/发送能看见对应 SF Symbol；`checkmark.circle.fill` / `circle.slash` 是墨色，不是系统绿/红。
 3. Check 全绿；`--e2e` Grok 发送仍过；recipe / confirm-run identifier 仍在。
+4. 预览 `01-empty` 脚注和输入占位仍可读；ComposerField 占位色来自 Palette.faint。
 
 ## 验证命令
 

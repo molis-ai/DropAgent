@@ -43,7 +43,7 @@
 ## 验收标准
 
 1. Check：WEB 条 `fileURLs` 第一条的最后一段是条目标题；该目录里有 `page.md`；Inbox 原目录名不变。
-2. `--e2e`：example.com 抓页后落到桌面的是目录，名字含 Example，内有 `url.txt` / `page.md` / `snapshot.png`。
+2. `--e2e`：example.com 抓页后落到桌面的是目录，名字含 Example（不能是「未命名」），内有 `url.txt` / `page.md` / `snapshot.png`。
 3. Check 全绿。
 
 ## 验证命令

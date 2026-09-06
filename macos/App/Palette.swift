@@ -10,7 +10,7 @@ enum Palette {
     static var ai: Color { Color(red: 247 / 255, green: 247 / 255, blue: 245 / 255) }
     static var text: Color { Color(red: 17 / 255, green: 17 / 255, blue: 17 / 255) }
     static var muted: Color { Color(red: 90 / 255, green: 90 / 255, blue: 90 / 255) }
-    static var faint: Color { Color(red: 120 / 255, green: 120 / 255, blue: 120 / 255) }
+    static var faint: Color { Color(red: 110 / 255, green: 110 / 255, blue: 110 / 255) }
     static var line: Color { Color.black.opacity(0.1) }
     static var blue: Color { text }
     static var bluePress: Color { Color.black }
@@ -33,6 +33,9 @@ enum Palette {
     }
     static var ttyWellNS: NSColor { NSColor(calibratedWhite: 23 / 255, alpha: 1) }
     static var ttyInkNS: NSColor { NSColor(calibratedWhite: 232 / 255, alpha: 1) }
+    static var textNS: NSColor { NSColor(calibratedWhite: 17 / 255, alpha: 1) }
+    static var mutedNS: NSColor { NSColor(calibratedWhite: 90 / 255, alpha: 1) }
+    static var faintNS: NSColor { NSColor(calibratedWhite: 110 / 255, alpha: 1) }
 
     static func controlFill(enabled: Bool, hovering: Bool, pressed: Bool) -> Color {
         guard enabled else { return panel2 }

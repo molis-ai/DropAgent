@@ -291,6 +291,40 @@ private func htmlMarkdown() throws {
     expect(!blocked.contains("javascript:"), "drop javascript img")
     expect(!blocked.contains("data:"), "drop data img")
     expect(blocked.contains("empty"), "src-less img keeps alt")
+
+    expectEqual(
+        HTMLMarkdown.documentTitle("<html><head><title>  Example\n Domain  </title></head></html>"),
+        "Example Domain"
+    )
+    expect(HTMLMarkdown.documentTitle("<html><p>no title</p></html>") == nil, "missing title")
+
+    let examplePage = HTMLMarkdown.convert(
+        """
+        <!doctype html><html lang="en"><head><title>Example Domain</title>\
+        <link rel="icon" href="data:,"><style>body{background:#eee}</style></head>\
+        <body><div><h1>Example Domain</h1>\
+        <p>This domain is for use in documentation examples without needing permission. Avoid use in operations.</p>\
+        <p><a href="https://iana.org/domains/example">Learn more</a></p></div></body></html>
+        """,
+        baseURL: URL(string: "https://example.com/")
+    )
+    expect(examplePage.hasPrefix("# Example Domain"), "example starts at heading")
+    expect(examplePage.contains("[Learn more](https://iana.org/domains/example)"), "example link")
+    expect(!examplePage.split(whereSeparator: \.isNewline).contains(where: { $0 == "-" }), "link tag is not a list item")
+    expect(!examplePage.contains("data:,"), "icon data url dropped")
+    expectEqual(
+        examplePage.split(whereSeparator: \.isNewline).filter { $0 == "Example Domain" }.count,
+        0,
+        "title not copied into body"
+    )
+
+    let realList = HTMLMarkdown.convert("<article><ul><li>One</li><li>Two</li></ul></article>")
+    expect(realList.contains("- One"), "real li one")
+    expect(realList.contains("- Two"), "real li two")
+
+    let bodyOnly = HTMLMarkdown.convert("<body><p>Hi</p></body>")
+    expectEqual(bodyOnly, "Hi")
+    expect(!bodyOnly.contains("**"), "body is not bold")
 }
 
 private func browserFront() throws {
@@ -367,6 +401,9 @@ private func browserFront() throws {
     expectEqual(AccessibilityPage.httpURL(from: "Example Domain — https://example.com/page")?.host, "example.com")
     expect(AccessibilityPage.windowScore(subrole: "AXStandardWindow") > AccessibilityPage.windowScore(subrole: "AXUnknown"), "standard chrome window before sheets")
     expect(AccessibilityPage.windowScore(subrole: "AXStandardWindow") > AccessibilityPage.windowScore(subrole: "AXDialog"), "standard before dialog")
+    expect(AccessibilityPage.roleRank("AXWebArea") > AccessibilityPage.roleRank("AXGroup"), "web area before group")
+    expect(AccessibilityPage.roleRank("AXWebArea") > AccessibilityPage.roleRank("AXButton"), "web area before button")
+    expectEqual(AccessibilityPage.childVisitOrder(roles: ["AXButton", "AXWebArea", "AXGroup"]), [1, 2, 0])
     let axStart = Date()
     _ = AccessibilityPage.read(pid: ProcessInfo.processInfo.processIdentifier)
     expect(Date().timeIntervalSince(axStart) < 3, "AX read of self does not hang")
@@ -1850,6 +1887,31 @@ private func captureService() async throws {
     ).captureFrontBrowser(target: pinned)
     expectEqual(snap.pid, 4242)
 
+    let untitled = try await CaptureService(
+        browser: StubBrowser(result: .success((url, "未命名 — Safari"))),
+        fetcher: StubFetcher(result: .success(Data(
+            "<html><head><title>Example Domain</title></head><p>Hi</p></html>".utf8
+        ))),
+        snapshot: StubSnapshot(data: Data([0x89, 0x50, 0x4E, 0x47]))
+    ).captureFrontBrowser()
+    expectEqual(untitled.title, "Example Domain")
+
+    let kept = try await CaptureService(
+        browser: StubBrowser(result: .success((url, "Keep Me"))),
+        fetcher: StubFetcher(result: .success(Data(
+            "<html><head><title>Other</title></head><p>Hi</p></html>".utf8
+        ))),
+        snapshot: StubSnapshot(data: Data([0x89, 0x50, 0x4E, 0x47]))
+    ).captureFrontBrowser()
+    expectEqual(kept.title, "Keep Me")
+
+    let hostFallback = try await CaptureService(
+        browser: StubBrowser(result: .success((url, "Untitled"))),
+        fetcher: StubFetcher(result: .failure(CaptureError.noURL)),
+        snapshot: StubSnapshot(data: Data([0x89, 0x50, 0x4E, 0x47]))
+    ).captureFrontBrowser()
+    expectEqual(hostFallback.title, "example.com")
+
     let sheet: [String: Any] = [
         kCGWindowOwnerPID as String: pid_t(99),
         kCGWindowLayer as String: 0,
@@ -1905,10 +1967,14 @@ private func liveWebAdmit() async throws {
     expect(item.parts.contains { $0.name == "page.md" }, "page.md")
     expect(item.parts.contains { $0.name == "snapshot.png" }, "snapshot.png")
     expectEqual(shelf.items().count, 1)
+    let urlText = item.parts.first { $0.name == "url.txt" }.flatMap { try? String(contentsOf: $0.url, encoding: .utf8) }
+    expectEqual(urlText, "https://example.com/\n")
     let png = item.parts.first { $0.name == "snapshot.png" }.flatMap { try? Data(contentsOf: $0.url) }
     expect((png?.count ?? 0) > 32, "live web png")
     let md = item.parts.first { $0.name == "page.md" }.flatMap { try? String(contentsOf: $0.url, encoding: .utf8) }
     expect((md?.isEmpty ?? true) == false, "live web markdown")
+    expect(md?.hasSuffix("\n") == true, "page.md newline")
+    expect(!(md?.split(whereSeparator: \.isNewline).contains(where: { $0 == "-" }) ?? true), "live example.md no empty list")
     fputs("live web admit: WEB \(item.title) png=\(png?.count ?? 0) md=\(md?.count ?? 0)\n", stdout)
 }
 

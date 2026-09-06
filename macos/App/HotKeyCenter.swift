@@ -44,9 +44,12 @@ enum HotKeyCopy {
             : "没有终端也能先放着，⌘V 粘贴，或用菜单抓当前页"
     }
 
-    static func workIdleHint(hasAgent: Bool, hasRecipe: Bool, tuiTitle: String, captureOK: Bool) -> String {
+    static func workIdleHint(hasAgent: Bool, hasRecipe: Bool, tuiTitle: String, captureOK: Bool, hasItems: Bool) -> String {
         if hasAgent && hasRecipe {
-            return "点列表里的文件，或拖到上方加入、拖到这一区发给 \(tuiTitle)。"
+            if hasItems {
+                return "点列表里的文件，或拖到上方加入、拖到这一区发给 \(tuiTitle)。"
+            }
+            return "拖到上方加入架子，或拖到这一区发给 \(tuiTitle)。"
         }
         if hasAgent {
             return "动作需要 Codex。终端可以发给 \(tuiTitle)。点右上角切换或指定可执行文件。"

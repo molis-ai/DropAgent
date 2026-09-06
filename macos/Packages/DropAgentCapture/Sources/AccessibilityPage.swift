@@ -16,13 +16,26 @@ public enum AccessibilityPage {
         let deadline = Date().addingTimeInterval(1.2)
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.35)
-        for window in windows(of: app) {
+        for window in windowsToRead(of: app) {
             if Date() > deadline { return nil }
             if let page = readWindow(window, deadline: deadline) {
                 return page
             }
         }
         return nil
+    }
+
+    public static func roleRank(_ role: String) -> Int {
+        switch role {
+        case "AXWebArea": return 3
+        case "AXComboBox", "AXTextField": return 2
+        case "AXToolbar", "AXGroup": return 1
+        default: return 0
+        }
+    }
+
+    public static func childVisitOrder(roles: [String]) -> [Int] {
+        roles.indices.sorted { roleRank(roles[$0]) > roleRank(roles[$1]) }
     }
 
     public static func windowScore(subrole: String?) -> Int {
@@ -44,6 +57,21 @@ public enum AccessibilityPage {
         return nil
     }
 
+    private static func windowsToRead(of app: AXUIElement) -> [AXUIElement] {
+        var list: [AXUIElement] = []
+        func append(_ window: AXUIElement?) {
+            guard let window else { return }
+            if list.contains(where: { CFEqual($0, window) }) { return }
+            list.append(window)
+        }
+        append(copyElement(app, kAXFocusedWindowAttribute as CFString))
+        append(copyElement(app, kAXMainWindowAttribute as CFString))
+        for window in windows(of: app) {
+            append(window)
+        }
+        return list
+    }
+
     private static func windows(of app: AXUIElement) -> [AXUIElement] {
         var listRef: CFTypeRef?
         AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &listRef)
@@ -51,6 +79,17 @@ public enum AccessibilityPage {
         return list.sorted { a, b in
             windowScore(subrole: subrole(a)) > windowScore(subrole: subrole(b))
         }
+    }
+
+    private static func copyElement(_ parent: AXUIElement, _ attribute: CFString) -> AXUIElement? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(parent, attribute, &ref) == .success,
+              let ref,
+              CFGetTypeID(ref) == AXUIElementGetTypeID()
+        else {
+            return nil
+        }
+        return unsafeDowncast(ref, to: AXUIElement.self)
     }
 
     private static func subrole(_ element: AXUIElement) -> String? {
@@ -64,7 +103,7 @@ public enum AccessibilityPage {
         AXUIElementSetMessagingTimeout(window, 0.35)
         var titleRef: CFTypeRef?
         AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleRef)
-        let title = cleanedTitle(titleRef as? String ?? "")
+        let title = PageTitle.cleaned(titleRef as? String ?? "")
         if Date() > deadline { return nil }
 
         var documentRef: CFTypeRef?
@@ -81,6 +120,14 @@ public enum AccessibilityPage {
             return (url, title.isEmpty ? url.absoluteString : title)
         }
 
+        if let url = webAreaURL(in: window, deadline: deadline) {
+            return (url, title.isEmpty ? url.absoluteString : title)
+        }
+
+        if let url = toolbarURL(in: window, deadline: deadline) {
+            return (url, title.isEmpty ? url.absoluteString : title)
+        }
+
         var descriptionRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(window, kAXDescriptionAttribute as CFString, &descriptionRef) == .success,
            let url = httpURL(from: descriptionRef as Any)
@@ -92,27 +139,10 @@ public enum AccessibilityPage {
             return (url, title)
         }
 
-        if let url = toolbarURL(in: window, deadline: deadline) {
-            return (url, title.isEmpty ? url.absoluteString : title)
-        }
-
         if let url = firstURL(in: window, deadline: deadline) {
             return (url, title.isEmpty ? url.absoluteString : title)
         }
         return nil
-    }
-
-    private static func cleanedTitle(_ title: String) -> String {
-        let suffixes = [
-            " - Google Chrome",
-            " — Google Chrome",
-            " - Microsoft Edge",
-            " - Brave",
-        ]
-        for suffix in suffixes where title.hasSuffix(suffix) {
-            return String(title.dropLast(suffix.count))
-        }
-        return title
     }
 
     private static func parse(_ text: String) -> URL? {
@@ -169,8 +199,34 @@ public enum AccessibilityPage {
         return nil
     }
 
+    private static func webAreaURL(in element: AXUIElement, deadline: Date, depth: Int = 0) -> URL? {
+        if Date() > deadline { return nil }
+        AXUIElementSetMessagingTimeout(element, 0.15)
+        let roleName = role(element)
+        if roleName == "AXWebArea" {
+            AXUIElementSetMessagingTimeout(element, 0.4)
+            return urlValue(element)
+        }
+        guard depth < 6 else { return nil }
+        var children: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children) == .success,
+              let list = children as? [AXUIElement], list.isEmpty == false
+        else {
+            return nil
+        }
+        let ordered = Array(list.prefix(12)).enumerated()
+            .sorted { roleRank(role($0.element)) > roleRank(role($1.element)) }
+            .map(\.element)
+        for child in ordered {
+            if let url = webAreaURL(in: child, deadline: deadline, depth: depth + 1) {
+                return url
+            }
+        }
+        return nil
+    }
+
     private static func firstURL(in window: AXUIElement, deadline: Date) -> URL? {
-        var remaining = 80
+        var remaining = 24
         var queue: [(AXUIElement, Int)] = [(window, 0)]
         var index = 0
         while index < queue.count, remaining > 0 {
@@ -178,14 +234,14 @@ public enum AccessibilityPage {
             remaining -= 1
             let (element, depth) = queue[index]
             index += 1
-            AXUIElementSetMessagingTimeout(element, 0.2)
+            AXUIElementSetMessagingTimeout(element, 0.15)
             if let url = urlValue(element) { return url }
-            guard depth < 8 else { continue }
+            guard depth < 6 else { continue }
             var children: CFTypeRef?
             guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children) == .success,
                   let list = children as? [AXUIElement]
             else { continue }
-            let ranked = list.prefix(16).sorted { rank($0) > rank($1) }
+            let ranked = list.prefix(16).sorted { roleRank(role($0)) > roleRank(role($1)) }
             for child in ranked {
                 queue.append((child, depth + 1))
             }
@@ -193,16 +249,10 @@ public enum AccessibilityPage {
         return nil
     }
 
-    private static func rank(_ element: AXUIElement) -> Int {
-        AXUIElementSetMessagingTimeout(element, 0.2)
+    private static func role(_ element: AXUIElement) -> String {
         var roleRef: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
-        switch roleRef as? String {
-        case "AXWebArea": return 3
-        case "AXComboBox", "AXTextField": return 2
-        case "AXToolbar", "AXGroup": return 1
-        default: return 0
-        }
+        return roleRef as? String ?? ""
     }
 
     private static func urlValue(_ element: AXUIElement) -> URL? {

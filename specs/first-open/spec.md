@@ -27,13 +27,16 @@
 
 1. 空的 `DROPAGENT_ROOT` 下普通启动会看到面板；同一 root 再启动（新进程）不自动弹出。
 2. 已在跑时再次打开 App，面板会出来。
-3. `--capture` 不创建「已打开」标记、不弹面板。
+3. `--capture` / `--e2e` 不创建「已打开」标记、不弹这块面板。
 4. 预览 `06-result` 仍能读到总结正文；带 `-` 列表的总结在结果 Tab 不再糊成一段。
 5. Check 全绿。
+6. `--e2e`：`FirstOpen` 只在非诊断且还没有标记时展开；过程中不得写出 `opened`。
 
 ## 验证命令
 
 ```bash
 cd macos && swift run DropAgentCheck
 DROPAGENT_ROOT=/tmp/dropagent-preview-root macos/.build/debug/DropAgent --preview
+DROPAGENT_ROOT=/tmp/dropagent-e2e-live macos/.build/debug/DropAgent --e2e
+DROPAGENT_ROOT=/tmp/dropagent-first-open macos/.build/debug/DropAgent
 ```

@@ -36,13 +36,14 @@ struct PanelRootView: View {
     }
 
     private var header: some View {
-        HStack {
+        ZStack {
             Text("DropAgent")
                 .font(.system(size: 15, weight: .medium, design: .serif))
                 .tracking(-0.02)
                 .foregroundStyle(Palette.text)
-            Spacer()
+                .accessibilityAddTraits(.isHeader)
             HStack(spacing: 6) {
+                Spacer(minLength: 0)
                 statusChip
                 Button(action: onClose) {
                     Image(systemName: "xmark")
@@ -434,7 +435,8 @@ struct PanelRootView: View {
                         hasAgent: session.hasAgent,
                         hasRecipe: session.hasRecipe,
                         tuiTitle: session.tuiTitle,
-                        captureOK: session.hotKeyCaptureOK
+                        captureOK: session.hotKeyCaptureOK,
+                        hasItems: session.items.isEmpty == false
                     ))
                     .font(.system(size: 11))
                     .foregroundStyle(Palette.faint)

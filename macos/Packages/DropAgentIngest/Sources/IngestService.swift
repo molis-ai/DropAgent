@@ -120,11 +120,11 @@ public struct IngestService: Sendable {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         var parts: [ItemPart] = []
         let urlFile = folder.appendingPathComponent("url.txt")
-        try Data(captured.url.absoluteString.utf8).write(to: urlFile)
+        try writeTextFile(urlFile, captured.url.absoluteString)
         parts.append(ItemPart(name: "url.txt", url: urlFile))
         if let markdown = captured.markdown {
             let file = folder.appendingPathComponent("page.md")
-            try markdown.write(to: file)
+            try writeTextFile(file, markdown)
             parts.append(ItemPart(name: "page.md", url: file))
         }
         if let png = captured.snapshotPNG {
@@ -223,6 +223,18 @@ public struct IngestService: Sendable {
             if type.conforms(to: .plainText) || type.conforms(to: .text) { return .markdown }
         }
         return .file
+    }
+
+    private func writeTextFile(_ url: URL, _ text: String) throws {
+        try writeTextFile(url, Data(text.utf8))
+    }
+
+    private func writeTextFile(_ url: URL, _ data: Data) throws {
+        var data = data
+        if data.isEmpty == false, data.last != 0x0A {
+            data.append(0x0A)
+        }
+        try data.write(to: url)
     }
 }
 

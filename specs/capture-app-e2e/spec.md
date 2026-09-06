@@ -44,7 +44,7 @@
 ## 验收标准
 
 1. `--e2e`：显式无前台浏览器时，架子 WEB 条数量不变，错误含「没读到当前页」，有再试。
-2. `--e2e`：Safari 在最前且地址为 example.com 时，出现 `kind == web` 的 idle 条，`url.txt` 在，地址是 example.com。
+2. `--e2e`：Safari 在最前且地址为 example.com 时，出现 `kind == web` 的 idle 条，标题含 Example（不能是「未命名」），`url.txt` 在，地址是 example.com。
 3. `--e2e`：随后 Grok 发送仍过。锁屏导致 Safari 放不到最前时：先打印 `capture deferred`，Grok 发送仍要跑完，最后以 `safari not front` 失败。
 4. Check 全绿。
 

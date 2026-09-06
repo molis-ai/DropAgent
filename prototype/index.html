@@ -14,7 +14,7 @@
       --line: rgba(0,0,0,.1);
       --text: #111;
       --muted: #5a5a5a;
-      --faint: #787878;
+      --faint: #6e6e6e;
       --blue: #111;
       --blue-press: #000;
       --green: #111;
@@ -142,16 +142,26 @@
     .panel.show { display: flex; }
 
     .head {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto;
       align-items: center;
-      justify-content: space-between;
+      position: relative;
       height: 44px;
       padding: 0 14px;
       border-bottom: 1px solid var(--line);
       flex-shrink: 0;
     }
-    .brand { font-size: 15px; font-weight: 500; letter-spacing: -.02em; font-family: "New York", "Iowan Old Style", "Times New Roman", serif; }
-    .agent-wrap { position: relative; }
+    .brand {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: -.02em;
+      font-family: "New York", "Iowan Old Style", "Times New Roman", serif;
+      pointer-events: none;
+    }
+    .agent-wrap { position: relative; justify-self: end; }
     .agent-pill {
       display: flex;
       align-items: center;
@@ -1007,7 +1017,9 @@
       const confirming = idle.some((x) => x.status === "confirm");
       if (!batch.length) {
         const empty = state.hasTui
-          ? `点列表里的文件，或拖到上方加入、拖到这一区发给 ${state.tui}。`
+          ? (state.items.length
+            ? `点列表里的文件，或拖到上方加入、拖到这一区发给 ${state.tui}。`
+            : `拖到上方加入架子，或拖到这一区发给 ${state.tui}。`)
           : "未发现终端。仍可把文件放到上面。";
         view.innerHTML = `<div class="hint">${empty}</div>`;
         return;

@@ -28,8 +28,8 @@ struct PageCapture {
 
 | 目标 | 策略 |
 |------|------|
-| Safari | AppleScript / Accessibility：当前 tab URL、标题 |
-| Chrome | 同上（常见脚本接口） |
+| Safari | Accessibility 先读 focused/main 窗的 `AXDocument`；失败再 AppleScript |
+| Chrome | 同上，窗级属性之后先找 `AXWebArea` 的 URL，再 toolbar；AppleScript 3s 超时是退路 |
 | Edge | 尽量；失败进 failures |
 | 其他 | 读不到：抛 `unsupportedBrowser`，Ingest 不造 WEB 条 |
 

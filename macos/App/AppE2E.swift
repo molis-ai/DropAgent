@@ -39,13 +39,11 @@ enum AppE2E {
 
             let window = NSWindow(
                 contentRect: NSRect(x: 40, y: 40, width: 400, height: 620),
-                styleMask: [.titled, .closable, .fullSizeContentView],
+                styleMask: LivePanelChrome.styleMask,
                 backing: .buffered,
                 defer: false
             )
-            window.title = "DropAgent E2E"
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
+            window.hasShadow = true
             let host = PaperHostView(rootView: PanelRootView(session: session, onClose: {}))
             host.frame = NSRect(x: 0, y: 0, width: 400, height: 620)
             window.contentView = host
@@ -74,6 +72,7 @@ enum AppE2E {
             session.systemDragActive = false
             verifyEdgePlacement()
             verifyLivePanelChrome()
+            verifyFirstOpen()
             verifyListHeightFit()
             verifyStatusIcon()
             verifyStatusHover()
@@ -81,6 +80,7 @@ enum AppE2E {
             verifyIsolationFact()
             verifyIsolationShownRecord()
             verifyConfirmFacts()
+            verifyEmptyWorkHint()
             verifyRecipeChooserHint()
             verifyImageRecipeGates()
             verifyFailedActionRetry()
@@ -170,6 +170,9 @@ enum AppE2E {
                 fflush(stdout)
                 if let deferredCaptureFailure {
                     fail(deferredCaptureFailure)
+                }
+                guard FileManager.default.fileExists(atPath: DropAgentPaths.openedFile.path) == false else {
+                    fail("e2e wrote first-open marker")
                 }
             } catch {
                 fail("drag land \(error)")
@@ -270,6 +273,35 @@ enum AppE2E {
                 session.remove(id: id)
             }
             session.refreshPresence()
+        }
+
+        private func verifyEmptyWorkHint() {
+            let empty = HotKeyCopy.workIdleHint(
+                hasAgent: true,
+                hasRecipe: true,
+                tuiTitle: "Grok",
+                captureOK: true,
+                hasItems: false
+            )
+            guard empty.contains("加入架子") else {
+                fail("empty work hint \(empty)")
+            }
+            guard empty.contains("发给 Grok") else {
+                fail("empty work hint missing send \(empty)")
+            }
+            guard empty.contains("点列表") == false else {
+                fail("empty work hint still lists files \(empty)")
+            }
+            let listed = HotKeyCopy.workIdleHint(
+                hasAgent: true,
+                hasRecipe: true,
+                tuiTitle: "Grok",
+                captureOK: true,
+                hasItems: true
+            )
+            guard listed.contains("点列表里的文件") else {
+                fail("listed work hint \(listed)")
+            }
         }
 
         private func verifyRecipeChooserHint() {
@@ -972,6 +1004,9 @@ enum AppE2E {
             guard item.status == .idle else {
                 fail("web status \(item.status)")
             }
+            guard item.title.localizedStandardContains("Example") else {
+                fail("web title \(item.title)")
+            }
             guard item.parts.contains(where: { $0.name == "url.txt" }) else {
                 fail("web missing url.txt")
             }
@@ -994,6 +1029,9 @@ enum AppE2E {
                 }
                 guard landed.lastPathComponent == item.title else {
                     fail("web folder name \(landed.lastPathComponent)")
+                }
+                guard landed.lastPathComponent.localizedStandardContains("Example") else {
+                    fail("web folder not Example \(landed.lastPathComponent)")
                 }
                 for name in ["url.txt", "page.md", "snapshot.png"] {
                     guard FileManager.default.fileExists(atPath: landed.appendingPathComponent(name).path) else {
@@ -1130,6 +1168,12 @@ enum AppE2E {
             guard LivePanelChrome.styleMask.contains(.titled) == false else {
                 fail("live panel still titled")
             }
+            guard let window, window.styleMask.contains(.borderless) else {
+                fail("e2e window not borderless")
+            }
+            guard window.styleMask.contains(.titled) == false else {
+                fail("e2e window still titled")
+            }
             let panel = DropAgentPanel(
                 contentRect: NSRect(x: 0, y: 0, width: 40, height: 40),
                 styleMask: LivePanelChrome.styleMask,
@@ -1142,6 +1186,21 @@ enum AppE2E {
             let host = PaperHostView(rootView: Color.clear.frame(width: 40, height: 40))
             guard host.acceptsFirstMouse(for: nil) else {
                 fail("paper host rejects first mouse")
+            }
+        }
+
+        private func verifyFirstOpen() {
+            guard FirstOpen.shouldReveal(markerExists: false, isDiagnostic: false) else {
+                fail("first open hidden")
+            }
+            guard FirstOpen.shouldReveal(markerExists: true, isDiagnostic: false) == false else {
+                fail("repeat launch would pop")
+            }
+            guard FirstOpen.shouldReveal(markerExists: false, isDiagnostic: true) == false else {
+                fail("diagnostic would pop")
+            }
+            guard FileManager.default.fileExists(atPath: DropAgentPaths.openedFile.path) == false else {
+                fail("e2e wrote first-open marker")
             }
         }
 

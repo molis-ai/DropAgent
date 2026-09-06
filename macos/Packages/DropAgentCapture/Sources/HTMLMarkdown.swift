@@ -1,17 +1,38 @@
 import Foundation
 
 public enum HTMLMarkdown {
+    public static func documentTitle(_ html: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: "(?is)<title[^>]*>(.*?)</title>") else {
+            return nil
+        }
+        let range = NSRange(html.startIndex..., in: html)
+        guard let match = regex.firstMatch(in: html, range: range),
+              let inner = Range(match.range(at: 1), in: html)
+        else {
+            return nil
+        }
+        let text = decodeEntities(stripTags(String(html[inner])))
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+
     public static func convert(_ html: String, baseURL: URL? = nil) -> String {
         var text = html
         text = text.replacingOccurrences(
-            of: "(?is)<(script|style|noscript)[^>]*>.*?</\\1>",
+            of: "(?is)<(script|style|noscript)\\b[^>]*>.*?</\\1>",
+            with: "",
+            options: .regularExpression
+        )
+        text = text.replacingOccurrences(
+            of: "(?is)<head\\b[^>]*>.*?</head>",
             with: "",
             options: .regularExpression
         )
         if let article = innerHTML(text, tag: "article") ?? innerHTML(text, tag: "main") {
             text = article
         }
-        text = replace(text, pattern: "(?is)<pre[^>]*>(.*?)</pre>") { match in
+        text = replace(text, pattern: "(?is)<pre\\b[^>]*>(.*?)</pre>") { match in
             var inner = stripTags(match[1])
             inner = inner.replacingOccurrences(of: "^\\n+", with: "", options: .regularExpression)
             inner = inner.replacingOccurrences(of: "\\n+$", with: "", options: .regularExpression)
@@ -20,7 +41,7 @@ public enum HTMLMarkdown {
         text = replace(text, pattern: "(?is)<img\\b[^>]*>") { match in
             markdownImage(match[0], base: baseURL)
         }
-        text = replace(text, pattern: "(?is)<a[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>") { match in
+        text = replace(text, pattern: "(?is)<a\\b[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>") { match in
             let label = stripTags(match[2]).trimmingCharacters(in: .whitespacesAndNewlines)
             guard let href = resolvedHREF(match[1], base: baseURL) else {
                 return label
@@ -28,29 +49,29 @@ public enum HTMLMarkdown {
             if label.isEmpty { return href }
             return "[\(label)](\(href))"
         }
-        text = replace(text, pattern: "(?is)<(strong|b)[^>]*>(.*?)</\\1>") { match in
+        text = replace(text, pattern: "(?is)<(strong|b)\\b[^>]*>(.*?)</\\1>") { match in
             let inner = stripTags(match[2]).trimmingCharacters(in: .whitespacesAndNewlines)
             return inner.isEmpty ? "" : "**\(inner)**"
         }
-        text = replace(text, pattern: "(?is)<(em|i)[^>]*>(.*?)</\\1>") { match in
+        text = replace(text, pattern: "(?is)<(em|i)\\b[^>]*>(.*?)</\\1>") { match in
             let inner = stripTags(match[2]).trimmingCharacters(in: .whitespacesAndNewlines)
             return inner.isEmpty ? "" : "*\(inner)*"
         }
-        text = replace(text, pattern: "(?is)<table[^>]*>(.*?)</table>") { match in
+        text = replace(text, pattern: "(?is)<table\\b[^>]*>(.*?)</table>") { match in
             markdownTable(match[1])
         }
-        text = replace(text, pattern: "(?is)<blockquote[^>]*>(.*?)</blockquote>") { match in
+        text = replace(text, pattern: "(?is)<blockquote\\b[^>]*>(.*?)</blockquote>") { match in
             markdownQuote(match[1])
         }
-        text = text.replacingOccurrences(of: "(?is)<h1[^>]*>", with: "\n# ", options: .regularExpression)
-        text = text.replacingOccurrences(of: "(?is)<h2[^>]*>", with: "\n## ", options: .regularExpression)
-        text = text.replacingOccurrences(of: "(?is)<h3[^>]*>", with: "\n### ", options: .regularExpression)
-        text = text.replacingOccurrences(of: "(?is)<h[4-6][^>]*>", with: "\n#### ", options: .regularExpression)
-        text = text.replacingOccurrences(of: "(?is)<li[^>]*>", with: "\n- ", options: .regularExpression)
-        text = text.replacingOccurrences(of: "(?is)<br\\s*/?>", with: "\n", options: .regularExpression)
-        text = text.replacingOccurrences(of: "(?is)<p[^>]*>", with: "\n\n", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?is)<h1\\b[^>]*>", with: "\n# ", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?is)<h2\\b[^>]*>", with: "\n## ", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?is)<h3\\b[^>]*>", with: "\n### ", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?is)<h[4-6]\\b[^>]*>", with: "\n#### ", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?is)<li\\b[^>]*>", with: "\n- ", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?is)<br\\b\\s*/?>", with: "\n", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?is)<p\\b[^>]*>", with: "\n\n", options: .regularExpression)
         text = text.replacingOccurrences(of: "(?is)</(h[1-6]|p|div|li|ul|ol|blockquote)>", with: "\n", options: .regularExpression)
-        text = replace(text, pattern: "(?is)<code[^>]*>(.*?)</code>") { match in
+        text = replace(text, pattern: "(?is)<code\\b[^>]*>(.*?)</code>") { match in
             let inner = stripTags(match[1]).trimmingCharacters(in: .whitespacesAndNewlines)
             return inner.isEmpty ? "" : "`\(inner)`"
         }

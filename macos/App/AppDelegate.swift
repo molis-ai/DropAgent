@@ -13,6 +13,12 @@ enum LivePanelChrome {
     static var styleMask: NSWindow.StyleMask { .borderless }
 }
 
+enum FirstOpen {
+    static func shouldReveal(markerExists: Bool, isDiagnostic: Bool) -> Bool {
+        isDiagnostic == false && markerExists == false
+    }
+}
+
 private final class OnceFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var done = false
@@ -161,7 +167,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func revealOnFirstOpenIfNeeded() {
         try? DropAgentPaths.ensure()
         let marker = DropAgentPaths.openedFile
-        guard FileManager.default.fileExists(atPath: marker.path) == false else { return }
+        guard FirstOpen.shouldReveal(
+            markerExists: FileManager.default.fileExists(atPath: marker.path),
+            isDiagnostic: isDiagnosticLaunch
+        ) else { return }
         showPanel()
         FileManager.default.createFile(atPath: marker.path, contents: Data("1".utf8))
     }

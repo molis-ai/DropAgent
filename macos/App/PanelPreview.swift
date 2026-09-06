@@ -32,13 +32,11 @@ enum PanelPreview {
 
             let window = NSWindow(
                 contentRect: NSRect(x: 80, y: 80, width: 400, height: 620),
-                styleMask: [.titled, .closable, .fullSizeContentView],
+                styleMask: LivePanelChrome.styleMask,
                 backing: .buffered,
                 defer: false
             )
-            window.title = "DropAgent Preview"
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
+            window.hasShadow = true
             let host = PaperHostView(rootView: PanelRootView(session: session, onClose: {}))
             host.frame = NSRect(x: 0, y: 0, width: 400, height: 620)
             window.contentView = host
