@@ -9,7 +9,7 @@
 
 ## 1. 要做成什么样
 
-Mac 菜单栏小工具。上面是架子，下面是 AI 区。东西先进来，可以先放着；要么在副本里跑 Recipe，要么把材料和一句话打进本机 Codex TUI。结果在工具里能看，再拖走或复制。原件不被覆盖。
+Mac 菜单栏小工具。上面是架子，下面是 AI 区。东西先进来，可以先放着；要么在副本里跑 Recipe（第一版只保证 Codex），要么把材料和一句话打进当前所选 TUI。结果在工具里能看，再拖走或复制。原件不被覆盖。
 
 两套代码、同一套边界：
 
@@ -112,14 +112,14 @@ D. 拿走
 | 字段 | 含义 |
 |------|------|
 | id | 稳定 ID |
-| kind | pdf / image / url / markdown / clip / web / folder |
+| kind | pdf / image / url / markdown / clip / web / folder / file |
 | title | 展示名 |
 | sourceURL | 原件路径或网页 URL（给 Job 做快照和 Hash；不写进 Prompt） |
 | parts | 该条包含的文件（网站：url.txt + page.md + snapshot.png） |
 | status | idle / confirm / running / done / sent / failed |
 | recipe | 可选 |
 | output | 完成后主交付路径 |
-| isolationShown | 当前对外说的档：workspace / safeCopy / tui / none |
+| isolationShown | 当前对外说的档：workspace / unconfirmed / safeCopy / tui / none |
 
 ### 4.2 Job 目录
 
@@ -184,13 +184,14 @@ Shelf 列表存 Application Support 下的 `shelf.json`。不进 iCloud、不做
 
 ## 7. Agent 与安全
 
-探测顺序：`PATH` 上的 `codex` → 常见安装路径 → 用户在设置里指定的可执行文件。第一版只保证 Codex。
+探测顺序：`PATH` 与常见安装路径上的 `codex` / `grok` / `claude` / `gemini` → 用户在设置里指定的可执行文件。Recipe 第一版只保证 Codex。TUI 可选本机已装的终端 Agent，默认 `auto`（Grok → Claude → Gemini → Codex）。
 
 | 路径 | 对外文案 | 实现要点 |
 |------|---------|----------|
 | Recipe | Workspace（Codex 官方工作区限制，探测到才这么写） | `codex exec` 或官方无界面入口，cwd=`work/`，不加载用户全局 MCP/Hooks |
-| 发给 TUI | 「在终端执行，不是副本沙箱」 | 把**副本**路径和文本送进会话，仍不把原件路径塞进会话 |
-| 无 Agent | 未发现 Codex | 禁止 start / send |
+| 发给 TUI | 「在终端执行，不是副本沙箱」 | 把**副本**路径和文本送进所选 TUI（Grok / Claude / Gemini / Codex），仍不把原件路径塞进会话；隔离 home，不加载用户 MCP/Hooks |
+| 无 TUI | 未发现终端 Agent | 禁止 send |
+| 无 Codex | 动作需要 Codex | 禁止 Job.start；有 TUI 时仍可发送 |
 
 Recipe 跑完：对 `sourceURL` 若是本地文件，再读一遍 Hash，必须与 admit 时一致。
 
@@ -239,7 +240,7 @@ Recipe 跑完：对 `sourceURL` 若是本地文件，再读一遍 Hash，必须�
 
 1. 拖 PDF 进列表，不跑 Agent。  
 2. 总结后原件 Hash 不变，`output/summary.md` 可拖到桌面。  
-3. 无 `codex` 时发送禁用、进货仍可。  
+3. 无 TUI 时发送禁用、进货仍可；无 Codex 时 Recipe 禁用，有 TUI 仍可发送。  
 4. 快捷键在 Safari 有地址时出现 WEB 条；读失败有明确失败，不造假条目。
 
 ---

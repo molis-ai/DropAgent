@@ -4,7 +4,7 @@
 
 ## 做什么
 
-读前台浏览器的 URL 和标题；DropAgent **自己联网**拉 HTML，抽正文写成 `page.md`；对可见窗口截图 `snapshot.png`。给 Ingest 用。
+读前台浏览器的 URL 和标题；DropAgent **自己联网**拉 HTML，抽正文写成 `page.md`（链接按页 URL 补成绝对地址）；对可见窗口截图 `snapshot.png`。给 Ingest 用。
 
 ## 不做什么
 

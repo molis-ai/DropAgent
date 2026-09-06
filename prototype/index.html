@@ -6,17 +6,19 @@
   <title>DropAgent 原型</title>
   <style>
     :root {
-      --desk: #1c1c1e;
-      --panel: #2c2c2e;
-      --panel-2: #3a3a3c;
-      --line: rgba(255,255,255,.09);
-      --text: #f5f5f7;
-      --muted: #c7c7cc;
-      --faint: #8e8e93;
-      --blue: #0a84ff;
-      --blue-press: #0071e3;
-      --green: #30d158;
-      --red: #ff453a;
+      --desk: #121212;
+      --panel: #f7f7f5;
+      --panel-2: #ececea;
+      --panel-hover: #e2e2e0;
+      --panel-press: #d2d2d0;
+      --line: rgba(0,0,0,.1);
+      --text: #111;
+      --muted: #5a5a5a;
+      --faint: #787878;
+      --blue: #111;
+      --blue-press: #000;
+      --green: #111;
+      --red: #111;
       --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
       --mono: ui-monospace, "SF Mono", Menlo, monospace;
     }
@@ -26,20 +28,20 @@
     body {
       font-family: var(--font);
       background: var(--desk);
-      color: var(--text);
+      color: #e8e8e4;
       min-height: 100dvh;
       overflow: hidden;
       user-select: none;
     }
     button, input { font-family: inherit; }
-    input { user-select: text; caret-color: var(--blue); }
-    ::selection { background: rgba(10,132,255,.38); color: var(--text); }
-    :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    input { user-select: text; caret-color: var(--text); }
+    ::selection { background: rgba(0,0,0,.14); color: var(--text); }
+    :focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
     .list::-webkit-scrollbar,
     .ai-body::-webkit-scrollbar { width: 8px; }
     .list::-webkit-scrollbar-thumb,
     .ai-body::-webkit-scrollbar-thumb {
-      background: rgba(255,255,255,.16);
+      background: rgba(0,0,0,.18);
       border-radius: 99px;
     }
 
@@ -60,9 +62,10 @@
       justify-content: space-between;
       padding: 0 14px 0 10px;
       background: rgba(22,22,24,.82);
-      backdrop-filter: blur(28px) saturate(1.5);
+      backdrop-filter: blur(28px) saturate(1.1);
       border-bottom: 1px solid rgba(255,255,255,.06);
       font-size: 13px;
+      color: #e8e8e4;
       z-index: 20;
     }
     .menubar-left { display: flex; align-items: center; gap: 16px; }
@@ -78,31 +81,31 @@
       border: 0;
       border-radius: 6px;
       background: transparent;
-      color: var(--text);
+      color: inherit;
       cursor: pointer;
     }
     .status-item:hover,
     .status-item.open { background: rgba(255,255,255,.12); }
     .status-item.hot {
-      background: rgba(10,132,255,.28);
-      box-shadow: inset 0 0 0 1px rgba(10,132,255,.5);
+      background: rgba(0,0,0,.35);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.4);
     }
     .clock { font-variant-numeric: tabular-nums; }
 
     .edge {
       position: absolute;
       top: 28px;
-      left: 50%;
-      transform: translate(-50%, -10px);
+      left: 8px;
+      right: 8px;
+      transform: translateY(-10px);
       opacity: 0;
       pointer-events: none;
-      width: 280px;
       height: 36px;
-      border-radius: 0 0 10px 10px;
-      background: rgba(28,28,30,.94);
-      border: 1px solid rgba(255,255,255,.12);
-      border-top: none;
-      color: var(--muted);
+      border-radius: 10px;
+      background: var(--panel);
+      border: 1px solid rgba(0,0,0,.1);
+      box-shadow: 0 8px 24px rgba(0,0,0,.28);
+      color: var(--text);
       font-size: 12px;
       font-weight: 600;
       display: flex;
@@ -113,10 +116,10 @@
     }
     .desk.dragging .edge {
       opacity: 1;
-      transform: translate(-50%, 0);
+      transform: translateY(0);
       pointer-events: auto;
     }
-    .edge.hot { color: #fff; background: rgba(10,132,255,.3); }
+    .edge.hot { color: var(--panel); background: #111; }
 
     .panel {
       position: absolute;
@@ -127,13 +130,13 @@
       display: none;
       flex-direction: column;
       background: var(--panel);
-      border: 1px solid rgba(255,255,255,.12);
-      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,.1);
+      border-radius: 12px;
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.1),
-        0 18px 48px rgba(0,0,0,.5),
-        0 2px 8px rgba(0,0,0,.32);
+        0 18px 48px rgba(0,0,0,.28),
+        0 2px 8px rgba(0,0,0,.16);
       overflow: hidden;
+      color: var(--text);
       z-index: 30;
     }
     .panel.show { display: flex; }
@@ -142,50 +145,86 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 36px;
-      padding: 0 12px;
+      height: 44px;
+      padding: 0 14px;
       border-bottom: 1px solid var(--line);
       flex-shrink: 0;
     }
-    .brand { font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
+    .brand { font-size: 15px; font-weight: 500; letter-spacing: -.02em; font-family: "New York", "Iowan Old Style", "Times New Roman", serif; }
+    .agent-wrap { position: relative; }
     .agent-pill {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 11px;
+      gap: 5px;
+      height: 24px;
+      padding: 0 7px;
+      border: 0;
+      border-radius: 6px;
+      background: var(--panel-2);
+      font-size: 12px;
       color: var(--muted);
+      cursor: pointer;
     }
-    .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 0 3px rgba(48,209,88,.12);
+    .agent-pill .chev { opacity: .7; }
+    .engine-menu {
+      position: absolute;
+      right: 0;
+      top: 28px;
+      z-index: 8;
+      min-width: 148px;
+      padding: 4px;
+      border-radius: 6px;
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
     }
-    .dot.off { background: var(--red); box-shadow: 0 0 0 3px rgba(255,69,58,.12); }
+    .engine-menu button {
+      display: block;
+      width: 100%;
+      height: 28px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .engine-menu button:hover { background: var(--panel-2); }
+    .engine-menu button:disabled { color: var(--faint); cursor: not-allowed; }
+    .engine-menu button.on { background: rgba(0,0,0,.08); }
+    .agent-pill .status-ico {
+      display: inline-flex;
+      width: 12px;
+      height: 12px;
+    }
+    .agent-pill .status-ico .ico { width: 12px; height: 12px; }
 
     .list-wrap {
       position: relative;
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      min-height: 108px;
+      min-height: 56px;
     }
     .list {
       flex: 1;
       overflow: auto;
     }
-    .list.drop-hot { background: rgba(10,132,255,.12); }
+    .list.drop-hot { background: rgba(0,0,0,.06); }
     .list-hint {
       display: none;
       position: absolute;
       inset: 0;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 8px;
       font-size: 13px;
       font-weight: 600;
-      color: #d7e8ff;
-      background: rgba(10,132,255,.2);
+      color: var(--text);
+      background: rgba(247,247,245,.92);
       pointer-events: none;
     }
     .desk.dragging .list-wrap .list-hint { display: flex; }
@@ -203,6 +242,7 @@
       text-align: center;
       padding: 12px 24px;
     }
+    .empty .ico { width: 22px; height: 22px; color: var(--text); }
     .empty small { font-size: 11px; color: var(--faint); line-height: 1.4; }
 
     .row {
@@ -213,10 +253,10 @@
       padding: 8px 10px;
       border-bottom: 1px solid var(--line);
       cursor: grab;
-      min-height: 44px;
+      height: 56px;
     }
-    .row:hover { background: rgba(255,255,255,.04); }
-    .row.sel { background: rgba(10,132,255,.14); }
+    .row:hover { background: var(--panel-2); }
+    .row.sel { background: rgba(0,0,0,.08); box-shadow: inset 2px 0 0 var(--text); }
     .row.dragging-out { opacity: .45; }
     .row.running { cursor: default; }
     .tag {
@@ -226,7 +266,7 @@
       height: 18px;
       padding: 0 5px;
       border-radius: 4px;
-      background: rgba(255,255,255,.08);
+      background: var(--panel-2);
       color: var(--muted);
       font-size: 10px;
       font-weight: 700;
@@ -250,8 +290,8 @@
     }
     .row .kill {
       grid-row: 1;
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       margin-top: 1px;
       border: 0;
       border-radius: 4px;
@@ -259,11 +299,13 @@
       color: var(--faint);
       opacity: 0;
       cursor: pointer;
-      font-size: 12px;
-      line-height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
+    .row .kill .ico { width: 10px; height: 10px; }
     .row:hover .kill, .row.sel .kill { opacity: 1; }
-    .row .kill:hover { background: rgba(255,255,255,.1); color: var(--text); }
+    .row .kill:hover { background: var(--panel-2); color: var(--text); }
     .row .meta {
       grid-column: 2 / span 3;
       font-size: 11px;
@@ -276,14 +318,14 @@
       height: 16px;
       padding: 0 6px;
       border-radius: 99px;
-      background: rgba(255,255,255,.08);
+      background: var(--panel-2);
       color: var(--muted);
       font-size: 10px;
       margin-right: 6px;
     }
-    .pill.run { background: rgba(255,214,10,.14); color: #ffe08a; }
-    .pill.ok { background: rgba(48,209,88,.16); color: #7dffab; }
-    .pill.sent { background: rgba(10,132,255,.18); color: #9cc7ff; }
+    .pill.run { background: rgba(0,0,0,.08); color: var(--text); }
+    .pill.ok { background: rgba(0,0,0,.08); color: var(--text); }
+    .pill.sent { background: rgba(0,0,0,.08); color: var(--text); }
 
     .splitbar {
       height: 7px;
@@ -291,6 +333,14 @@
       cursor: ns-resize;
       background: var(--line);
       position: relative;
+    }
+    .splitbar::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -6px;
+      bottom: -6px;
     }
     .splitbar::after {
       content: "";
@@ -301,9 +351,9 @@
       height: 3px;
       margin-left: -14px;
       border-radius: 99px;
-      background: rgba(255,255,255,.22);
+      background: rgba(0,0,0,.22);
     }
-    .splitbar:hover { background: rgba(10,132,255,.35); }
+    .splitbar:hover { background: rgba(0,0,0,.18); }
 
     .ai {
       position: relative;
@@ -311,19 +361,21 @@
       min-height: 168px;
       display: flex;
       flex-direction: column;
-      background: #262628;
+      background: var(--panel);
     }
-    .ai.drop-hot { box-shadow: inset 0 0 0 1px rgba(10,132,255,.45); }
+    .ai.drop-hot { box-shadow: inset 0 0 0 1px rgba(0,0,0,.28); }
     .ai-hint {
       display: none;
       position: absolute;
-      inset: 0 0 48px;
+      inset: 0;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 8px;
       font-size: 13px;
       font-weight: 600;
-      color: #d7e8ff;
-      background: rgba(10,132,255,.22);
+      color: var(--text);
+      background: rgba(247,247,245,.92);
       z-index: 4;
       pointer-events: none;
     }
@@ -336,17 +388,21 @@
       flex-shrink: 0;
     }
     .ai-tabs button {
-      height: 24px;
-      padding: 0 9px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 28px;
+      padding: 0 10px;
       border: 0;
-      border-radius: 6px;
+      border-radius: 8px;
       background: transparent;
       color: var(--faint);
-      font-size: 11px;
+      font-size: 12px;
       cursor: pointer;
     }
-    .ai-tabs button.on { background: rgba(255,255,255,.1); color: var(--text); }
+    .ai-tabs button.on { background: var(--panel-2); color: var(--text); font-weight: 600; }
     .ai-tabs button:disabled { opacity: .35; cursor: not-allowed; }
+    .ai-tabs .ico { width: 12px; height: 12px; }
 
     .ai-body {
       flex: 1;
@@ -362,24 +418,31 @@
     .run,
     .result-actions button,
     .composer button,
-    .clip-btn {
+    .clip-btn,
+    .quiet {
       height: 28px;
-      border: 1px solid rgba(255,255,255,.1);
+      border: 1px solid var(--line);
       background: var(--panel-2);
       color: var(--text);
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 12px;
       cursor: pointer;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
     }
-    .recipes button:hover { background: #48484a; }
+    .recipes button:hover:not(:disabled),
+    .quiet:hover:not(:disabled),
+    .clip-btn:hover:not(:disabled),
+    .result-actions button:hover:not(:disabled):not(.primary) { background: var(--panel-hover); }
+    .recipes button:active:not(:disabled),
+    .quiet:active:not(:disabled),
+    .clip-btn:active:not(:disabled),
+    .result-actions button:active:not(:disabled):not(.primary) { background: var(--panel-press); }
     .recipes button:disabled,
     .composer button:disabled { opacity: .38; cursor: not-allowed; }
     .facts {
       border: 1px solid var(--line);
       border-radius: 6px;
       overflow: hidden;
-      background: rgba(0,0,0,.2);
+      background: var(--panel-2);
       margin-bottom: 8px;
     }
     .facts div {
@@ -396,19 +459,39 @@
     .facts b { font-weight: 500; color: var(--text); }
     .run {
       width: 100%;
-      background: var(--blue);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: var(--text);
+      color: var(--panel);
       border-color: transparent;
       font-weight: 600;
+      height: 30px;
     }
     .run:hover { background: var(--blue-press); }
-    .hint { font-size: 11px; color: var(--faint); line-height: 1.4; margin-top: 8px; }
     .label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
 
+    .tty-caption { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+    .pty-well {
+      min-height: 148px;
+      border: 1px solid rgba(0,0,0,.2);
+      border-radius: 8px;
+      background: #171717;
+      padding: 8px 10px;
+      color: #e8e8e4;
+    }
+    .pty-well:has(.hint) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pty-well .hint { color: #a8a8a8; margin: 0; }
     .tty-line { font-family: var(--mono); font-size: 12px; line-height: 1.55; }
-    .tty-line.sys { color: var(--faint); }
-    .tty-line.in { color: #9cc7ff; }
-    .tty-line.out { color: #d4d4d8; white-space: pre-wrap; }
-    .tty-line.file { color: #ffe08a; }
+    .tty-line.sys { color: #9a9a96; }
+    .tty-line.in { color: #e8e8e4; }
+    .tty-line.out { color: #e8e8e4; white-space: pre-wrap; }
+    .tty-line.file { color: #b8b8b4; }
 
     .result-doc {
       font-size: 12px;
@@ -423,13 +506,20 @@
       color: var(--text);
     }
     .result-actions { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; margin-top: 10px; }
+    .result-actions button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
     .result-actions .primary {
-      background: var(--blue);
+      background: var(--text);
+      color: var(--panel);
       border-color: transparent;
       font-weight: 600;
       cursor: grab;
     }
-    .toast { font-size: 11px; color: #7dffab; margin-bottom: 8px; }
+    .toast { font-size: 11px; color: var(--text); margin-bottom: 8px; }
 
     .composer {
       display: flex;
@@ -449,20 +539,58 @@
     .composer input {
       flex: 1;
       height: 28px;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 6px;
-      background: #1f1f20;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
       color: var(--text);
       padding: 0 8px;
       font-size: 12px;
       outline: none;
     }
-    .composer input:focus { border-color: rgba(10,132,255,.55); }
+    .composer input:focus { border-color: var(--text); }
     .composer .go {
-      width: 52px;
-      background: var(--blue);
+      width: 36px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--text);
+      color: var(--panel);
       border-color: transparent;
       font-weight: 600;
+    }
+    .clip-btn {
+      width: 36px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .quiet {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: auto;
+      padding: 0 10px;
+    }
+    .recipes button {
+      height: 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 11px;
+    }
+    .ico {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .foot-hint {
       padding: 0 10px 7px;
@@ -476,14 +604,14 @@
       right: 432px;
       top: 88px;
       width: 216px;
-      color: var(--muted);
+      color: #a8a8a4;
       z-index: 5;
     }
     .pile h1 {
       margin: 0 0 6px;
       font-size: 13px;
       font-weight: 600;
-      color: var(--text);
+      color: #e8e8e4;
     }
     .pile p {
       margin: 0 0 12px;
@@ -503,7 +631,7 @@
       border-radius: 8px;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.18);
       font-size: 12px;
-      color: var(--text);
+      color: #e8e8e4;
       cursor: grab;
     }
     .chip:active, .clip-chip:active { cursor: grabbing; }
@@ -528,18 +656,18 @@
       box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 32px rgba(0,0,0,.35);
       z-index: 6;
     }
-    .finder.hot { box-shadow: inset 0 0 0 1px rgba(10,132,255,.5); }
+    .finder.hot { background: #111; box-shadow: inset 0 0 0 1px #fff; }
     .finder h2 {
       margin: 0 0 4px;
       font-size: 13px;
       font-weight: 600;
     }
-    .finder p { margin: 0 0 10px; font-size: 11px; color: var(--faint); line-height: 1.4; }
+    .finder p { margin: 0 0 10px; font-size: 11px; color: #9a9a96; line-height: 1.4; }
     .finder .got {
       font-size: 12px;
       padding: 6px 0;
-      border-top: 1px solid var(--line);
-      color: var(--text);
+      border-top: 1px solid rgba(255,255,255,.08);
+      color: #e8e8e4;
     }
     .finder .got:first-of-type { border-top: 0; }
 
@@ -554,34 +682,34 @@
       z-index: 40;
       max-width: 560px;
     }
-    .scenes span { font-size: 10px; color: var(--faint); }
+    .scenes span { font-size: 10px; color: #8a8a86; }
     .scenes button {
       height: 22px;
       padding: 0 8px;
       border-radius: 5px;
       border: 1px solid rgba(255,255,255,.08);
       background: rgba(0,0,0,.28);
-      color: var(--muted);
+      color: #b8b8b4;
       font-size: 11px;
       cursor: pointer;
     }
-    .scenes button.on { color: var(--text); background: rgba(255,255,255,.12); }
+    .scenes button.on { color: #f7f7f5; background: rgba(255,255,255,.12); }
     .note {
       position: absolute;
       right: 20px;
       bottom: 24px;
       font-size: 11px;
-      color: var(--faint);
+      color: #8a8a86;
     }
   </style>
 </head>
 <body>
   <!--
-    THESIS: One 400px menu extra. Files on top, PTY and results below. Refuses a side-by-side terminal and a clipboard-manager home.
-    OWN-WORLD: Dark HUD, type tags not file pictograms, system blue only on send/select/drop. System text.
+    THESIS: One 400px menu extra. Files on top, talk below. Refuses a side-by-side terminal, a clipboard-manager home, and a colored HUD.
+    OWN-WORLD: Paper sheet over a dark desk. Near-white ground, ink type, black for send/select/drop. SF Symbols for actions; file kinds stay letter tags.
     STORY: Stage above, talk below, take the new file out by drag or clipboard.
-    FIRST VIEWPORT: Panel hung from the status item. List, splitter, Codex pane. Desktop chips and a Finder well to receive drags.
-    FORM: Canon menu-bar utility. code-first. Operate.
+    FIRST VIEWPORT: Panel hung from the status item. Airy header, list, hairline splitter, AI pane on the same paper.
+    FORM: Nordic paper tray, seed 93ef9156, user-pinned black-and-white. Operate.
     FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
   -->
   <div class="desk" id="desk">
@@ -617,7 +745,7 @@
 
     <aside class="pile">
       <h1>拖进去</h1>
-      <p>拖的时候：上半是加入，下半 AI 区是发给 Codex。文件行也可以拖出来。</p>
+      <p>拖的时候：上半是加入，下半 AI 区是发给当前终端。文件行也可以拖出来。</p>
       <div class="chip" role="button" draggable="true" data-name="Q3-pricing.pdf" data-kind="pdf"><span class="kind">PDF</span>Q3-pricing.pdf</div>
       <div class="chip" role="button" draggable="true" data-name="截图 09-05.png" data-kind="image"><span class="kind">PNG</span>截图 09-05.png</div>
       <div class="chip" role="button" draggable="true" data-name="https://dropoverapp.com" data-kind="url"><span class="kind">URL</span>dropoverapp.com</div>
@@ -627,33 +755,49 @@
     <div class="panel" id="panel" role="dialog" aria-label="DropAgent 面板">
       <div class="head">
         <div class="brand">DropAgent</div>
-        <div class="agent-pill">
-          <span class="dot" id="agentDot"></span>
-          <span id="agentLabel">Codex</span>
+        <div class="agent-wrap">
+          <button type="button" class="agent-pill" id="agentPill" aria-haspopup="listbox" aria-expanded="false">
+            <span class="status-ico" id="agentIcon" aria-hidden="true"></span>
+            <span id="agentLabel">Grok</span>
+            <svg class="chev" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
+              <path d="M1.5 2.8 4 5.2 6.5 2.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <div class="engine-menu" id="engineMenu" hidden>
+            <button type="button" data-pick="Grok">Grok</button>
+            <button type="button" data-pick="Claude">Claude</button>
+            <button type="button" data-pick="Gemini" disabled>Gemini（未安装）</button>
+            <button type="button" data-pick="Codex">Codex</button>
+            <button type="button" data-pick="">未发现终端</button>
+          </div>
         </div>
       </div>
 
       <div class="list-wrap" id="listWrap">
         <div class="list" id="list" data-drop="stage"></div>
-        <div class="list-hint">加入架子</div>
+        <div class="list-hint"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 9.5V13h10V9.5"/><path d="M8 2.5v8"/><path d="M5 8.5 8 11.5 11 8.5"/></svg>加入架子</div>
       </div>
       <div class="splitbar" id="splitbar" title="拖动改变列表高度"></div>
 
       <div class="ai" id="ai" data-drop="tui">
-        <div class="ai-hint">发给 Codex</div>
+        <div class="ai-hint"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h10M9 4.5 13.5 8 9 11.5"/></svg><span id="aiHintText">发给 Grok</span></div>
         <div class="ai-tabs">
-          <button type="button" data-ai="work" id="tabWork">动作</button>
-          <button type="button" data-ai="tty" id="tabTty">终端</button>
-          <button type="button" data-ai="result" id="tabResult">结果</button>
+          <button type="button" data-ai="work" id="tabWork"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx=".8"/><rect x="9" y="2.5" width="4.5" height="4.5" rx=".8"/><rect x="2.5" y="9" width="4.5" height="4.5" rx=".8"/><rect x="9" y="9" width="4.5" height="4.5" rx=".8"/></svg>动作</button>
+          <button type="button" data-ai="tty" id="tabTty"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 10.5h6M5 6.5l2 2-2 2"/></svg>终端</button>
+          <button type="button" data-ai="result" id="tabResult"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h6l3 3V13.5H4z"/><path d="M10 2.5V6h3.5"/><path d="M6 9h4M6 11.5h3"/></svg>结果</button>
         </div>
         <div class="ai-body" id="aiView"></div>
         <div class="composer">
           <span class="count" id="composeMeta"></span>
-          <input id="prompt" type="text" placeholder="写给 Codex，回车发送" autocomplete="off" />
-          <button class="clip-btn" id="pasteBtn" type="button" title="从剪贴板加入">粘贴</button>
-          <button class="go" id="send" type="button">发送</button>
+          <input id="prompt" type="text" placeholder="写给 Grok，回车发送" autocomplete="off" />
+          <button class="clip-btn" id="pasteBtn" type="button" title="从剪贴板加入" aria-label="从剪贴板加入">
+            <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="2" width="8" height="12" rx="1.5"/><path d="M3 5h2m6 0h2v9H5"/></svg>
+          </button>
+          <button class="go" id="send" type="button" aria-label="发送">
+            <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h10M9 4.5 13.5 8 9 11.5"/></svg>
+          </button>
         </div>
-        <div class="foot-hint" id="footHint">发送进终端，不是副本沙箱。文件可拖出或复制。</div>
+        <div class="foot-hint" id="footHint">发送进 Grok 终端，不是副本沙箱。文件可拖出或复制。</div>
       </div>
     </div>
 
@@ -663,8 +807,10 @@
       <button type="button" data-scene="staged">暂存</button>
       <button type="button" data-scene="multi">多选</button>
       <button type="button" data-scene="sent">终端</button>
+      <button type="button" data-scene="web">网站</button>
       <button type="button" data-scene="done">结果</button>
-      <button type="button" data-scene="noagent">无 Agent</button>
+      <button type="button" data-scene="noagent">无终端</button>
+      <button type="button" data-scene="onlytui">仅终端</button>
     </nav>
     <div class="note">合成数据 · 终端是假的</div>
   </div>
@@ -683,6 +829,7 @@
       image: { tag: "PNG", word: "图片" },
       url: { tag: "URL", word: "链接" },
       md: { tag: "MD", word: "文稿" },
+      web: { tag: "WEB", word: "网站" },
       clip: { tag: "CLIP", word: "剪贴板" }
     };
     const previews = {
@@ -703,8 +850,9 @@
     };
 
     const state = {
-      open: true, agent: true, selected: [], anchor: null, items: [],
-      copied: null, ttyLog: [], ai: "work", listH: 188,
+      open: true, hasTui: true, hasCodex: true, tui: "Grok",
+      selected: [], anchor: null, items: [],
+      copied: null, ttyLog: [], ai: "work", listH: 140, listTouched: false,
       clip: "渠道折扣收到 9%，不要对外讲数字。",
       desk: []
     };
@@ -719,6 +867,28 @@
     }
     function itemById(id) { return state.items.find((x) => x.id === id); }
     function selectedItems() { return state.selected.map(itemById).filter(Boolean); }
+    function displayListH() {
+      if (state.listTouched) return state.listH;
+      if (!state.items.length) return 140;
+      return Math.min(320, Math.max(56, state.items.length * 56));
+    }
+    function canSend() {
+      if (!state.hasTui) return false;
+      return !selectedItems().some((x) => x.status === "confirm" || x.status === "running");
+    }
+    function composerPlaceholder() {
+      if (!state.hasTui) return "未发现终端 Agent";
+      if (selectedItems().some((x) => x.status === "running")) return "等任务结束，或点取消";
+      if (selectedItems().some((x) => x.status === "confirm")) return "先运行或取消这次动作";
+      return `写给 ${state.tui}，回车发送`;
+    }
+    function giveTerminalRoom() {
+      const target = state.items.length ? Math.min(108, Math.max(56, state.items.length * 56)) : 108;
+      if (displayListH() > target) {
+        state.listH = target;
+        state.listTouched = true;
+      }
+    }
     function kindOf(k) { return kinds[k] || { tag: "FILE", word: "文件" }; }
 
     function createItem(name, kind) {
@@ -741,7 +911,7 @@
     }
 
     function facts(count) {
-      if (!state.agent) return [["读", "不能运行"], ["写", "—"], ["网络", "—"], ["隔离", "无 Agent"]];
+      if (!state.hasCodex) return [["读", "不能运行"], ["写", "—"], ["网络", "—"], ["隔离", "需要 Codex"]];
       return [
         ["读", count > 1 ? `${count} 份材料的副本` : "这份材料的副本"],
         ["写", "仅任务目录"],
@@ -749,15 +919,36 @@
         ["隔离", "Workspace"]
       ];
     }
+    const recipeIcons = {
+      "总结": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h6"/></svg>',
+      "抽取": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3 3 8l3 5M10 3l3 5-3 5"/></svg>',
+      "翻译": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M3 8h10M8 2.5c-2 2-2 9 0 11M8 2.5c2 2 2 9 0 11"/></svg>',
+      "脱敏": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4Z"/><path d="M3 13 13 3"/></svg>',
+      "转 MD": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v9H3zM5 7v4M8 6v5M11 8v3"/></svg>',
+      "新交付": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5h7v8H3zM6 3h7v8"/></svg>'
+    };
+    const ico = {
+      play: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l8-4.5z"/></svg>',
+      copy: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="6" y="3" width="7" height="9" rx="1.2"/><path d="M4 6H3.2A1.2 1.2 0 0 0 2 7.2v6.6A1.2 1.2 0 0 0 3.2 15H9"/></svg>',
+      tty: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 10.5h6M5 6.5l2 2-2 2"/></svg>',
+      out: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5V3M5.5 5.5 8 3l2.5 2.5"/><path d="M3 12.5h10"/></svg>',
+      x: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4 4 12"/></svg>',
+      tray: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 9.5V13h10V9.5"/><path d="M8 2.5v8"/><path d="M5 8.5 8 11.5 11 8.5"/></svg>',
+      check: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg>',
+      slash: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M4 12 12 4"/></svg>'
+    };
     function recipeButtons() {
       const id = state.anchor || state.selected[0] || "";
       return recipes.map(([short, full]) =>
-        `<button type="button" data-act="recipe" data-id="${id}" data-recipe="${full}" ${state.agent ? "" : "disabled"}>${short}</button>`
+        `<button type="button" data-act="recipe" data-id="${id}" data-recipe="${full}" ${state.hasCodex ? "" : "disabled"}>${recipeIcons[short] || ""}${short}</button>`
       ).join("");
     }
 
     function currentResult() {
-      const it = selectedItems().find((x) => x.status === "done") || selectedItems().find((x) => x.status === "sent");
+      const it = selectedItems().find((x) => x.status === "done")
+        || selectedItems().find((x) => x.status === "sent")
+        || selectedItems()[0]
+        || null;
       return it || null;
     }
 
@@ -772,22 +963,41 @@
       $("tabTty").disabled = !state.ttyLog.length && state.ai !== "tty";
 
       if (state.ai === "tty") {
-        view.innerHTML = state.ttyLog.length
-          ? state.ttyLog.map((l) => `<div class="tty-line ${l.k}">${l.t}</div>`).join("")
-          : `<div class="hint">还没有终端记录。发送或拖到下方 AI 区。</div>`;
-        view.scrollTop = view.scrollHeight;
+        const file = [...state.ttyLog].reverse().find((l) => l.k === "file");
+        const caption = file
+          ? `${state.tui} · ${file.t.replace(/^📎\s+/, "").replace(/^材料\s+/, "")}`
+          : (state.ttyLog.find((l) => l.k === "sys")?.t || `${state.tui}  ·  本机会话`);
+        const lines = state.ttyLog.filter((l) => l.k === "in" || l.k === "out");
+        view.innerHTML = `<div class="tty-caption">${caption}</div>
+          <div class="pty-well">${lines.length
+            ? lines.map((l) => `<div class="tty-line ${l.k}">${l.t}</div>`).join("")
+            : `<div class="hint">发送后，${state.tui} 会出现在这里</div>`}</div>`;
         return;
       }
       if (state.ai === "result") {
         const it = currentResult();
-        if (!it) { view.innerHTML = `<div class="hint">点一条已完成的文件查看结果。</div>`; return; }
-        const body = it.status === "done" ? (previews[it.recipe] || "") : state.ttyLog.filter((x) => x.k === "out").map((x) => x.t).join("\n") || "已送到终端，在「终端」里看过程。";
+        if (!it) { view.innerHTML = `<div class="hint">点一条已完成的文件，或点架子上的材料查看。</div>`; return; }
+        let body = "";
+        if (it.kind === "web") {
+          body = `<div class="hint">${it.url || "https://example.com"}</div><div class="hint">正文和截图在这一页。</div>`;
+          if (it.status === "sent") body += `<div class="hint">材料已送进终端。在「终端」里继续说。</div>`;
+        } else if (it.kind === "image") {
+          body = `<div class="hint">这张图可以拖出或发给终端。</div>`;
+        } else if (it.kind === "clip" || it.kind === "md") {
+          body = `<div class="hint">正文在这一页，可复制或拖出。</div>`;
+        } else if (it.kind === "url") {
+          body = `<div class="hint">${it.url || it.name}</div><div class="hint">这是链接，不会自动抓正文。要网页材料请用 ⌃⌥W。</div>`;
+        } else if (it.status === "done") {
+          body = previews[it.recipe] || "";
+        } else {
+          body = state.ttyLog.filter((x) => x.k === "out").map((x) => x.t).join("\n") || "已送到终端，在「终端」里看过程。";
+        }
         view.innerHTML = `<div class="result-doc"><h3>${it.output || it.name}</h3>${body}</div>
           ${state.copied === it.id ? `<div class="toast">已复制到剪贴板</div>` : ""}
           <div class="result-actions">
-            <button class="primary" draggable="true" data-act="dragout" data-id="${it.id}">拖出</button>
-            <button type="button" data-act="copy" data-id="${it.id}">复制</button>
-            <button type="button" data-act="preview" data-id="${it.id}">终端</button>
+            <button class="primary" draggable="true" data-act="dragout" data-id="${it.id}">${ico.out}拖出</button>
+            <button type="button" data-act="copy" data-id="${it.id}">${ico.copy}复制</button>
+            <button type="button" data-act="preview" data-id="${it.id}">${ico.tty}终端</button>
           </div>`;
         return;
       }
@@ -796,43 +1006,72 @@
       const idle = batch.filter((x) => x.status === "idle" || x.status === "confirm");
       const confirming = idle.some((x) => x.status === "confirm");
       if (!batch.length) {
-        view.innerHTML = `<div class="hint">${state.agent ? "点列表里的文件，或拖到上方加入、拖到这一区发给 Codex。" : "未发现 Codex。仍可把文件放到上面。"}</div>`;
+        const empty = state.hasTui
+          ? `点列表里的文件，或拖到上方加入、拖到这一区发给 ${state.tui}。`
+          : "未发现终端。仍可把文件放到上面。";
+        view.innerHTML = `<div class="hint">${empty}</div>`;
         return;
       }
       if (confirming) {
         view.innerHTML = `<div class="label">对 ${idle.length} 项 · ${idle[0].recipe}</div>
           <div class="facts">${facts(idle.length).map(([k, v]) => `<div>${k}<b>${v}</b></div>`).join("")}</div>
-          <button class="run" data-act="run" data-id="${idle[0].id}" ${state.agent ? "" : "disabled"}>在副本中运行</button>`;
+          <button class="run" data-act="run" data-id="${idle[0].id}" ${state.hasCodex ? "" : "disabled"}>${ico.play}在副本中运行</button>
+          <button class="quiet" data-act="cancel" data-id="${idle[0].id}" style="margin-top:6px">${ico.x}取消</button>`;
         return;
       }
       const running = batch.find((x) => x.status === "running");
       if (running) {
         view.innerHTML = `<div class="label">运行中</div><div class="hint">${running.event}</div>
-          <button class="clip-btn" data-act="cancel" data-id="${running.id}" style="margin-top:8px">取消</button>`;
+          <div class="hint">${state.hasCodex ? `Codex 在副本里跑，不是 ${state.tui} 终端。` : "副本任务需要 Codex。"}</div>
+          <button class="quiet" data-act="cancel" data-id="${running.id}" style="margin-top:8px">${ico.x}取消</button>`;
         return;
       }
-      view.innerHTML = `<div class="label">${n > 1 ? "对 " + n + " 项" : "动作"}</div>
+      let extra = "安装终端后可发送。现在只能暂存。";
+      if (state.hasTui && state.hasCodex) extra = `或在下面写一句话，发送到 ${state.tui} 终端。`;
+      else if (state.hasTui) extra = `动作需要 Codex。下面可以发给 ${state.tui}。`;
+      const webPeek = batch.length === 1 && batch[0].kind === "web"
+        ? `<div class="hint">${batch[0].url || ""}</div><div class="hint">点「结果」看正文和截图。</div>`
+        : "";
+      const imagePeek = batch.length === 1 && batch[0].kind === "image"
+        ? `<div class="hint">点「结果」看这张图。</div>`
+        : "";
+      const clipPeek = batch.length === 1 && batch[0].kind === "clip"
+        ? `<div class="hint">点「结果」看这段字。</div>`
+        : "";
+      const urlPeek = batch.length === 1 && batch[0].kind === "url"
+        ? `<div class="hint">点「结果」看链接。</div>`
+        : "";
+      view.innerHTML = `${webPeek}${imagePeek}${clipPeek}${urlPeek}<div class="label">${n > 1 ? "对 " + n + " 项" : "动作"}</div>
         <div class="recipes">${recipeButtons()}</div>
-        ${state.agent ? `<div class="hint">或在下面写一句话，发送到 Codex 终端。</div>` : `<div class="hint">安装 Codex 后可运行。现在只能暂存。</div>`}`;
+        <div class="hint">${extra}</div>`;
     }
 
     function render() {
       $("status").classList.toggle("open", state.open);
       $("panel").classList.toggle("show", state.open);
-      $("agentDot").classList.toggle("off", !state.agent);
-      $("agentLabel").textContent = state.agent ? "Codex" : "未发现 Codex";
-      promptEl.disabled = !state.agent;
-      $("send").disabled = !state.agent;
-      promptEl.placeholder = state.agent ? "写给 Codex，回车发送" : "未发现 Codex";
-      $("listWrap").style.height = state.listH + "px";
+      $("agentIcon").innerHTML = state.hasTui ? ico.check : ico.slash;
+      $("agentLabel").textContent = state.hasTui ? state.tui : "未发现终端";
+      $("aiHintText").textContent = state.hasTui ? `发给 ${state.tui}` : "先加入架子";
+      const sendOK = canSend();
+      promptEl.disabled = !sendOK;
+      $("send").disabled = !sendOK;
+      promptEl.placeholder = composerPlaceholder();
+      $("listWrap").style.height = displayListH() + "px";
       $("composeMeta").textContent = state.selected.length ? `${state.selected.length} 项` : "";
-      $("footHint").textContent = state.agent
-        ? "发送进终端，不是副本沙箱。文件可拖出或复制。⌘V 从剪贴板加入。"
-        : "没有 Agent，只能先放架子。";
+      const busy = selectedItems().some((x) => x.status === "confirm" || x.status === "running");
+      $("footHint").textContent = busy
+        ? "⌃⌥D 打开，⌃⌥W 抓当前页。"
+        : state.hasTui
+          ? `发送进 ${state.tui} 终端，不是副本沙箱。文件可拖出或复制。⌘V 从剪贴板加入。`
+          : "没有终端，只能先放架子。动作还需要 Codex。";
+      document.querySelectorAll("#engineMenu [data-pick]").forEach((b) => {
+        const pick = b.dataset.pick;
+        b.classList.toggle("on", state.hasTui ? pick === state.tui : pick === "");
+      });
       $("clipLabel").textContent = state.clip ? state.clip.slice(0, 18) + (state.clip.length > 18 ? "…" : "") : "剪贴板是空的";
 
       if (!state.items.length) {
-        $("list").innerHTML = `<div class="empty"><div>拖文件、图片、链接或剪贴板到这里</div><small>先放下，或拖到下方发给 Codex</small></div>`;
+        $("list").innerHTML = `<div class="empty">${ico.tray}<div>拖到这里、菜单栏图标或屏幕顶边</div><small>先放下，或拖到下方发给 ${state.hasTui ? state.tui : "终端"}</small></div>`;
       } else {
         $("list").innerHTML = state.items.map((it) => {
           const k = kindOf(it.kind);
@@ -847,7 +1086,7 @@
             <span class="tag">${k.tag}</span>
             <div class="name">${it.name}</div>
             <div class="time">${it.time}</div>
-            ${it.status !== "running" ? `<button class="kill" data-act="remove" data-id="${it.id}" aria-label="移除">×</button>` : `<span></span>`}
+            ${it.status !== "running" ? `<button class="kill" data-act="remove" data-id="${it.id}" aria-label="移除">${ico.x}</button>` : `<span></span>`}
             <div class="meta">${meta}</div>
           </div>`;
         }).join("");
@@ -867,6 +1106,7 @@
       render();
     }
     function startRun(it) {
+      if (!state.hasCodex) return;
       it.status = "running";
       it.event = "复制到 input/ 与 work/";
       render();
@@ -883,10 +1123,10 @@
       }, 2200);
     }
     function sendToTui(items, text) {
-      if (!state.agent) return;
+      if (!canSend()) return;
       if (!items.length && !text) return;
       state.open = true;
-      if (!state.ttyLog.length) state.ttyLog.push({ k: "sys", t: "codex  ·  本机会话" });
+      if (!state.ttyLog.length) state.ttyLog.push({ k: "sys", t: state.tui + "  ·  本机会话" });
       items.forEach((it) => {
         if (it.status === "idle" || it.status === "confirm" || it.status === "sent") {
           it.status = "sent";
@@ -903,6 +1143,7 @@
       }
       promptEl.value = "";
       state.ai = "tty";
+      giveTerminalRoom();
       render();
     }
 
@@ -922,16 +1163,52 @@
     }
 
     $("status").addEventListener("click", () => { state.open = !state.open; render(); });
-    $("send").addEventListener("click", () => sendToTui(selectedItems(), promptEl.value.trim()));
+    $("send").addEventListener("click", () => {
+      if (!canSend()) return;
+      sendToTui(selectedItems(), promptEl.value.trim());
+    });
     $("pasteBtn").addEventListener("click", pasteClip);
     promptEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); sendToTui(selectedItems(), promptEl.value.trim()); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (!canSend()) return;
+        sendToTui(selectedItems(), promptEl.value.trim());
+      }
+    });
+
+    const engineMenu = $("engineMenu");
+    const agentPill = $("agentPill");
+    agentPill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = engineMenu.hidden;
+      engineMenu.hidden = !open;
+      agentPill.setAttribute("aria-expanded", String(open));
+    });
+    engineMenu.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const b = e.target.closest("[data-pick]");
+      if (!b || b.disabled) return;
+      const pick = b.dataset.pick;
+      state.hasTui = pick !== "";
+      if (pick) {
+        state.tui = pick;
+        state.ttyLog = [];
+      }
+      engineMenu.hidden = true;
+      agentPill.setAttribute("aria-expanded", "false");
+      render();
+    });
+    document.addEventListener("click", () => {
+      if (engineMenu.hidden) return;
+      engineMenu.hidden = true;
+      agentPill.setAttribute("aria-expanded", "false");
     });
 
     document.querySelectorAll("[data-ai]").forEach((b) => {
       b.addEventListener("click", () => {
         if (b.disabled) return;
         state.ai = b.dataset.ai;
+        if (state.ai === "tty") giveTerminalRoom();
         render();
       });
     });
@@ -965,7 +1242,7 @@
         render();
       }
       if (act === "recipe") applyRecipe(btn.dataset.recipe);
-      if (act === "run" && state.agent) {
+      if (act === "run" && state.hasCodex) {
         selectedItems().filter((x) => x.status === "confirm").forEach((x, i) => setTimeout(() => startRun(x), i * 350));
       }
       if (act === "cancel" && it) {
@@ -1079,10 +1356,11 @@
     bar.addEventListener("mousedown", (e) => {
       e.preventDefault();
       const startY = e.clientY;
-      const startH = state.listH;
+      const startH = displayListH();
       const move = (ev) => {
-        state.listH = Math.max(108, Math.min(320, startH + (ev.clientY - startY)));
-        $("listWrap").style.height = state.listH + "px";
+        state.listTouched = true;
+        state.listH = Math.max(56, Math.min(320, startH + (ev.clientY - startY)));
+        $("listWrap").style.height = displayListH() + "px";
       };
       const up = () => {
         document.removeEventListener("mousemove", move);
@@ -1099,37 +1377,48 @@
         const scene = b.dataset.scene;
         state.open = true; state.copied = null; state.ttyLog = []; state.desk = [];
         promptEl.value = "";
+        state.listTouched = false;
+        state.listH = 140;
         const idle = (id, name, kind, time) => ({ id, name, kind, source: name, time, status: "idle", recipe: null, event: "", output: null });
+        function connect(tui, hasCodex) {
+          state.hasTui = !!tui; state.tui = tui || "Grok"; state.hasCodex = hasCodex;
+        }
         if (scene === "empty") {
-          state.agent = true; state.items = []; state.selected = []; state.anchor = null; state.ai = "work";
+          connect("Grok", true); state.items = []; state.selected = []; state.anchor = null; state.ai = "work";
         }
         if (scene === "staged") {
-          state.agent = true;
+          connect("Grok", true);
           state.items = [idle("1", "Q3-pricing.pdf", "pdf", "2:11"), idle("2", "截图 09-05.png", "image", "2:08")];
           state.selected = ["1"]; state.anchor = "1"; state.ai = "work";
         }
         if (scene === "multi") {
-          state.agent = true;
+          connect("Grok", true);
           state.items = [idle("1", "Q3-pricing.pdf", "pdf", "2:11"), idle("2", "截图 09-05.png", "image", "2:08"), idle("3", "https://dropoverapp.com", "url", "2:07")];
           state.selected = ["1", "2"]; state.anchor = "1"; state.ai = "work";
         }
         if (scene === "sent") {
-          state.agent = true; state.ai = "tty";
+          connect("Grok", true); state.ai = "tty";
           state.items = [
             { id: "1", name: "Q3-pricing.pdf", source: "Q3-pricing.pdf", kind: "pdf", time: "2:11", status: "sent", recipe: null, event: "", output: null },
             { id: "2", name: "截图 09-05.png", source: "截图 09-05.png", kind: "image", time: "2:08", status: "sent", recipe: null, event: "", output: null }
           ];
           state.selected = ["1", "2"]; state.anchor = "1";
           state.ttyLog = [
-            { k: "sys", t: "codex  ·  本机会话" },
+            { k: "sys", t: "Grok  ·  本机会话" },
             { k: "file", t: "📎  Q3-pricing.pdf" },
             { k: "file", t: "📎  截图 09-05.png" },
             { k: "in", t: "›  哪几条不能对外说" },
             { k: "out", t: "渠道折扣收紧不要对外讲具体数字。三档套餐可以讲。" }
           ];
+          giveTerminalRoom();
+        }
+        if (scene === "web") {
+          connect("Grok", true);
+          state.items = [{ id: "w", name: "Example Domain", kind: "web", source: "example.com", time: "2:16", status: "idle", recipe: null, event: "", output: null, url: "https://example.com" }];
+          state.selected = ["w"]; state.anchor = "w"; state.ai = "work";
         }
         if (scene === "done") {
-          state.agent = true; state.ai = "result";
+          connect("Grok", true); state.ai = "result";
           state.items = [
             { id: "1", name: "summary.md", source: "Q3-pricing.pdf", kind: "md", time: "2:14", status: "done", recipe: "总结文件", event: "", output: "summary.md" },
             { id: "2", name: "截图 09-05.png", source: "截图 09-05.png", kind: "image", time: "2:08", status: "idle", recipe: null, event: "", output: null }
@@ -1137,7 +1426,12 @@
           state.selected = ["1"]; state.anchor = "1";
         }
         if (scene === "noagent") {
-          state.agent = false; state.ai = "work";
+          connect("", false); state.ai = "work";
+          state.items = [idle("1", "Q3-pricing.pdf", "pdf", "2:11")];
+          state.selected = ["1"]; state.anchor = "1";
+        }
+        if (scene === "onlytui") {
+          connect("Grok", false); state.ai = "work";
           state.items = [idle("1", "Q3-pricing.pdf", "pdf", "2:11")];
           state.selected = ["1"]; state.anchor = "1";
         }

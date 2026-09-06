@@ -4,7 +4,7 @@
 
 ## 做什么
 
-发现本机 CLI、给出隔离档文案、产出「怎么跑」的执行配置。第一版只保证 Codex。
+发现本机 CLI、给出隔离档文案、产出「怎么跑」的执行配置。Recipe 第一版只保证 Codex。TUI 支持 Grok / Claude / Gemini / Codex。
 
 ## 不做什么
 
@@ -13,9 +13,13 @@
 ## Public
 
 ```text
-discover() -> AgentPresence
-  // .codex(path, isolation: .workspace | .unknown)
-  // .none
+discover() / recipePresence() -> AgentPresence
+  // Codex：.codex(path, isolation: .workspace | .unknown) 或 .none
+
+tuiPresence() -> AgentPresence
+  // 所选 TUI：.grok / .claude / .gemini / .codex(..., .tui) 或 .none
+
+installedEngines() -> [AgentPresence]
 
 isolationCopy(for presence) -> String   // 给 UI 的原话，不许营销升级
 
@@ -24,7 +28,7 @@ run(workdir: URL, promptFile: URL, isolation: Isolation) async throws -> AgentRu
 ensureInteractiveSession() throws -> SessionHandle  // 给 TUI 模块
 ```
 
-没有二进制：`discover() == .none`。Job.start 与 TUI.send 必须先查这个，禁止自行 PATH 乱猜两套逻辑。
+没有二进制：对应 Presence == `.none`。Job.start 必须 `recipePresence` 为 Codex；TUI.send 必须 `tuiPresence != .none`。禁止自行 PATH 乱猜两套逻辑。
 
 ## Codex 第一版
 
@@ -35,4 +39,4 @@ ensureInteractiveSession() throws -> SessionHandle  // 给 TUI 模块
 
 ## 扩展
 
-Claude / Gemini = 新 Adapter，同一 `discover` 联合结果。Job 签名不变。
+Claude / Gemini / Grok TUI = 同一 `installedEngines` 联合结果。Job 签名不变，Recipe 仍只跑 Codex。设置里的 `tuiEngine` 只影响终端。

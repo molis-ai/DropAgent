@@ -1,19 +1,23 @@
 ---
 name: DropAgent
-description: Menu-bar shelf plus in-panel Codex TUI. Files above, AI below.
+description: Menu-bar shelf plus in-panel TUI. Files above, AI below. Paper over a dark desk.
 colors:
-  desk: "#1c1c1e"
-  panel: "#2c2c2e"
-  panel-2: "#3a3a3c"
-  ai: "#262628"
-  text: "#f5f5f7"
-  muted: "#c7c7cc"
-  faint: "#8e8e93"
-  line: "rgba(255,255,255,.09)"
-  primary: "#0a84ff"
-  primary-press: "#0071e3"
-  success: "#30d158"
-  danger: "#ff453a"
+  desk: "#121212"
+  panel: "#f7f7f5"
+  panel-2: "#ececea"
+  panel-hover: "#e2e2e0"
+  panel-press: "#d2d2d0"
+  ai: "#f7f7f5"
+  text: "#111111"
+  muted: "#5a5a5a"
+  faint: "#787878"
+  line: "rgba(0,0,0,.1)"
+  primary: "#111111"
+  primary-press: "#000000"
+  on-accent: "#f7f7f5"
+  tty-well: "#171717"
+  tty-ink: "#e8e8e8"
+  tty-muted: "#a8a8a8"
 typography:
   body:
     fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, sans-serif"
@@ -21,6 +25,11 @@ typography:
     fontWeight: 500
     lineHeight: 1.35
     letterSpacing: "-0.015em"
+  brand:
+    fontFamily: "New York, Iowan Old Style, Times New Roman, serif"
+    fontSize: "15px"
+    fontWeight: 500
+    letterSpacing: "-0.02em"
   meta:
     fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, sans-serif"
     fontSize: "11px"
@@ -35,19 +44,19 @@ typography:
     letterSpacing: "normal"
 rounded:
   sm: "4px"
-  md: "6px"
-  panel: "10px"
+  md: "8px"
+  panel: "12px"
 spacing:
   row: "8px"
-  pad: "10px"
+  pad: "14px"
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
-    textColor: "{colors.text}"
+    textColor: "{colors.on-accent}"
     rounded: "{rounded.md}"
-    height: "28px"
+    height: "30px"
   tag:
-    backgroundColor: "rgba(255,255,255,.08)"
+    backgroundColor: "{colors.panel-2}"
     textColor: "{colors.muted}"
     rounded: "{rounded.sm}"
     padding: "0 5px"
@@ -55,37 +64,39 @@ components:
 
 ## Overview
 
-DropAgent is a dark macOS menu extra. The panel is one column: a resizable file list on top, an AI pane (actions, PTY, results) below. Type tags name file kinds. System blue is only for send, selection, and drop.
+DropAgent is a light paper panel hung from the macOS menu bar. One column: files above, AI below. Near-white ground, ink type. Black only for send, selection, and drop. Actions use SF Symbols. File kinds stay letter tags.
 
 ## Colors
 
-Night-desk charcoal. One accent. Status uses green for connected, red for missing Agent, blue pills for sent-to-TUI, green pills for drag-ready.
+Paper over a dark desk. No chromatic accent. Status is weight, gray, and icons.
 
 ## Typography
 
-System UI for chrome. SF Mono only inside the terminal log. No display face.
+SF Pro for chrome. New York for the wordmark. SF Mono only inside the terminal log.
 
 ## Layout
 
-400px panel hung from the status item. Header 36px. List 108–320px via splitter. AI fills the rest. Desktop chips sit left of the panel; a Finder well receives drag-out.
+400px panel. Header 44px. Empty shelf about 140px; with items it hugs the rows and can be dragged 56–320px. AI chrome stays on the same paper. The terminal well is near-black.
 
 ## Elevation & Depth
 
-Inset 1px highlight plus offset shadow. No glow halo. No decorative blur on the panel body; menubar may use system blur.
+Soft offset shadow. Hairline borders. No glow, no glass, no inset chrome.
 
 ## Shapes
 
-Panel 10px. Controls 6px. Type tags 4px. Pills only on status words.
+Panel 12px. Controls 8px. Type tags 4px.
 
 ## Components
 
-- File row: tag + name + time + status line. Whole row drags.
-- AI tabs: 动作 / 终端 / 结果.
-- Composer: count, field, 粘贴, 发送.
+- File row: tag + name + time + status. Whole row drags.
+- AI tabs: 动作 / 终端 / 结果, each with an icon.
+- Composer: count, field, clipboard icon, paperplane send.
+- Recipes: icon over short title.
+- Terminal well: near-black, including the opening and idle captions.
 - Drop: list = stage, AI = send to TUI.
 
 ## Do's and Don'ts
 
-Do: keep files above talk; show results in-tool; copy and drag as the takeaway. Drag out is a standard file/text/image/URL, not a per-app integration. A site hotkey adds one WEB row (title, URL, markdown, screenshot) without an extension.
+Do: keep files above talk; show results in-tool; copy and drag as the takeaway.
 
-Don't: left-right split; clipboard history as home; file pictograms; a separate Terminal window beside the panel; promise Figma/Notion internals or auto-send in chat apps; ship a browser extension for v1 capture.
+Don't: system blue or pine accents; colored status dots; file pictograms; a separate Terminal window; clipboard history as home.

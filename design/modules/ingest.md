@@ -27,6 +27,9 @@ admitCurrentPage() async throws -> Item
 | `.pdf` | pdf | 该文件 |
 | png/jpg/webp/gif | image | 该文件 |
 | `.md` / `.txt` | markdown | 该文件 |
+| `.rtf` / `.rtfd` | file | 该文件（不做阅读器；剪贴板 RTF 仍是 CLIP） |
+| `.html` / `.htm` | file | 该文件（不做阅读器） |
+| 其他本地文件 | file | 该文件 |
 | 文件夹 | folder | 目录本身（第一版按一个条目） |
 | `http(s)` | url | 只有链接，不自动抓正文 |
 | 剪贴板纯文本 | clip 或 url（若整段是 URL） | 写入 Application Support 下的 clip 文件 |

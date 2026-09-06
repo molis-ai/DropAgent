@@ -14,8 +14,8 @@
 
 ```text
 start(itemIDs: [ItemID], recipe: RecipeID) async throws -> JobID
-cancel(jobID:)
-job(id:) -> JobRecord?
+cancel()                 // 第一版同时只跑一个
+job(id:) -> JobRecord?   // 读 manifest.json；没有则 nil
 ```
 
 开始前：条目必须是 idle（或 failed 可重试）。`confirm` 由 App 处理，点确认才 `start`。
@@ -35,7 +35,7 @@ Application Support/DropAgent/Jobs/<id>/
 
 ## Recipe（第一版六个名字，正文另文件）
 
-每个 Recipe 声明：要哪些 kind、产出文件名、是否需要网络（翻译可能需要；默认按 Agent 配置）。第一版先做「总结文件」跑通。
+每个 Recipe 声明：要哪些 kind、最少几份（「新交付」为 2，其余 1）、产出文件名、是否需要网络（翻译可能需要；默认按 Agent 配置）。第一版先做「总结文件」跑通。
 
 禁止开放「任意 shell 一行」。新 Recipe = 新声明，不是用户贴脚本。
 

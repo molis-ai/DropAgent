@@ -13,13 +13,14 @@
 ## Public
 
 ```text
-send(itemIDs: [ItemID], text: String) async throws
-attachPTY(into view:)   // App 调用，把会话嵌进「终端」Tab
+send(itemIDs: [ItemID], text: String, sessionDirectory: URL?) throws -> PreparedTUISend
 ```
 
-`text` 可为空：只把文件副本路径作为材料送入（用户「拖到下面」没打字）。
+PTY 由 App 的 `TerminalHostView` 嵌进「终端」Tab，不在本包。`text` 可为空：只把文件副本路径作为材料送入（用户「拖到下面」没打字）。
 
-材料：对每个 Item，使用 Inbox/Jobs 里已有副本；若还没有副本，TUI 先做一次与 Job 相同的安全复制到 `TUIInbox/<id>/`，再引用这些路径。禁止直接把 Desktop 原路径 paste 进 Codex。
+材料：对每个 Item，使用 Inbox/Jobs 里已有副本；若还没有副本，TUI 先做一次与 Job 相同的安全复制到 `TUIInbox/<id>/`，再引用这些路径。禁止直接把 Desktop 原路径 paste 进会话。
+
+终端引擎由 `Agent.tuiPresence` 决定（Grok / Claude / Gemini / Codex）。隔离 home：Codex 用 `CODEX_HOME`，Grok 用 `GROK_HOME`（拷 `auth.json`；首次种子 `config.toml` 可带用户已确认的 `privacy_banner_acked`，不拷 MCP / always-approve），Claude 用 `CLAUDE_CONFIG_DIR` + 空 MCP。不加载用户全局 MCP / Hooks。
 
 ## 调用
 
@@ -27,4 +28,4 @@ attachPTY(into view:)   // App 调用，把会话嵌进「终端」Tab
 
 ## 失败
 
-会话拉不起来、可执行文件消失：抛错，条目保持 idle，App 说人话。
+没有 TUI、可执行文件不存在或不可执行、材料为空：抛错，条目保持 idle，App 说人话。先确认可执行文件，再复制并标 `.sent`。

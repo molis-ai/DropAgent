@@ -32,13 +32,13 @@ DropAgent **不是**：
 
 第一版只服务这一类人：
 
-**已经在本机安装并登录了 Codex、Claude Code 或 Gemini CLI 的人。**
+**已经在本机安装并登录了 Grok、Codex、Claude Code 或 Gemini CLI 的人。**
 
 他们真正烦的是：这些 Agent 按代码仓库干活，但手头只是一份 PDF、一张截图、一个链接，不想 `cd` 进某个项目，也不想让 Agent 碰到原文件。
 
 DropAgent 给这些 Agent 一个**项目之外的投递口**。
 
-没装任何可用 Agent 时：不提供云端 API，不提供 Ollama。界面说明「未发现可用 Agent」，并引导去安装 Codex。发现不到就不跑任务。
+没装任何可用终端 Agent 时：不提供云端 API，不提供 Ollama。界面说明「未发现终端 Agent」，头上芯片可选已装 TUI 或去安装。六个 Recipe 第一版只保证 Codex；没有 Codex 时动作禁用，有 TUI 仍可发送。
 
 ---
 
@@ -101,7 +101,7 @@ DropAgent 给这些 Agent 一个**项目之外的投递口**。
 - 从剪贴板贴入；把结果或架子上的条目复制走或拖到别的窗口。规则见第 11 节。
 - 不为某一家 App 做插件。拖出只交系统认的货（文件 / 文字 / 图 / 链接）。
 - 每次任务用独立目录：`input/` 快照、`work/` 副本、`output/` 交付。
-- 第一批 Agent：Codex 先，Claude Code、Gemini CLI 紧随。
+- 第一批：Recipe 只保证 Codex；终端支持本机已装的 Grok / Claude / Gemini / Codex，设置里可选。
 - 六个默认 Recipe（见第 6 节）：只列能力，第一版不开放任意 Shell 脚本。
 - 结果只回到任务托盘，由用户预览、复制、拖出。
 - 执行前展示权限条：读什么、写什么、是否联网、当前是哪一档隔离。
