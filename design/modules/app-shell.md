@@ -14,10 +14,10 @@
 
 | 动作 | 调用 |
 |------|------|
-| 图标 / 顶边 / 列表 drop | `Ingest.admit(urls:)` |
+| 图标 / 顶边 / 列表 drop | `Ingest.admit(urls:)` / `admitPasteboard` / `admitProviders` |
 | AI 区 drop | `Ingest.admit` 然后立刻 `TUI.send` |
 | 粘贴 | `Ingest.admitClipboard()` |
-| 抓页快捷键 | `Ingest.admitCurrentPage()` |
+| 抓页快捷键 | `PageAdmit.snapshot` / `decide`，通过后 `Ingest.admitCurrentPage` |
 | Recipe 确认 | `Job.start(itemIDs:recipe:)` |
 | 发送 | `TUI.send(itemIDs:text:)` |
 | 拖出 / 复制 | `Pasteboard.export` / `copy` |

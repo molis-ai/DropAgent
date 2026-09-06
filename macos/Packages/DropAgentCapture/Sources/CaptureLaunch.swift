@@ -1,5 +1,4 @@
 import AppKit
-import DropAgentCapture
 import Foundation
 
 final class CaptureLaunchBox: @unchecked Sendable {
@@ -28,7 +27,7 @@ final class CaptureLaunchBox: @unchecked Sendable {
     }
 }
 
-enum CaptureLaunch {
-    static func freeze() { CaptureLaunchBox.shared.freeze() }
-    static var frozen: BrowserFront? { CaptureLaunchBox.shared.frozen }
+public enum CaptureLaunch {
+    public static func freeze() { CaptureLaunchBox.shared.freeze() }
+    public static var frozen: BrowserFront? { CaptureLaunchBox.shared.frozen }
 }

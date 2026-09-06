@@ -97,6 +97,17 @@ public struct TUIService: Sendable {
         )
     }
 
+    public func revertSend(itemIDs: [ItemID]) {
+        for id in itemIDs {
+            try? shelf.patch(id: id) { live in
+                guard live.status == .sent else { return }
+                live.status = .idle
+                live.isolationShown = .none
+                live.event = ""
+            }
+        }
+    }
+
     private func copyNamed(_ name: String, from source: URL, into cwd: URL, names: inout [String], claimed: inout Set<String>) throws {
         guard FileManager.default.fileExists(atPath: source.path) else { return }
         var dest = cwd.appendingPathComponent(name)

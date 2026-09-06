@@ -483,6 +483,12 @@ private func captureRecovery() throws {
     let arc = CaptureRecovery.failure(target: BrowserFront(kind: .arc, pid: 3), axTrusted: true, automationAllowed: false)
     expect(arc.message.contains("Arc"), "arc copy")
     expect(arc.offerPrivacySettings == false, "arc does not send user to automation")
+
+    let none = PageAdmit.decide(token: .none)
+    expect(none.proceed == false, "explicit none does not proceed")
+    expectEqual(none.message, PageAdmitCopy.noBrowser)
+    expect(none.offerPrivacySettings == false, "explicit none does not send user to privacy")
+    expectEqual(PageAdmitCopy.needAccessibility, CaptureRecovery.needAccessibility)
 }
 
 private func automationAccess() throws {
@@ -655,6 +661,8 @@ private func ingestPasteboard() throws {
     let board = NSPasteboard.withUniqueName()
     board.clearContents()
     expectEqual(ClipboardPayload.from(pasteboard: board), .empty)
+    expect(ingest.admitPasteboard(board).admitted.isEmpty, "empty pasteboard drop")
+    expect(ingest.admitPasteboard(board).failures.isEmpty, "empty pasteboard drop has no failure")
 
     let original = root.appendingPathComponent("doc.pdf")
     let bytes = Data("pdf-bytes".utf8)
@@ -1406,7 +1414,6 @@ private func tui() throws {
     expect(isolatedConfig.contains(prepared.cwd.resolvingSymlinksInPath().path), "isolated trusts cwd")
     expect(!isolatedConfig.contains("mcp_servers"), "no user mcp")
     expect(!FileManager.default.fileExists(atPath: prepared.isolatedHome.appendingPathComponent("hooks.json").path), "no user hooks")
-    expect(!FileManager.default.fileExists(atPath: prepared.isolatedHome.appendingPathComponent("auth.json").path), "kernel does not copy login")
 
     let fakeUser = root.appendingPathComponent("fake-codex", isDirectory: true)
     try FileManager.default.createDirectory(at: fakeUser, withIntermediateDirectories: true)
@@ -1415,6 +1422,20 @@ private func tui() throws {
     expectEqual(try String(contentsOf: prepared.isolatedHome.appendingPathComponent("auth.json"), encoding: .utf8), "login-token")
     let mode = (try FileManager.default.attributesOfItem(atPath: prepared.isolatedHome.appendingPathComponent("auth.json").path)[.posixPermissions] as? NSNumber)?.intValue ?? 0
     expect(mode & 0o777 == 0o600, "auth mode")
+
+    let revertFile = root.appendingPathComponent("revert.pdf")
+    try Data("revert".utf8).write(to: revertFile)
+    let revertItem = try shelf.add(Item(kind: .pdf, title: "revert.pdf", sourceURL: revertFile, parts: [ItemPart(name: "revert.pdf", url: revertFile)]))
+    let revertTUI = TUIService(
+        shelf: shelf,
+        agent: FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
+        inboxRoot: root.appendingPathComponent("RevertInbox")
+    )
+    _ = try revertTUI.send(itemIDs: [revertItem.id], text: "回滚")
+    expectEqual(shelf.item(id: revertItem.id)?.status, .sent)
+    revertTUI.revertSend(itemIDs: [revertItem.id])
+    expectEqual(shelf.item(id: revertItem.id)?.status, .idle, "revert send")
+    expectEqual(shelf.item(id: revertItem.id)?.isolationShown, IsolationShown.none, "revert isolation")
 
     let output = root.appendingPathComponent("summary.md")
     try Data("总结正文".utf8).write(to: output)

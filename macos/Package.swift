@@ -77,7 +77,6 @@ let package = Package(
             dependencies: [
                 "DropAgentShelf",
                 "DropAgentIngest",
-                "DropAgentCapture",
                 "DropAgentAgent",
                 "DropAgentJob",
                 "DropAgentTUI",

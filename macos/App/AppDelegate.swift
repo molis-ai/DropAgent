@@ -1,6 +1,5 @@
 import AppKit
 import DropAgentAgent
-import DropAgentCapture
 import SwiftTerm
 import SwiftUI
 
@@ -129,21 +128,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 await self.session.captureCurrentPage()
                 guard finished.take() else { return }
-                let ax = AccessibilityPage.isTrusted()
-                let front = BrowserFront.current()
-                let auto: Bool
-                if let front {
-                    let bundle = NSRunningApplication(processIdentifier: front.pid)?.bundleIdentifier
-                        ?? front.kind.primaryBundleIdentifier
-                    auto = AutomationAccess.isAllowed(bundleIdentifier: bundle)
-                } else {
-                    auto = false
-                }
                 let line: String
                 if let item = self.session.items.first {
-                    line = "capture: WEB \(item.kind.tag) \(item.title) \(item.sourceURL.absoluteString) ax=\(ax) auto=\(auto)\n"
+                    line = "capture: WEB \(item.kind.tag) \(item.title) \(item.sourceURL.absoluteString)\n"
                 } else {
-                    line = "capture: \(self.session.errorText ?? "empty") ax=\(ax) auto=\(auto) front=\(front?.kind.rawValue ?? "none")\n"
+                    line = "capture: \(self.session.errorText ?? "empty")\n"
                 }
                 fputs(line, stdout)
                 fflush(stdout)
@@ -304,7 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let tuiItem = menu.addItem(withTitle: "选择终端…", action: nil, keyEquivalent: "")
         menu.setSubmenu(tuiMenu, for: tuiItem)
-        menu.addItem(withTitle: "指定可执行文件…", action: #selector(pickCodex), keyEquivalent: "")
+        menu.addItem(withTitle: "指定可执行文件…", action: #selector(pickTUIExecutable), keyEquivalent: "")
         for engine in AgentEngine.allCases {
             let item = menu.addItem(withTitle: "如何安装 \(engine.shortTitle)", action: #selector(openEngineInstall(_:)), keyEquivalent: "")
             item.representedObject = engine.rawValue
@@ -323,7 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.menu = nil
     }
 
-    @objc private func pickCodex() { session.pickTUIExecutable() }
+    @objc private func pickTUIExecutable() { session.pickTUIExecutable() }
     @objc private func openEngineInstall(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
               let engine = AgentEngine(rawValue: raw)

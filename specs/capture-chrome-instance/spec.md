@@ -70,7 +70,7 @@ DROPAGENT_CAPTURE_PID=<isolated-pid> DROPAGENT_ROOT=/tmp/dropagent-capture-chrom
 
 ```
 DROPAGENT_CAPTURE_PID=62453 DROPAGENT_ROOT=/tmp/dropagent-capture-chrome macos/.build/debug/DropAgent --capture
-capture: WEB WEB Example Domain https://example.com/ ax=true auto=false
+capture: WEB WEB Example Domain https://example.com/
 ```
 
 `url.txt` 21 字节（含换行）、`page.md` 168 字节、`snapshot.png` 80389 字节。用户主 Chrome pid 92265 仍在，窗名仍是 Notion。未 `tell application "Google Chrome"`。Check 全绿。隔离实例随后已退出，主 Chrome 未动。

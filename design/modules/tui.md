@@ -14,6 +14,7 @@
 
 ```text
 send(itemIDs: [ItemID], text: String, sessionDirectory: URL?) throws -> PreparedTUISend
+revertSend(itemIDs: [ItemID])
 ```
 
 PTY 由 App 的 `TerminalHostView` 嵌进「终端」Tab，不在本包。`text` 可为空：只把文件副本路径作为材料送入（用户「拖到下面」没打字）。
@@ -24,7 +25,7 @@ PTY 由 App 的 `TerminalHostView` 嵌进「终端」Tab，不在本包。`text`
 
 ## 调用
 
-`Agent.ensureInteractiveSession`；成功后 `Shelf.patch(..., status: .sent)`。
+`Agent.ensureInteractiveSession`；`prepare` 时拷登录态；成功后 `Shelf.patch(..., status: .sent)`。PTY 拉起失败由 App 调 `revertSend`。
 
 ## 失败
 

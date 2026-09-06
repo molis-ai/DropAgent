@@ -1,3 +1,4 @@
+import AppKit
 import CryptoKit
 import DropAgentCapture
 import DropAgentShelf
@@ -48,10 +49,15 @@ public struct IngestService: Sendable {
     private let inboxRoot: URL
     private let capture: CaptureService
 
-    public init(shelf: ShelfStore, inboxRoot: URL, capture: CaptureService) {
+    public init(shelf: ShelfStore, inboxRoot: URL, capture: CaptureService? = nil) {
         self.shelf = shelf
         self.inboxRoot = inboxRoot
-        self.capture = capture
+        self.capture = capture ?? CaptureService(
+            browser: AppleScriptBrowser(),
+            fetcher: URLSessionFetcher(),
+            snapshot: FrontWindowSnapshot(),
+            pageSnapshot: URLPageSnapshot()
+        )
     }
 
     public func admit(urls: [URL]) -> AdmitResult {
@@ -71,17 +77,39 @@ public struct IngestService: Sendable {
     }
 
     public func admitClipboard(_ clipboard: ClipboardReading) throws -> [Item] {
-        switch clipboard.read() {
+        let payload = clipboard.read()
+        if case .empty = payload { throw IngestError.emptyClipboard }
+        let result = admitPayload(payload)
+        if result.admitted.isEmpty { throw result.failures.first?.error ?? .unsupported }
+        return result.admitted
+    }
+
+    public func admitPasteboard(_ pasteboard: NSPasteboard) -> AdmitResult {
+        admitPayload(ClipboardPayload.from(pasteboard: pasteboard))
+    }
+
+    public func admitPayload(_ payload: ClipboardPayload) -> AdmitResult {
+        switch payload {
         case .empty:
-            throw IngestError.emptyClipboard
+            return AdmitResult(admitted: [], failures: [])
         case .files(let urls):
-            let result = admit(urls: urls)
-            if result.admitted.isEmpty { throw result.failures.first?.error ?? .unsupported }
-            return result.admitted
+            return admit(urls: urls)
         case .image(let data):
-            return [try admitImageData(data)]
+            do {
+                return AdmitResult(admitted: [try admitImageData(data)], failures: [])
+            } catch let error as IngestError {
+                return AdmitResult(admitted: [], failures: [AdmitFailure(url: URL(fileURLWithPath: "/clipboard.png"), error: error)])
+            } catch {
+                return AdmitResult(admitted: [], failures: [AdmitFailure(url: URL(fileURLWithPath: "/clipboard.png"), error: .unsupported)])
+            }
         case .text(let text):
-            return [try admitPlainText(text)]
+            do {
+                return AdmitResult(admitted: [try admitPlainText(text)], failures: [])
+            } catch let error as IngestError {
+                return AdmitResult(admitted: [], failures: [AdmitFailure(url: URL(fileURLWithPath: "/clip.txt"), error: error)])
+            } catch {
+                return AdmitResult(admitted: [], failures: [AdmitFailure(url: URL(fileURLWithPath: "/clip.txt"), error: .unsupported)])
+            }
         }
     }
 
@@ -106,10 +134,10 @@ public struct IngestService: Sendable {
         try admitText(text)
     }
 
-    public func admitCurrentPage(target: BrowserFront? = nil) async throws -> Item {
+    public func admitCurrentPage(token: PageAdmitToken? = nil) async throws -> Item {
         let captured: PageCapture
         do {
-            captured = try await capture.captureFrontBrowser(target: target)
+            captured = try await capture.captureFrontBrowser(target: token?.browser)
         } catch CaptureError.unsupportedBrowser {
             throw IngestError.captureFailed
         } catch {

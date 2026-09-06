@@ -1,7 +1,6 @@
 import AppKit
 import CryptoKit
 import DropAgentAgent
-import DropAgentCapture
 import DropAgentIngest
 import DropAgentJob
 import DropAgentPasteboard
@@ -971,13 +970,13 @@ enum AppE2E {
 
         private func verifyCaptureLoop() async {
             let beforeWeb = session.items.filter { $0.kind == .web }.count
-            await session.captureCurrentPage(frozen: nil)
+            await session.captureCurrentPage(token: .none)
             showPanelWindow()
             await settle()
             guard session.items.filter({ $0.kind == .web }).count == beforeWeb else {
                 fail("capture invented web item")
             }
-            guard session.errorText == CaptureRecovery.noBrowserHotKey else {
+            guard session.errorText == PageAdmitCopy.noBrowserHotKey else {
                 fail("capture fail copy \(session.errorText ?? "nil")")
             }
             guard session.offerCaptureRetry else {
@@ -1059,7 +1058,7 @@ enum AppE2E {
             for _ in 0..<30 {
                 activateSafari()
                 try? await Task.sleep(nanoseconds: 200_000_000)
-                if BrowserFront.current()?.kind == .safari {
+                if NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased() == "com.apple.safari" {
                     return true
                 }
             }

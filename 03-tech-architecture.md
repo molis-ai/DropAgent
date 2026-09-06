@@ -55,7 +55,7 @@ Pasteboard → 只读 Item 快照（值类型），不依赖 Shelf 单例
 Shelf  → 无业务依赖
 ```
 
-`App` 是唯一装配点。测试可以直接 new 内核模块，不必启动菜单栏。
+App 不 import Capture。抓页快捷键经 `Ingest.PageAdmit` 冻结前台、做授权门禁，再 `admitCurrentPage`。`App` 是唯一装配点。测试可以直接 new 内核模块，不必启动菜单栏。
 
 ---
 

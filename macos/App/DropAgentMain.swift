@@ -1,4 +1,5 @@
 import AppKit
+import DropAgentIngest
 
 @main
 enum DropAgentMain {
@@ -16,7 +17,7 @@ enum DropAgentMain {
             return
         }
         if CommandLine.arguments.contains("--capture") {
-            CaptureLaunch.freeze()
+            PageAdmit.freezeFrontBrowser()
         }
         let app = NSApplication.shared
         let delegate = AppDelegate()

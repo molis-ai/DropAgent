@@ -14,6 +14,8 @@
 
 ```text
 captureFrontBrowser() async throws -> PageCapture
+CaptureLaunch.freeze()   // --capture 在进程启动时钉死前台；Ingest.PageAdmit 包装给 App
+```
 
 struct PageCapture {
   url: URL

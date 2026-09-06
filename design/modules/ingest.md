@@ -13,12 +13,15 @@
 ## Public
 
 ```text
-admit(urls: [URL]) throws -> [Item]
+admit(urls: [URL]) -> AdmitResult
 admitClipboard() throws -> [Item]
-admitCurrentPage() async throws -> Item
+admitPasteboard(_:) -> AdmitResult
+admitProviders(_:) async -> AdmitResult
+admitCurrentPage(token:) async throws -> Item
+PageAdmit.freezeFrontBrowser / snapshot / decide / failure
 ```
 
-失败：抛明确错误（空剪贴板、不支持的类型、抓页失败）。App 负责说人话。部分成功：能进的进，失败的单独报，不整批回滚（用户连拖十个文件，九个进一个坏链，九个该留下）。
+失败：抛明确错误（空剪贴板、不支持的类型、抓页失败）。App 负责热键文案变体和系统设置跳转。部分成功：能进的进，失败的单独报，不整批回滚（用户连拖十个文件，九个进一个坏链，九个该留下）。空剪贴板粘贴抛错；空拖入板返回空结果、不报失败。
 
 ## 类型判定
 
@@ -42,4 +45,4 @@ admitCurrentPage() async throws -> Item
 
 ## 调用
 
-`Shelf.add`；仅 `admitCurrentPage` → `Capture.captureFrontBrowser()`。
+`Shelf.add`；仅 `admitCurrentPage` → `Capture.captureFrontBrowser()`。授权门禁与前台冻结走 `PageAdmit`，不让 App 直接 import Capture。

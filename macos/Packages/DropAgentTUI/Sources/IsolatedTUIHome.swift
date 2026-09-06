@@ -10,8 +10,10 @@ public enum IsolatedTUIHome {
         switch engine {
         case .codex:
             try IsolatedCodexHome.prepare(at: home, trusting: cwd)
+            try IsolatedCodexHome.copyLogin(into: home)
         case .grok:
             try IsolatedGrokHome.prepare(at: home)
+            try IsolatedGrokHome.copyLogin(into: home)
         case .claude:
             try IsolatedClaudeHome.prepare(at: home)
         case .gemini:

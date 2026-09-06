@@ -1,6 +1,5 @@
 import Combine
 import DropAgentAgent
-import DropAgentCapture
 import DropAgentIngest
 import DropAgentJob
 import DropAgentPasteboard
@@ -29,7 +28,6 @@ final class AppSession: ObservableObject {
     let job: JobService
     let tui: TUIService
     let agent: AgentService
-    let capture: CaptureService
 
     @Published var items: [Item] = []
     @Published var presence: AgentPresence = .none
@@ -63,11 +61,11 @@ final class AppSession: ObservableObject {
     @Published var hotKeyToggleOK = true
     @Published var hotKeyCaptureOK = true
     @Published var tuiEpoch = UUID()
-    private var lastCaptureTarget: BrowserFront?
+    private var lastCaptureToken: PageAdmitToken?
     private var listHeightBeforeTerminal: CGFloat?
     private var terminalOwnsListHeight = false
 
-    static let captureFailedCopy = CaptureRecovery.needAccessibility
+    static let captureFailedCopy = PageAdmitCopy.needAccessibility
 
     init(jobRunner: (any AgentRunning)? = nil) {
         try? DropAgentPaths.ensure()
@@ -78,13 +76,7 @@ final class AppSession: ObservableObject {
         }
         settings = loaded
         shelf = ShelfStore(fileURL: DropAgentPaths.shelfFile)
-        capture = CaptureService(
-            browser: AppleScriptBrowser(),
-            fetcher: URLSessionFetcher(),
-            snapshot: FrontWindowSnapshot(),
-            pageSnapshot: URLPageSnapshot()
-        )
-        ingest = IngestService(shelf: shelf, inboxRoot: DropAgentPaths.inbox, capture: capture)
+        ingest = IngestService(shelf: shelf, inboxRoot: DropAgentPaths.inbox)
         agent = AgentService(runner: CodexCLI(), settings: loaded)
         job = JobService(shelf: shelf, agent: jobRunner ?? agent, jobsRoot: DropAgentPaths.jobs)
         tui = TUIService(shelf: shelf, agent: agent, inboxRoot: DropAgentPaths.tuiInbox)
@@ -267,7 +259,7 @@ final class AppSession: ObservableObject {
     }
 
     func admitPasteboard(_ pasteboard: NSPasteboard) {
-        note(IncomingDrop.admit(pasteboard: pasteboard, ingest: ingest))
+        note(ingest.admitPasteboard(pasteboard))
         refresh()
         aiTab = .work
     }
@@ -313,7 +305,7 @@ final class AppSession: ObservableObject {
     }
 
     func prepareCapture() {
-        lastCaptureTarget = CaptureLaunch.frozen ?? BrowserFront.current() ?? lastCaptureTarget
+        lastCaptureToken = PageAdmitToken.snapshot()
         isCapturing = true
         errorText = nil
         offerPrivacySettings = false
@@ -321,8 +313,8 @@ final class AppSession: ObservableObject {
         aiTab = .work
     }
 
-    func captureCurrentPage(frozen target: BrowserFront?) async {
-        lastCaptureTarget = target
+    func captureCurrentPage(token: PageAdmitToken) async {
+        lastCaptureToken = token
         isCapturing = true
         errorText = nil
         offerPrivacySettings = false
@@ -335,39 +327,31 @@ final class AppSession: ObservableObject {
         if isCapturing == false {
             prepareCapture()
         }
-        let target = lastCaptureTarget
-        let ax = AccessibilityPage.isTrusted()
-        let automation = automationAllowed(for: target)
+        let token = lastCaptureToken ?? .snapshot()
         let isCLI = ProcessInfo.processInfo.arguments.contains("--capture")
         if isCLI == false {
-            switch CaptureRecovery.decision(target: target, axTrusted: ax, automationAllowed: automation) {
-            case .stop(let message, let offer):
-                if offer {
-                    AccessibilityPage.requestTrustIfNeeded()
+            let decision = PageAdmit.decide(token: token)
+            if decision.proceed == false {
+                if decision.promptAccessibility {
+                    PageAdmit.requestTrustIfNeeded()
                 }
-                errorText = captureCopy(message)
-                offerPrivacySettings = offer
+                errorText = captureCopy(decision.message)
+                offerPrivacySettings = decision.offerPrivacySettings
                 offerCaptureRetry = true
                 aiTab = .work
                 isCapturing = false
                 return
-            case .proceed:
-                break
             }
         }
         do {
-            let item = try await ingest.admitCurrentPage(target: target)
+            let item = try await ingest.admitCurrentPage(token: token)
             shelf.setSelection([item.id])
             errorText = nil
             offerPrivacySettings = false
             offerCaptureRetry = false
             aiTab = .work
         } catch {
-            let failed = CaptureRecovery.failure(
-                target: target,
-                axTrusted: AccessibilityPage.isTrusted(),
-                automationAllowed: automationAllowed(for: target)
-            )
+            let failed = PageAdmit.failure(token: token)
             errorText = captureCopy(failed.message)
             offerPrivacySettings = failed.offerPrivacySettings
             offerCaptureRetry = true
@@ -377,22 +361,10 @@ final class AppSession: ObservableObject {
     }
 
     private func captureCopy(_ message: String) -> String {
-        if message == CaptureRecovery.noBrowser, hotKeyCaptureOK {
-            return CaptureRecovery.noBrowserHotKey
+        if message == PageAdmitCopy.noBrowser, hotKeyCaptureOK {
+            return PageAdmitCopy.noBrowserHotKey
         }
         return message
-    }
-
-    private func automationAllowed(for target: BrowserFront?) -> Bool {
-        guard let target else { return false }
-        switch target.kind {
-        case .safari, .chrome, .edge, .brave:
-            let bundle = NSRunningApplication(processIdentifier: target.pid)?.bundleIdentifier
-                ?? target.kind.primaryBundleIdentifier
-            return AutomationAccess.isAllowed(bundleIdentifier: bundle)
-        case .arc, .firefox:
-            return false
-        }
     }
 
     func retryCapture() {
@@ -407,9 +379,9 @@ final class AppSession: ObservableObject {
     }
 
     func openPrivacySettings() {
-        let wantAccessibility = AccessibilityPage.isTrusted() == false
+        let wantAccessibility = PageAdmit.isTrusted() == false
         if wantAccessibility {
-            AccessibilityPage.requestTrustIfNeeded()
+            PageAdmit.requestTrustIfNeeded()
         }
         let panes = wantAccessibility
             ? [
@@ -524,7 +496,6 @@ final class AppSession: ObservableObject {
         let ids = itemIDs ?? selectedItems.map(\.id)
         do {
             let prepared = try tui.send(itemIDs: ids, text: promptText, sessionDirectory: tuiSessionDirectory)
-            try? IsolatedTUIHome.copyLogin(engine: engine, into: prepared.isolatedHome)
             if ttyLines.isEmpty {
                 ttyLines.append(TTYLine(kind: "sys", text: "\(engine.shortTitle)  ·  本机会话"))
             }
@@ -571,20 +542,11 @@ final class AppSession: ObservableObject {
     }
 
     func failTUILaunch(itemIDs: [ItemID]) {
-        for id in itemIDs {
-            try? shelf.patch(id: id) { live in
-                guard live.status == .sent else { return }
-                live.status = .idle
-                live.isolationShown = .none
-                live.event = ""
-            }
-        }
+        tui.revertSend(itemIDs: itemIDs)
         errorText = "没能打开 \(tuiTitle) 终端。"
         pendingTUI = nil
         tuiProcessExited()
     }
-
-    func pickCodex() { pickTUIExecutable() }
 
     func pickTUIExecutable() {
         let panel = NSOpenPanel()
@@ -629,8 +591,6 @@ final class AppSession: ObservableObject {
         tuiEpoch = UUID()
         refreshPresence()
     }
-
-    func openCodexInstall() { openTUIInstall(nil) }
 
     func openTUIInstall(_ engine: AgentEngine?) {
         let target = engine ?? presence.engine ?? installedEngines.first?.engine ?? .grok
@@ -712,7 +672,7 @@ final class AppSession: ObservableObject {
         switch error {
         case IngestError.emptyClipboard: return "剪贴板是空的"
         case IngestError.missingSource: return "找不到原文件"
-        case IngestError.captureFailed: return CaptureRecovery.needAccessibilityRetry
+        case IngestError.captureFailed: return PageAdmitCopy.needAccessibilityRetry
         case IngestError.symlinkRejected: return "不接收符号链接"
         case JobError.noAgent: return "动作需要 Codex"
         case TUIError.noAgent, AgentError.notFound: return "未发现终端 Agent"
