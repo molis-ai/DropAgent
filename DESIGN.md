@@ -1,103 +1,123 @@
 ---
 name: DropAgent
-description: Menu-bar shelf plus in-panel TUI. Files left, AI right. Paper over a dark desk.
+description: Quiet menu-bar shelf. Cool sage paper over a night desk, after GoalBoard Onboarding.
 colors:
-  desk: "#121212"
-  panel: "#f7f7f5"
-  panel-2: "#ececea"
-  panel-hover: "#e2e2e0"
-  panel-press: "#d2d2d0"
-  ai: "#f7f7f5"
-  text: "#111111"
-  muted: "#5a5a5a"
-  faint: "#6e6e6e"
-  line: "rgba(0,0,0,.1)"
-  primary: "#111111"
-  primary-press: "#000000"
-  on-accent: "#f7f7f5"
-  tty-well: "#171717"
-  tty-ink: "#e8e8e8"
-  tty-muted: "#a8a8a8"
+  desk: "#050607"
+  panel: "#f1f3f2"
+  panel-2: "#ecefee"
+  panel-hover: "#e9eceb"
+  panel-press: "#e2e5e4"
+  ai: "#f1f3f2"
+  text: "#1f272b"
+  muted: "#59656b"
+  faint: "#5d696f"
+  icon: "#718086"
+  line: "#d4dad9"
+  primary: "#222b30"
+  primary-press: "#11181c"
+  on-accent: "#f7f8f7"
+  field: "#e6eae9"
+  tty-well: "#17191c"
+  tty-ink: "#e8e8e3"
+  tty-muted: "rgba(237,237,232,.62)"
+  tag-pdf: "#ead6c2"
+  tag-pdf-ink: "#5a3824"
+  tag-image: "#d5e6db"
+  tag-image-ink: "#2f5340"
+  tag-url: "#d9e0ec"
+  tag-url-ink: "#33445c"
+  tag-web: "#d4e4e6"
+  tag-web-ink: "#2f4d52"
+  tag-md: "#dde3dc"
+  tag-md-ink: "#334038"
+  tag-clip: "#ece0c8"
+  tag-clip-ink: "#5a4320"
 typography:
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, sans-serif"
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, sans-serif"
     fontSize: "13px"
-    fontWeight: 500
+    fontWeight: 570
     lineHeight: 1.35
     letterSpacing: "-0.015em"
   brand:
-    fontFamily: "New York, Iowan Old Style, Times New Roman, serif"
-    fontSize: "15px"
-    fontWeight: 500
-    letterSpacing: "-0.02em"
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, sans-serif"
+    fontSize: "10px"
+    fontWeight: 760
+    letterSpacing: "0.1em"
   meta:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, sans-serif"
-    fontSize: "11px"
-    fontWeight: 400
-    lineHeight: 1.4
-    letterSpacing: "normal"
+    fontFamily: "ui-monospace, SF Mono, Menlo, monospace"
+    fontSize: "10px"
+    fontWeight: 620
+    lineHeight: 1.5
+    letterSpacing: "0.08em"
   tty:
     fontFamily: "ui-monospace, SF Mono, Menlo, monospace"
     fontSize: "12px"
     fontWeight: 400
-    lineHeight: 1.55
+    lineHeight: 1.72
     letterSpacing: "normal"
 rounded:
   sm: "4px"
-  md: "8px"
+  md: "6px"
+  lg: "9px"
   panel: "12px"
+  pill: "99px"
 spacing:
-  row: "8px"
-  pad: "14px"
+  row: "10px"
+  pad: "18px"
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-accent}"
-    rounded: "{rounded.md}"
-    height: "30px"
+    rounded: "5px"
+    height: "38px"
   tag:
-    backgroundColor: "{colors.panel-2}"
-    textColor: "{colors.muted}"
-    rounded: "{rounded.sm}"
-    padding: "0 5px"
+    backgroundColor: "transparent"
+    textColor: "{colors.faint}"
+    rounded: "0px"
+    padding: "0"
 ---
 
 ## Overview
 
-DropAgent is a light paper panel hung from the macOS menu bar. Two columns: files left, AI right. Near-white ground, ink type. Black only for send, selection, and drop. Actions use SF Symbols. File kinds stay letter tags.
+DropAgent is a quiet sage panel hung from the macOS menu bar. It borrows GoalBoard Onboarding’s calm: leftover space, a short guide, stroke icons, and no shouting. Three columns: inputs left, work middle, results right. No chromatic accent. No glass.
 
 ## Colors
 
-Paper over a dark desk. No chromatic accent. Status is weight, gray, and icons.
+Cool sage `#f1f3f2` over night `#050607`. Ink `#1f272b`. Selection is a deeper wash, not a color bar. The only solid fill is 拖出. File kinds get a dusty tag wash (PDF brown, image green, URL slate, WEB teal, MD moss, CLIP ochre). Color stays on the tag, not the row.
 
 ## Typography
 
-SF Pro for chrome. New York for the wordmark. SF Mono only inside the terminal log.
+SF Pro / PingFang. Tracked 10px wordmark. Intro 15px. Meta in tiny mono. SF Mono only in the terminal.
 
 ## Layout
 
-680px panel hung from the menu bar. Header 44px; the DropAgent wordmark is centered; engine chip, settings, minimize, and close sit on the right. Shelf column default 240px, draggable 200–320px. AI fills the rest on the same paper. The terminal well is near-black.
+800px panel. Header 48px, brand left. Input 196px, results 196px, work fills the rest. Work pane is a single column of action rows: a 120px paper button on the left, one muted sentence on the right. 其他 is the last row. The bottom field stays hidden until 其他 is on, then expands in place. The terminal tab does not show the composer.
 
 ## Elevation & Depth
 
-Soft offset shadow. Hairline borders. No glow, no glass, no inset chrome.
+One offset shadow on the panel. Hierarchy is tone, not a grid of borders. Splitters are invisible until hover.
 
 ## Shapes
 
-Panel 12px. Controls 8px. Type tags 4px.
+Panel 12px. Choice rows 6px. Send is a circle. 拖出 is 5px.
 
 ## Components
 
-- File row: tag + name + time + status. Multi-select shows a leading check. Whole row drags. Shelf chrome: + to pick files, Spotlight search to add from this Mac.
-- Header: wordmark centered; engine chip, settings, minimize, and close on the right. Settings overlay: readiness list, editable shortcuts (including add-selected-files), drop/read/write guide, workspace paths, runtime, appearance, language.
-- AI tabs: 动作 / 终端 / 结果, each with an icon.
-- Composer: count, field, clipboard icon, paperplane send.
-- Recipes: icon over short title.
-- Terminal well: near-black, including the opening and idle captions.
-- Drop: list = stage, AI = send to TUI.
+- File row: mono tag + name + time. Hover wash. Whole row drags.
+- Header: tracked DROPAGENT; engine as underline; settings / minimize / close as 13px strokes.
+- Work tabs: 动作 / 终端 / 预览 as text with an underline on the current one.
+- Recipes: one vertical list. Each row is a paper button (stroke icon + short name) plus a muted one-line blurb. Click the button, not the sentence. 其他 is the seventh row.
+- 其他: only the button latches on; the composer appears at the bottom in place, not as a modal. The terminal tab does not show the composer.
+- Confirm: option rows + review list, no questionnaire title.
+- Empty: title + one guiding sentence.
+- Terminal well: `#17191c`, no chrome frame.
+- Drop: list = stage, middle = send to TUI.
 
 ## Do's and Don'ts
 
-Do: keep files beside talk; show results in-tool; copy and drag as the takeaway.
+Do: leave space; teach in empty states; keep icons quiet; let 拖出 be the one solid action.
 
-Don't: system blue or pine accents; colored status dots; file pictograms; a separate Terminal window; clipboard history as home.
+Don't: cobalt as brand; glass; serif wordmark; boxed recipe tiles; file pictograms; a separate Terminal window.
+
+Status color is reserved: running teal, waiting amber, failed dusty red, sent slate, ready sage. Icons sit with those states. The work pane fills the middle column; running is centered with a spinner.

@@ -18,7 +18,7 @@ enum SetupCardPolicy {
     static func gearNeedsAttention(hasAgent: Bool, setup: PageAdmitSetup) -> Bool {
         hasAgent == false
             || setup.accessibilityTrusted == false
-            || setup.browsers.contains { $0.allowed == false }
+            || (setup.browsers.isEmpty == false && setup.browsers.contains(where: \.allowed) == false)
     }
 
     /// Silent probe often reports denied before Chrome is even in the TCC list.
@@ -38,9 +38,9 @@ enum BrowserSetupAction: Equatable {
 
 @MainActor
 enum SetupCopy {
-    static var title: String { Copy.t("使用准备", "Getting ready") }
+    static var title: String { Copy.t("使用准备", "Setup") }
 
-    static var later: String { Copy.t("以后再说", "Not now") }
+    static var later: String { Copy.t("以后再说", "Later") }
 
     static var agentTitle: String { Copy.t("终端 Agent", "Terminal agent") }
 
@@ -64,7 +64,7 @@ enum SetupCopy {
     static var toggleReady: String { Copy.t("可用", "Available") }
 
     static var toggleTaken: String {
-        Copy.t("被占用，点菜单栏图标打开。", "Taken. Click the menu bar icon to open.")
+        Copy.t("被占用，点菜单栏图标打开。", "Already in use. Click the menu bar icon to open.")
     }
 
     static var captureTitle: String {
@@ -72,7 +72,7 @@ enum SetupCopy {
     }
 
     static var captureTaken: String {
-        Copy.t("被占用，用菜单抓页。", "Taken. Capture from the menu.")
+        Copy.t("被占用，用菜单抓页。", "Already in use. Capture from the menu.")
     }
 
     static var filesTitle: String {
@@ -80,7 +80,7 @@ enum SetupCopy {
     }
 
     static var filesTaken: String {
-        Copy.t("被占用，用菜单加入选中文件。", "Taken. Add selected files from the menu.")
+        Copy.t("被占用，用菜单加入选中文件。", "Already in use. Add selected files from the menu.")
     }
 
     static var finderTitle: String { Copy.t("Finder", "Finder") }
@@ -96,7 +96,7 @@ enum SetupCopy {
 
     static var accessibilityTitle: String { Copy.t("辅助功能", "Accessibility") }
 
-    static var accessibilityReady: String { Copy.t("已开", "On") }
+    static var accessibilityReady: String { Copy.t("已开", "Enabled") }
 
     static var accessibilityNeed: String {
         Copy.t(

@@ -25,6 +25,11 @@ public extension ClipboardPayload {
         return .empty
     }
 
+    static func hasDragCargo(_ pasteboard: NSPasteboard) -> Bool {
+        if from(pasteboard: pasteboard) != .empty { return true }
+        return pasteboard.availableType(from: promisedDragTypes) != nil
+    }
+
     static func plainText(fromRTF data: Data) -> String? {
         guard let attributed = NSAttributedString(rtf: data, documentAttributes: nil) else { return nil }
         let text = attributed.string.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -121,6 +126,16 @@ private let bookmarkListTypes: [NSPasteboard.PasteboardType] = [
 private let itemURLTypes: [NSPasteboard.PasteboardType] = [
     .URL,
     .string,
+]
+
+private let promisedDragTypes: [NSPasteboard.PasteboardType] = [
+    NSPasteboard.PasteboardType("WebURLsWithTitlesPboardType"),
+    NSPasteboard.PasteboardType("com.apple.webkit.WebURLsWithTitles"),
+    NSPasteboard.PasteboardType("org.chromium.bookmark-entry"),
+    NSPasteboard.PasteboardType("org.chromium.bookmark-dictionary-list"),
+    NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-url"),
+    NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-content-type"),
+    NSPasteboard.PasteboardType("NSPromiseContentsPboardType"),
 ]
 
 private func pasteboardURLFromData(_ data: Data?) -> URL? {

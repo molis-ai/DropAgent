@@ -28,7 +28,7 @@ Not a clipboard manager, not a pure shelf (Yoink), not an AI clipboard (Stash), 
 
 ## Operating Context
 
-Lives in the macOS menu bar. Also needs an edge drop target because the status item is small and the menu bar can hide in fullscreen. First look after open is staged items, not clipboard history. Typical session: two to six items, one recipe, one result to drag. Used between other apps, in short bursts, often at night at a desk.
+Lives in the macOS menu bar. Also needs a six-slice drop wheel around the pointer while dragging, because the status item is small and the menu bar can hide in fullscreen. The wheel stays off the top tab strip so fullscreen browser tab reordering is not blocked; leaving the ring dismisses it. First look after open is staged items, not clipboard history. Typical session: two to six items, one recipe, one result to drag. Used between other apps, in short bursts, often at night at a desk.
 
 ## Capabilities and Constraints
 
@@ -36,7 +36,7 @@ Lives in the macOS menu bar. Also needs an edge drop target because the status i
 - Global hotkey while Safari/Chrome (Edge best-effort) is frontmost adds the current page to the shelf as one WEB item containing URL, `page.md`, and `snapshot.png`. Dropping or pasting an http(s) URL onto the shelf does the same fetch (no front-window screenshot). Dropping onto the AI pane sends the link only. No browser extension. Does not auto-run. Partial capture is allowed; missing body or screenshot is labeled. DropAgent fetches the page itself (network). Logged-in article body is not promised in v1. Details: `02-prototype-design.md` section 7.
 - A third global hotkey adds the front app’s selected local files: Finder selection (AppleScript); other apps simulate ⌘C and keep only files, restoring the clipboard, then fall back to the open local file (`AXDocument`). Browsers are refused (use page capture). Originals stay put. No per-app plugins.
 - First open shows a skippable readiness checklist when Accessibility or browser automation is not granted. The same list lives at the top of Settings. Authorizing a browser must present the system control prompt; opening an empty Automation pane is not enough.
-- Settings lists every shortcut (global toggle/capture and in-panel hide/paste/copy/delete are editable; up/down is display-only) and a capability guide: drop targets, accepted types, shelf URL capture vs AI-pane link, what is read, where files are written, and drag-out payloads. Originals are never overwritten. Edge drop does not open or close the panel.
+- Settings lists every shortcut (global toggle/capture and in-panel hide/paste/copy/delete are editable; up/down is display-only) and a capability guide: drop targets, accepted types, shelf URL capture vs AI-pane link, what is read, where files are written, and drag-out payloads. Originals are never overwritten. Dropping on the wheel does not open or close the panel.
 - Shelf can hold items without running.
 - Recipes (v1 names only): summarize, extract, translate keeping format, redact, convert to Markdown, assemble a new brief from several materials.
 - Files drag out as standard Mac pasteboard types (file, text, image, URL). Promise Finder, Desktop, file upload fields, Office attachments, most IM threads, most AI-desktop composers, and text editors when the payload is text. No per-app plugins. Spring back if the target refuses. Copy, not move. One item at a time. Staged originals may drag out too. Details: `02-prototype-design.md` section 6.
@@ -57,7 +57,7 @@ Name: DropAgent. Binding aesthetic from the user: tool-like, tactile, appropriat
 1. The tray is a shelf, not a dashboard.
 2. Originals stay put; results are new files the user takes away.
 3. Isolation grade is spoken honestly on the run confirmation.
-4. Density serves a ~680px menu-bar panel used for seconds: files on the left, PTY and results on the right, not a workspace window.
+4. Density serves an ~800px menu-bar panel used for seconds: inputs left, work in the middle, results right — not a workspace window.
 5. No agent means a clear miss, never a silent cloud call.
 
 ## Accessibility & Inclusion

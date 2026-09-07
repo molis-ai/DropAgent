@@ -36,8 +36,9 @@ idle → confirm（点了 Recipe，等确认）
 confirm → running | idle（取消）
 running → idle（成功或失败都回到 idle；产出进 results）
 idle → sent（TUI 投递成功）
-任意非 running → 可 remove
-running 时禁止 remove 原件条目（可另开需求；第一版直接禁）
+任意非 running → 可 remove（隐藏：只改 shelf.json）
+running 时禁止 remove 原件条目
+删磁盘不在 Shelf：输入走 Ingest.deleteOwnedCopy，结果走 Job.deleteOwnedOutput
 ```
 
 旧 `shelf.json` 里已经是 `done` 的行仍按旧状态机展示。新 Job 不再把输入写成 done。

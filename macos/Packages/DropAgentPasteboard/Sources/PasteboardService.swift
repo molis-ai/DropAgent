@@ -42,18 +42,19 @@ public enum PasteboardService {
 
     public static func itemProvider(for item: Item) -> NSItemProvider {
         let rep = representation(for: item)
-        let provider: NSItemProvider
+        let provider = NSItemProvider()
         if let url = rep.fileURLs.first, FileManager.default.fileExists(atPath: url.path) {
-            provider = NSItemProvider(contentsOf: url) ?? NSItemProvider()
-            if !provider.registeredTypeIdentifiers.contains(where: { $0 != UTType.fileURL.identifier }) {
-                let type = contentType(for: url)
-                provider.registerFileRepresentation(forTypeIdentifier: type.identifier, fileOptions: [], visibility: .all) { completion in
-                    completion(url, false, nil)
-                    return nil
-                }
+            let type = contentType(for: url)
+            provider.suggestedName = url.lastPathComponent
+            provider.registerDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier, visibility: .all) { completion in
+                completion(url.dataRepresentation, nil)
+                return nil
             }
-        } else {
-            provider = NSItemProvider()
+            provider.registerFileRepresentation(forTypeIdentifier: type.identifier, fileOptions: [], visibility: .all) { completion in
+                completion(url, false, nil)
+                return nil
+            }
+            provider.registerObject(url as NSURL, visibility: .all)
         }
         if let text = rep.plainText, !provider.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier) {
             provider.registerDataRepresentation(forTypeIdentifier: UTType.utf8PlainText.identifier, visibility: .all) { completion in

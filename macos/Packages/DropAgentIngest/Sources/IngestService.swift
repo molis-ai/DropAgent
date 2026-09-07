@@ -1,55 +1,13 @@
 import AppKit
-import CryptoKit
 import DropAgentCapture
 import DropAgentShelf
 import Foundation
 import UniformTypeIdentifiers
 
-public enum IngestError: Error, Equatable, Sendable {
-    case missingSource
-    case unsupported
-    case emptyClipboard
-    case captureFailed
-    case symlinkRejected
-}
-
-public struct AdmitFailure: Equatable, Sendable {
-    public var url: URL
-    public var error: IngestError
-
-    public init(url: URL, error: IngestError) {
-        self.url = url
-        self.error = error
-    }
-}
-
-public struct AdmitResult: Equatable, Sendable {
-    public var admitted: [Item]
-    public var failures: [AdmitFailure]
-    public var pageCaptureIDs: [ItemID]
-
-    public init(admitted: [Item], failures: [AdmitFailure], pageCaptureIDs: [ItemID] = []) {
-        self.admitted = admitted
-        self.failures = failures
-        self.pageCaptureIDs = pageCaptureIDs
-    }
-}
-
-public protocol ClipboardReading: Sendable {
-    func read() -> ClipboardPayload
-}
-
-public enum ClipboardPayload: Equatable, Sendable {
-    case empty
-    case files([URL])
-    case image(Data)
-    case text(String)
-}
-
 public struct IngestService: Sendable {
-    private let shelf: ShelfStore
-    private let inboxRoot: URL
-    private let capture: CaptureService
+    let shelf: ShelfStore
+    let inboxRoot: URL
+    let capture: CaptureService
 
     public init(shelf: ShelfStore, inboxRoot: URL, capture: CaptureService? = nil) {
         self.shelf = shelf
@@ -126,6 +84,11 @@ public struct IngestService: Sendable {
         }
     }
 
+    public func deleteOwnedCopy(_ item: Item) throws {
+        try shelf.remove(ids: [item.id])
+        OwnedCopy.deleteInboxCopy(item, inboxRoot: inboxRoot)
+    }
+
     public func admitImageData(_ data: Data) throws -> Item {
         let id = ItemID()
         let folder = inboxRoot.appendingPathComponent(id.rawValue, isDirectory: true)
@@ -145,35 +108,6 @@ public struct IngestService: Sendable {
 
     public func admitPlainText(_ text: String) throws -> Item {
         try admitTextPayload(text, capturePages: true).item
-    }
-
-    public func captureDroppedPages(ids: [ItemID]) async {
-        for id in ids {
-            await fillDroppedPage(id: id)
-        }
-    }
-
-    public func admitCurrentPage(token: PageAdmitToken? = nil) async throws -> Item {
-        let captured: PageCapture
-        do {
-            captured = try await capture.captureFrontBrowser(target: token?.browser)
-        } catch CaptureError.unsupportedBrowser {
-            throw IngestError.captureFailed
-        } catch {
-            throw IngestError.captureFailed
-        }
-        let id = ItemID()
-        let folder = inboxRoot.appendingPathComponent(id.rawValue, isDirectory: true)
-        let parts = try writeCapturedPage(folder: folder, captured: captured)
-        let item = Item(
-            id: id,
-            kind: .web,
-            title: captured.title,
-            sourceURL: captured.url,
-            parts: parts,
-            event: captured.failures.map(\.rawValue).joined(separator: " · ")
-        )
-        return try shelf.add(item)
     }
 
     func admitTextPayload(_ text: String, capturePages: Bool) throws -> PageAdmitOutcome {
@@ -277,141 +211,15 @@ public struct IngestService: Sendable {
         return .file
     }
 
-    private func admitPageStub(url: URL) throws -> Item {
-        let id = ItemID()
-        let folder = inboxRoot.appendingPathComponent(id.rawValue, isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let dest = folder.appendingPathComponent("url.txt")
-        try writeTextFile(dest, url.absoluteString)
-        let item = Item(
-            id: id,
-            kind: .web,
-            title: url.host ?? url.absoluteString,
-            sourceURL: url,
-            parts: [ItemPart(name: "url.txt", url: dest)],
-            event: Self.pageCapturePendingEvent
-        )
-        return try shelf.add(item)
-    }
-
-    private func fillDroppedPage(id: ItemID) async {
-        guard let item = shelf.item(id: id), item.kind == .web, Self.isHTTP(item.sourceURL) else { return }
-        let captured = await capture.captureURL(item.sourceURL)
-        guard shelf.item(id: id) != nil else { return }
-        let folder = item.parts.first?.url.deletingLastPathComponent()
-            ?? inboxRoot.appendingPathComponent(id.rawValue, isDirectory: true)
-        do {
-            let parts = try writeCapturedPage(folder: folder, captured: captured)
-            try shelf.patch(id: id) { live in
-                live.title = captured.title
-                live.sourceURL = captured.url
-                live.parts = parts
-                live.event = captured.failures.map(\.rawValue).joined(separator: " · ")
-            }
-        } catch {
-            try? shelf.patch(id: id) { live in
-                if live.event == Self.pageCapturePendingEvent {
-                    live.event = CaptureFailure.network.rawValue
-                }
-            }
-        }
-    }
-
-    private func writeCapturedPage(folder: URL, captured: PageCapture) throws -> [ItemPart] {
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        var parts: [ItemPart] = []
-        let urlFile = folder.appendingPathComponent("url.txt")
-        try writeTextFile(urlFile, captured.url.absoluteString)
-        parts.append(ItemPart(name: "url.txt", url: urlFile))
-        if let markdown = captured.markdown {
-            let file = folder.appendingPathComponent("page.md")
-            try writeTextFile(file, markdown)
-            parts.append(ItemPart(name: "page.md", url: file))
-        }
-        if let png = captured.snapshotPNG {
-            let file = folder.appendingPathComponent("snapshot.png")
-            try png.write(to: file)
-            parts.append(ItemPart(name: "snapshot.png", url: file))
-        }
-        return parts
-    }
-
-    private static func isHTTP(_ url: URL) -> Bool {
+    static func isHTTP(_ url: URL) -> Bool {
         let scheme = url.scheme?.lowercased()
         return scheme == "http" || scheme == "https"
     }
 
-    private static func httpURL(from text: String) -> URL? {
+    static func httpURL(from text: String) -> URL? {
         guard text.hasPrefix("http://") || text.hasPrefix("https://"),
               let url = URL(string: text)
         else { return nil }
         return isHTTP(url) ? url : nil
-    }
-
-    private func writeTextFile(_ url: URL, _ text: String) throws {
-        try writeTextFile(url, Data(text.utf8))
-    }
-
-    private func writeTextFile(_ url: URL, _ data: Data) throws {
-        var data = data
-        if data.isEmpty == false, data.last != 0x0A {
-            data.append(0x0A)
-        }
-        try data.write(to: url)
-    }
-}
-
-struct PageAdmitOutcome {
-    var item: Item
-    var needsPageCapture: Bool
-}
-
-enum WeblocURL {
-    static func read(_ file: URL) -> URL? {
-        guard let data = try? Data(contentsOf: file),
-              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
-              let text = plist["URL"] as? String
-        else { return nil }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: trimmed), url.scheme == "http" || url.scheme == "https" else {
-            return nil
-        }
-        return url
-    }
-}
-
-enum FileDigest {
-    static func sha256(of url: URL) throws -> String {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        var hasher = SHA256()
-        while autoreleasepool(invoking: {
-            let chunk = try? handle.read(upToCount: 1024 * 1024)
-            guard let chunk, !chunk.isEmpty else { return false }
-            hasher.update(data: chunk)
-            return true
-        }) {}
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
-    }
-
-    static func sha256(of data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
-}
-
-enum MaterialCopy {
-    static func stripSymlinks(at url: URL) throws {
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return }
-        let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
-        if values.isSymbolicLink == true {
-            try FileManager.default.removeItem(at: url)
-            return
-        }
-        guard isDir.boolValue else { return }
-        let children = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey])
-        for child in children {
-            try stripSymlinks(at: child)
-        }
     }
 }

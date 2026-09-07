@@ -1,6 +1,7 @@
 import AppKit
 import DropAgentIngest
 import Foundation
+import SwiftUI
 import UniformTypeIdentifiers
 
 struct SystemClipboard: ClipboardReading {
@@ -14,6 +15,11 @@ enum IncomingDrop {
         .fileURL,
         .url,
         .utf8PlainText,
+        .plainText,
+        .text,
+        .data,
+        .item,
+        .content,
         .png,
         .tiff,
         .jpeg,
@@ -21,7 +27,12 @@ enum IncomingDrop {
         .webP,
         .heic,
         .image,
-    ]
+        UTType(filenameExtension: "md") ?? .plainText,
+    ].uniqued
+
+    static func hasPayload(_ info: SwiftUI.DropInfo) -> Bool {
+        contentTypes.contains { info.hasItemsConforming(to: [$0]) }
+    }
 
     static var draggedTypes: [NSPasteboard.PasteboardType] {
         contentTypes.map { NSPasteboard.PasteboardType($0.identifier) } + [
@@ -42,5 +53,12 @@ enum IncomingDrop {
             NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-content-type"),
             NSPasteboard.PasteboardType("NSPromiseContentsPboardType"),
         ]
+    }
+}
+
+private extension Array where Element: Hashable {
+    var uniqued: [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
     }
 }

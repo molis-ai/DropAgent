@@ -48,6 +48,23 @@ enum Copy {
         }
     }
 
+    static func recipeBlurb(_ id: RecipeID) -> String {
+        switch id {
+        case .summarize: return t("收成一篇短文，原件不动", "A short note. Original stays put.")
+        case .extract: return t("抽出要点、待办或数据", "Pull out points, todos, or data.")
+        case .translate: return t("译成指定语言，尽量留版式", "Translate and keep the layout.")
+        case .redact: return t("去掉联系方式、证件等敏感信息", "Strip contacts, IDs, and similar private bits.")
+        case .toMarkdown: return t("转成可编辑的 Markdown", "Turn it into editable Markdown.")
+        case .brief: return t("把几份材料合成一份新稿", "Assemble several items into one brief.")
+        }
+    }
+
+    static var otherShort: String { t("其他", "Other") }
+
+    static var otherBlurb: String {
+        t("写一句话，连同选中材料发给终端", "Write a line and send the selection to the terminal.")
+    }
+
     static func recipeStored(_ stored: String?) -> String {
         guard let stored, stored.isEmpty == false else { return t("动作", "Action") }
         if let id = RecipeID(rawValue: stored) { return recipeFull(id) }

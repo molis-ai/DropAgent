@@ -1,6 +1,6 @@
 # 模块：Job
 
-包：`DropAgentJob`
+包：`DropAgentJob`。编排在 `JobService`，副本目录磁盘操作在 `JobWorkspace`。
 
 ## 做什么
 
@@ -13,9 +13,10 @@
 ## Public
 
 ```text
-start(itemIDs: [ItemID], recipe: RecipeID) async throws -> JobID
+start(itemIDs: [ItemID], recipe: RecipeID, optionID: String? = nil) async throws -> JobID
 cancel()                 // 第一版同时只跑一个
 job(id:) -> JobRecord?   // 读 manifest.json；没有则 nil
+deleteOwnedOutput(_ record: ResultRecord)  // 删 Jobs 下该任务目录；路径必须在 Jobs 根之内，不删整个 Jobs
 ```
 
 开始前：条目必须是 idle（或 failed 可重试）。`confirm` 由 App 处理，点确认才 `start`。

@@ -69,11 +69,7 @@ public enum RecipeCatalog {
                 acceptedKinds: [.pdf, .image, .markdown, .clip, .url, .web, .folder],
                 outputFileName: "summary.md",
                 needsNetwork: false,
-                prompt: """
-                阅读当前工作目录里的全部材料。只使用相对路径，不要访问目录之外的文件。
-                用中文写一份简洁 Markdown 总结，作为最终回复。
-                不要修改已有文件。
-                """
+                prompt: prompt(for: id)
             )
         case .extract:
             return RecipeSpec(
@@ -81,11 +77,7 @@ public enum RecipeCatalog {
                 acceptedKinds: [.pdf, .image, .markdown, .clip, .web],
                 outputFileName: "extracted.json",
                 needsNetwork: false,
-                prompt: """
-                阅读当前工作目录里的材料。只使用相对路径。
-                提取结构化信息，最终回复必须是 JSON 对象。
-                不要修改已有文件。
-                """
+                prompt: prompt(for: id)
             )
         case .translate:
             return RecipeSpec(
@@ -93,11 +85,7 @@ public enum RecipeCatalog {
                 acceptedKinds: [.markdown, .clip, .pdf, .web],
                 outputFileName: "translated.md",
                 needsNetwork: true,
-                prompt: """
-                阅读当前工作目录里的材料。只使用相对路径。
-                翻译成中文并尽量保留原有结构，最终回复为 Markdown。
-                不要修改已有文件。
-                """
+                prompt: prompt(for: id)
             )
         case .redact:
             return RecipeSpec(
@@ -105,11 +93,7 @@ public enum RecipeCatalog {
                 acceptedKinds: [.markdown, .clip, .pdf, .web],
                 outputFileName: "redacted.md",
                 needsNetwork: false,
-                prompt: """
-                阅读当前工作目录里的材料。只使用相对路径。
-                把姓名、电话、邮箱、密钥、金额等敏感信息替换为 [REDACTED]，最终回复为 Markdown。
-                不要修改已有文件。
-                """
+                prompt: prompt(for: id)
             )
         case .toMarkdown:
             return RecipeSpec(
@@ -117,11 +101,7 @@ public enum RecipeCatalog {
                 acceptedKinds: [.pdf, .image, .url, .markdown, .clip, .web],
                 outputFileName: "converted.md",
                 needsNetwork: false,
-                prompt: """
-                阅读当前工作目录里的材料。只使用相对路径。
-                转成结构清楚的 Markdown，作为最终回复。
-                不要修改已有文件。
-                """
+                prompt: prompt(for: id)
             )
         case .brief:
             return RecipeSpec(
@@ -129,11 +109,7 @@ public enum RecipeCatalog {
                 acceptedKinds: [.pdf, .image, .markdown, .clip, .url, .web, .folder, .file],
                 outputFileName: "brief.md",
                 needsNetwork: false,
-                prompt: """
-                阅读当前工作目录里的全部材料。只使用相对路径。
-                根据这些材料生成一份可交付的 briefing（Markdown）。
-                不要修改已有文件。
-                """
+                prompt: prompt(for: id)
             )
         }
     }

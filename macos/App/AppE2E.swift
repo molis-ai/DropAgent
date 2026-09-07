@@ -71,6 +71,7 @@ enum AppE2E {
             session.systemDragActive = false
             verifyEdgePlacement()
             verifyLivePanelChrome()
+            verifyPanelIdle()
             verifyFirstOpen()
             await verifySetupCard()
             verifyShelfWidth()
@@ -151,6 +152,17 @@ enum AppE2E {
             }
             guard session.canOpenTerminalTab else {
                 fail("tty closed after send")
+            }
+            guard session.aiTab == .tty else {
+                fail("did not switch to tty")
+            }
+            guard session.showsComposer == false else {
+                fail("tty still shows composer")
+            }
+            session.aiTab = .work
+            await settle()
+            guard session.recipeFitsSelection(.summarize) else {
+                fail("sent item lost recipes")
             }
             session.aiTab = .result
             await settle()
@@ -471,7 +483,7 @@ enum AppE2E {
             guard session.isDoneTakeaway else {
                 fail("done not takeaway")
             }
-            guard session.doneActionHint.contains("点「结果」拿走") else {
+            guard session.doneActionHint.contains("点右边结果拿走") else {
                 fail("done hint \(session.doneActionHint)")
             }
             guard session.doneActionHint.contains("不能跑这些动作") == false else {
@@ -1242,21 +1254,25 @@ enum AppE2E {
             session.setLanguage(.en)
             guard Copy.t("设置", "Settings") == "Settings" else { fail("settings english") }
             session.settingsOpen = true
+            session.settingsSection = .shortcuts
             await settle()
             snapshot("e2e-settings")
-            guard settingsShows("Shortcuts") || settingsShows("快捷键") else {
-                fail("settings shortcuts missing \(settingsTree())")
-            }
-            guard settingsShows("What it can do") || settingsShows("能做什么") else {
-                fail("settings guide missing \(settingsTree())")
-            }
-            guard settingsShows("Open / hide panel") || settingsShows("打开 / 收起面板") else {
+            guard settingsShows("Show / Hide Panel") else {
                 fail("settings shortcut rows missing \(settingsTree())")
             }
-            guard settingsShows("Add selected files") || settingsShows("加入选中的文件") else {
+            guard settingsShows("Add Selected Files") else {
                 fail("settings files shortcut missing \(settingsTree())")
             }
-            guard SettingsGuideCopy.dropIn.contains("top edge"),
+            session.settingsSection = .guide
+            await settle()
+            guard settingsShows("How It Works") else {
+                fail("settings guide title not english \(settingsTree())")
+            }
+            guard settingsShows("drop wheel") else {
+                fail("settings guide body not english \(settingsTree())")
+            }
+            guard SettingsGuideCopy.dropIn.contains("drop wheel"),
+                  SettingsGuideCopy.dropIn.contains("six slices"),
                   SettingsGuideCopy.files.contains("Finder"),
                   SettingsGuideCopy.accepts.contains("PDF"),
                   SettingsGuideCopy.browser.contains("tabs"),
@@ -1267,8 +1283,17 @@ enum AppE2E {
                 fail("settings english guide \(SettingsGuideCopy.dropIn)")
             }
             session.setLanguage(.zh)
-            guard SettingsGuideCopy.dropIn.contains("顶边"),
-                  SettingsGuideCopy.dropIn.contains("不会自动打开"),
+            session.settingsSection = .guide
+            await settle()
+            guard settingsShows("能做什么") else {
+                fail("settings guide title not chinese \(settingsTree())")
+            }
+            guard settingsShows("轮盘") else {
+                fail("settings guide body not chinese \(settingsTree())")
+            }
+            guard SettingsGuideCopy.dropIn.contains("轮盘"),
+                  SettingsGuideCopy.dropIn.contains("六瓣"),
+                  SettingsGuideCopy.dropIn.contains("不开关面板"),
                   SettingsGuideCopy.files.contains("Finder"),
                   SettingsGuideCopy.files.contains("⌘C"),
                   SettingsGuideCopy.accepts.contains("PDF"),
@@ -1444,8 +1469,14 @@ enum AppE2E {
             guard LivePanelChrome.styleMask.contains(.miniaturizable) == false else {
                 fail("live panel still miniaturizable")
             }
-            guard LivePanelChrome.panelWidth == 680 else {
+            guard LivePanelChrome.panelWidth == 800 else {
                 fail("panel width \(LivePanelChrome.panelWidth)")
+            }
+            guard LivePanelChrome.splitWidth >= 16 else {
+                fail("split width \(LivePanelChrome.splitWidth)")
+            }
+            guard LivePanelChrome.scrollGutter >= 12 else {
+                fail("scroll gutter \(LivePanelChrome.scrollGutter)")
             }
             guard let window, window.styleMask.contains(.borderless) else {
                 fail("e2e window not borderless")
@@ -1465,6 +1496,72 @@ enum AppE2E {
             let host = PaperHostView(rootView: Color.clear.frame(width: 40, height: 40))
             guard host.acceptsFirstMouse(for: nil) else {
                 fail("paper host rejects first mouse")
+            }
+        }
+
+        private func verifyPanelIdle() {
+            guard PanelIdle.toggle(visible: false, recessed: false) == .show else {
+                fail("hidden toggle should show")
+            }
+            guard PanelIdle.toggle(visible: true, recessed: true) == .wake else {
+                fail("recessed toggle should wake")
+            }
+            guard PanelIdle.toggle(visible: true, recessed: false) == .hide else {
+                fail("active toggle should hide")
+            }
+            guard PanelIdle.shouldRecess(
+                visible: true, isKey: false, mouseInside: false, exporting: false, diagnostic: false
+            ) else {
+                fail("idle should recess")
+            }
+            guard PanelIdle.shouldRecess(
+                visible: true, isKey: true, mouseInside: false, exporting: false, diagnostic: false
+            ) == false else {
+                fail("key window recessed")
+            }
+            guard PanelIdle.shouldRecess(
+                visible: true, isKey: false, mouseInside: true, exporting: false, diagnostic: false
+            ) == false else {
+                fail("mouse inside recessed")
+            }
+            guard PanelIdle.shouldRecess(
+                visible: true, isKey: false, mouseInside: false, exporting: true, diagnostic: false
+            ) == false else {
+                fail("export recessed")
+            }
+            guard PanelIdle.shouldRecess(
+                visible: true, isKey: false, mouseInside: false, exporting: false, diagnostic: true
+            ) == false else {
+                fail("diagnostic recessed")
+            }
+            let frame = NSRect(x: 100, y: 100, width: 200, height: 200)
+            guard PanelIdle.dragHitsPanel(mouse: NSPoint(x: 94, y: 150), frame: frame) else {
+                fail("halo miss")
+            }
+            guard PanelIdle.dragHitsPanel(mouse: NSPoint(x: 50, y: 50), frame: frame) == false else {
+                fail("far drag hit panel")
+            }
+            let panel = DropAgentPanel(
+                contentRect: NSRect(x: 0, y: 0, width: 40, height: 40),
+                styleMask: LivePanelChrome.styleMask,
+                backing: .buffered,
+                defer: true
+            )
+            panel.level = PanelIdle.activeLevel
+            panel.alphaValue = 1
+            PanelIdle.applyRecess(to: panel)
+            guard abs(panel.alphaValue - PanelIdle.alpha) < 0.01 else {
+                fail("recess alpha \(panel.alphaValue)")
+            }
+            guard panel.level == PanelIdle.recessedLevel else {
+                fail("recess level \(panel.level.rawValue)")
+            }
+            PanelIdle.applyActive(to: panel)
+            guard panel.alphaValue == 1 else {
+                fail("active alpha \(panel.alphaValue)")
+            }
+            guard panel.level == PanelIdle.activeLevel else {
+                fail("active level \(panel.level.rawValue)")
             }
         }
 
@@ -1506,6 +1603,29 @@ enum AppE2E {
             }
             guard SetupCardPolicy.gearNeedsAttention(hasAgent: true, setup: SetupFixtures.ready) == false else {
                 fail("ready setup still marks gear")
+            }
+            let mixedBrowsers = PageAdmitSetup(
+                accessibilityTrusted: true,
+                browsers: [
+                    PageAdmitBrowserRow(
+                        displayName: "Safari",
+                        bundleIdentifier: "com.apple.Safari",
+                        running: true,
+                        state: .allowed
+                    ),
+                    PageAdmitBrowserRow(
+                        displayName: "Google Chrome",
+                        bundleIdentifier: "com.google.Chrome",
+                        running: true,
+                        state: .notDetermined
+                    ),
+                ]
+            )
+            guard mixedBrowsers.captureReady else {
+                fail("one allowed browser should be capture ready")
+            }
+            guard SetupCardPolicy.gearNeedsAttention(hasAgent: true, setup: mixedBrowsers) == false else {
+                fail("unused browser should not mark gear")
             }
             guard SetupCardPolicy.browserAction(allowed: false, running: true) == .authorize else {
                 fail("running chrome still needs a request even if probe said denied")
@@ -1569,37 +1689,52 @@ enum AppE2E {
                 fail("no screen for edge")
             }
             let visible = screen.visibleFrame
-            let inBand = NSPoint(x: visible.minX + 24, y: visible.maxY - 4)
-            guard let frame = EdgePlacement.frame(mouse: inBand, screens: NSScreen.screens) else {
-                fail("edge band missed")
-            }
-            let expectedWidth = max(160, visible.width - 16)
-            guard abs(frame.width - expectedWidth) < 0.5 else {
-                fail("edge width \(frame.width) != \(expectedWidth)")
-            }
-            guard abs(frame.origin.x - (visible.minX + 8)) < 0.5 else {
-                fail("edge x \(frame.origin.x)")
-            }
-            let menu = max(0, screen.frame.maxY - visible.maxY)
-            guard abs(frame.height - (EdgePlacement.barHeight + menu)) < 0.5 else {
-                fail("edge height \(frame.height)")
-            }
-            guard abs(frame.origin.y - (visible.maxY - EdgePlacement.barHeight)) < 0.5 else {
-                fail("edge y \(frame.origin.y)")
-            }
-            if menu > 1 {
-                let inMenu = NSPoint(x: visible.minX + 24, y: min(screen.frame.maxY - 1, visible.maxY + 2))
-                if EdgePlacement.frame(mouse: inMenu, screens: NSScreen.screens) == nil {
-                    fail("menu bar miss")
-                }
-            }
-            let below = NSPoint(x: visible.midX, y: visible.maxY - EdgePlacement.barHeight - 8)
-            if EdgePlacement.frame(mouse: below, screens: NSScreen.screens) != nil {
-                fail("edge lit below bar")
+            let top = NSPoint(x: visible.midX, y: screen.frame.maxY - 8)
+            if EdgePlacement.inTabSafeZone(mouse: top, screen: screen) == false {
+                fail("tab zone missed")
             }
             let middle = NSPoint(x: visible.midX, y: visible.midY)
-            if EdgePlacement.frame(mouse: middle, screens: NSScreen.screens) != nil {
-                fail("edge lit in screen middle")
+            if EdgePlacement.inTabSafeZone(mouse: middle, screen: screen) {
+                fail("middle treated as tab zone")
+            }
+            if EdgePlacement.band(mouse: middle, center: middle) != .hole {
+                fail("center is not a hole")
+            }
+            let up = NSPoint(x: middle.x, y: middle.y + (EdgePlacement.innerRadius + EdgePlacement.outerRadius) / 2)
+            if EdgePlacement.band(mouse: up, center: middle) != .slice(0) {
+                fail("top slice is not shelf")
+            }
+            let far = NSPoint(x: middle.x, y: middle.y + EdgePlacement.outerRadius + EdgePlacement.leaveSlop + 8)
+            if EdgePlacement.leftRange(mouse: far, center: middle) == false {
+                fail("leave range missed")
+            }
+            if EdgePlacement.leftRange(mouse: up, center: middle) {
+                fail("slice counted as left")
+            }
+            let frame = EdgePlacement.windowFrame(center: middle)
+            if abs(frame.midX - middle.x) > 0.5 || abs(frame.midY - middle.y) > 0.5 {
+                fail("window not centered")
+            }
+            if WheelLayout.slices(hasAgent: true, hasRecipe: true).count != 6 {
+                fail("wheel slice count")
+            }
+            let dummyBoard = NSPasteboard.withUniqueName()
+            dummyBoard.clearContents()
+            dummyBoard.declareTypes(
+                [NSPasteboard.PasteboardType("org.chromium.drag-dummy-type")],
+                owner: nil
+            )
+            if ClipboardPayload.hasDragCargo(dummyBoard) {
+                fail("dummy drag counted as cargo")
+            }
+            dummyBoard.clearContents()
+            dummyBoard.setString("https://example.com", forType: .string)
+            if ClipboardPayload.hasDragCargo(dummyBoard) == false {
+                fail("url text not cargo")
+            }
+            let consumed = EdgePlacement.consumeDragPasteboard(clearCargo: true)
+            if EdgePlacement.dragPasteboardHasPayload(consumedChangeCount: consumed) {
+                fail("consumed drag still live")
             }
             session.systemDragActive = true
             session.finishExternalDrag()
@@ -1619,7 +1754,7 @@ enum AppE2E {
             guard abs(session.shelfWidth - LivePanelChrome.shelfDefault) < 0.5 else {
                 fail("default shelf width \(session.shelfWidth)")
             }
-            session.setShelfWidth(180)
+            session.setShelfWidth(100)
             guard abs(session.shelfWidth - LivePanelChrome.shelfMin) < 0.5 else {
                 fail("min shelf width \(session.shelfWidth)")
             }

@@ -35,6 +35,7 @@ enum DropAgentCheck {
             try appDoesNotImportCapture()
             try agent()
             try await job()
+            try await hideAndDelete()
             try tui()
             try pasteboard()
             try await pasteboardDragLandsFile()
@@ -680,6 +681,10 @@ private func automationAccess() throws {
     expectEqual(AutomationAccess.state(from: OSStatus(errAEEventNotPermitted)), .denied)
     expectEqual(AutomationAccess.state(from: OSStatus(errAEEventWouldRequireUserConsent)), .notDetermined)
     expectEqual(AutomationAccess.state(from: OSStatus(-600)), .unavailable)
+    expectEqual(AutomationAccess.silentState(.denied), .notDetermined)
+    expectEqual(AutomationAccess.silentState(.notDetermined), .notDetermined)
+    expectEqual(AutomationAccess.silentState(.allowed), .allowed)
+    expectEqual(AutomationAccess.silentState(.unavailable), .unavailable)
 
     let chromeRunning = NSWorkspace.shared.runningApplications.contains {
         $0.activationPolicy == .regular && $0.bundleIdentifier == "com.google.Chrome"
@@ -710,6 +715,17 @@ private func capturePermissions() throws {
     expectEqual(safariOnly.browsers.map(\.kind), [.safari])
     expect(safariOnly.browsers.contains { $0.kind == .chrome } == false, "uninstalled chrome is omitted")
     expect(safariOnly.captureReady == false, "undetermined safari is not capture ready")
+
+    let mixed = CapturePermissions.status(
+        accessibilityTrusted: true,
+        installedBundleIDs: ["com.apple.Safari", "com.google.chrome"],
+        runningBundleIDs: ["com.apple.Safari", "com.google.chrome"],
+        stateForBundle: { id in
+            id.lowercased().contains("safari") ? .allowed : .notDetermined
+        }
+    )
+    expect(mixed.captureReady, "one allowed browser is enough")
+    expect(mixed.browsers.contains { $0.kind == .chrome && $0.allowed == false }, "chrome still listed")
 
     let withArc = CapturePermissions.status(
         accessibilityTrusted: true,
@@ -1137,6 +1153,20 @@ private func ingestPasteboard() throws {
         return
     }
     expectEqual(fromBookmark, "https://example.com/bookmark")
+
+    board.clearContents()
+    expect(ClipboardPayload.hasDragCargo(board) == false, "empty board is not drag cargo")
+    board.setString("hello", forType: .string)
+    expect(ClipboardPayload.hasDragCargo(board), "text is drag cargo")
+    board.clearContents()
+    let dummy = NSPasteboard.PasteboardType("org.chromium.drag-dummy-type")
+    board.declareTypes([dummy, NSPasteboard.PasteboardType("public.item")], owner: nil)
+    board.setString("", forType: dummy)
+    expect(ClipboardPayload.hasDragCargo(board) == false, "dummy item types are not drag cargo")
+    board.clearContents()
+    let promised = NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-url")
+    board.declareTypes([promised], owner: nil)
+    expect(ClipboardPayload.hasDragCargo(board), "promised file is drag cargo")
 }
 
 private func ingestDropProvider() async throws {
@@ -1708,6 +1738,27 @@ private func job() async throws {
         expect(!agent.lastPrompt.contains(env.2.path), "\(recipe.rawValue) original path")
     }
 
+    let translateDefault = RecipeCatalog.prompt(for: .translate)
+    expect(translateDefault.contains("中文"), "translate default 中文")
+    expect(translateDefault.contains("自动识别"), "translate auto-detect")
+    let translateEN = RecipeCatalog.prompt(for: .translate, choiceID: "en")
+    expect(translateEN.contains("English"), "translate English")
+    expect(!translateEN.contains("翻译成中文"), "translate en not 中文 target")
+    let outline = RecipeCatalog.prompt(for: .summarize, choiceID: "outline")
+    expect(outline.contains("提纲"), "summarize outline")
+    expectEqual(RecipeCatalog.resolvedChoiceID(.translate, optionID: "nope"), "zh")
+
+    let optEnv = try setup()
+    let optAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
+    _ = try await JobService(shelf: optEnv.0, agent: optAgent, jobsRoot: optEnv.1)
+        .start(itemIDs: [optEnv.3.id], recipe: .translate, optionID: "en")
+    expect(optAgent.lastPrompt.contains("English"), "job option in prompt")
+    expect(optAgent.lastPrompt.contains("自动识别"), "job option auto-detect")
+    expect(!optAgent.lastPrompt.contains(optEnv.2.path), "option job original path")
+    expect(optAgent.lastPrompt.contains("source.pdf"), "option job relative name")
+    expectEqual(optEnv.0.item(id: optEnv.3.id)?.status, .idle)
+    expectEqual(optEnv.0.results().first?.title, "translated.md")
+
     let folderEnv = try setup()
     let folder = folderEnv.1.deletingLastPathComponent().appendingPathComponent("folder", isDirectory: true)
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -1861,6 +1912,117 @@ private func job() async throws {
     _ = try await streamTask.value
     expectEqual(streamEnv.0.item(id: streamEnv.3.id)?.status, .idle)
     expectEqual(streamEnv.0.results().first?.status, .done)
+}
+
+private func hideAndDelete() async throws {
+    let root = try tempDir()
+    let inbox = root.appendingPathComponent("Inbox")
+    let original = root.appendingPathComponent("keep.pdf")
+    let bytes = Data("pdf-bytes".utf8)
+    try bytes.write(to: original)
+    let shelf = ShelfStore(fileURL: root.appendingPathComponent("shelf.json"))
+    let ingest = IngestService(
+        shelf: shelf,
+        inboxRoot: inbox,
+        capture: CaptureService(browser: FailBrowser(), fetcher: FailFetch(), snapshot: FailSnap())
+    )
+
+    expect(OwnedCopy.isInside(inbox, root: inbox) == false, "inbox root is not inside itself")
+    expect(OwnedCopy.isInside(original, root: inbox) == false, "source outside inbox")
+
+    let hidden = ingest.admit(urls: [original]).admitted[0]
+    let hiddenCopy = hidden.parts[0].url
+    expect(OwnedCopy.isInside(hiddenCopy, root: inbox), "inbox copy is inside")
+    try shelf.remove(ids: [hidden.id])
+    expect(shelf.item(id: hidden.id) == nil, "hide removes from shelf")
+    expect(FileManager.default.fileExists(atPath: hiddenCopy.path), "hide keeps inbox copy")
+    expectEqual(try Data(contentsOf: original), bytes, "hide keeps original")
+
+    let deleted = ingest.admit(urls: [original]).admitted[0]
+    let deletedCopy = deleted.parts[0].url
+    let otherOriginal = root.appendingPathComponent("other.pdf")
+    try Data("other-bytes".utf8).write(to: otherOriginal)
+    let other = ingest.admit(urls: [otherOriginal]).admitted[0]
+    try ingest.deleteOwnedCopy(deleted)
+    expect(shelf.item(id: deleted.id) == nil, "delete removes from shelf")
+    expect(!FileManager.default.fileExists(atPath: deletedCopy.path), "inbox copy gone")
+    expect(!FileManager.default.fileExists(atPath: deletedCopy.deletingLastPathComponent().path), "inbox item folder gone")
+    expectEqual(try Data(contentsOf: original), bytes, "original survives delete")
+    expect(FileManager.default.fileExists(atPath: other.parts[0].url.path), "other inbox copy stays")
+    expectEqual(try Data(contentsOf: otherOriginal), Data("other-bytes".utf8), "other original stays")
+
+    let outside = root.appendingPathComponent("outside.pdf")
+    try Data("secret".utf8).write(to: outside)
+    let planted = try shelf.add(Item(
+        kind: .pdf,
+        title: "outside.pdf",
+        sourceURL: outside,
+        parts: [ItemPart(name: "outside.pdf", url: outside)]
+    ))
+    try ingest.deleteOwnedCopy(planted)
+    expect(shelf.item(id: planted.id) == nil, "planted item hidden")
+    expect(FileManager.default.fileExists(atPath: outside.path), "sourceURL outside inbox is not deleted")
+
+    let jobRoot = try tempDir()
+    let jobOriginal = jobRoot.appendingPathComponent("source.pdf")
+    try Data("original-bytes".utf8).write(to: jobOriginal)
+    let jobInbox = jobRoot.appendingPathComponent("Inbox/item1", isDirectory: true)
+    try FileManager.default.createDirectory(at: jobInbox, withIntermediateDirectories: true)
+    let jobCopy = jobInbox.appendingPathComponent("source.pdf")
+    try FileManager.default.copyItem(at: jobOriginal, to: jobCopy)
+    let jobShelf = ShelfStore(fileURL: jobRoot.appendingPathComponent("shelf.json"))
+    let jobItem = try jobShelf.add(Item(
+        kind: .pdf,
+        title: "source.pdf",
+        sourceURL: jobOriginal,
+        parts: [ItemPart(name: "source.pdf", url: jobCopy)],
+        sourceChecksum: digest(jobOriginal)
+    ))
+    let jobs = jobRoot.appendingPathComponent("Jobs")
+    let agent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
+    let job = JobService(shelf: jobShelf, agent: agent, jobsRoot: jobs)
+    _ = try await job.start(itemIDs: [jobItem.id], recipe: .summarize)
+    let record = jobShelf.results().first!
+    let output = record.output!
+    expect(FileManager.default.fileExists(atPath: output.path), "job output exists")
+    let jobDir = output.deletingLastPathComponent().deletingLastPathComponent()
+
+    jobShelf.removeResults(ids: [record.id])
+    expect(jobShelf.results().isEmpty, "hide removes result")
+    expect(FileManager.default.fileExists(atPath: output.path), "hide keeps job output")
+    expect(FileManager.default.fileExists(atPath: jobDir.path), "hide keeps job dir")
+
+    _ = jobShelf.addResult(record)
+    job.deleteOwnedOutput(record)
+    jobShelf.removeResults(ids: [record.id])
+    expect(jobShelf.results().isEmpty, "delete removes result")
+    expect(!FileManager.default.fileExists(atPath: output.path), "job output gone")
+    expect(!FileManager.default.fileExists(atPath: jobDir.path), "job dir gone")
+    expectEqual(try Data(contentsOf: jobOriginal), Data("original-bytes".utf8), "job original survives")
+    expect(FileManager.default.fileExists(atPath: jobCopy.path), "input inbox copy survives result delete")
+
+    let sentinel = jobs.appendingPathComponent("keep.txt")
+    try FileManager.default.createDirectory(at: jobs, withIntermediateDirectories: true)
+    try Data("keep".utf8).write(to: sentinel)
+    job.deleteOwnedOutput(ResultRecord(
+        sourceItemIDs: [jobItem.id],
+        recipe: "总结文件",
+        title: "jobs-root",
+        kind: .markdown,
+        output: jobs
+    ))
+    expect(FileManager.default.fileExists(atPath: sentinel.path), "jobs root not deleted")
+
+    let stolen = jobRoot.appendingPathComponent("stolen.md")
+    try Data("leave-me".utf8).write(to: stolen)
+    job.deleteOwnedOutput(ResultRecord(
+        sourceItemIDs: [jobItem.id],
+        recipe: "总结文件",
+        title: "stolen.md",
+        kind: .markdown,
+        output: stolen
+    ))
+    expectEqual(try Data(contentsOf: stolen), Data("leave-me".utf8), "output outside Jobs is not deleted")
 }
 
 final class WaitingAgent: AgentRunning, @unchecked Sendable {
@@ -2322,6 +2484,7 @@ private func pasteboardDragLandsFile() async throws {
     )
     let provider = PasteboardService.itemProvider(for: done)
     expect(!provider.registeredTypeIdentifiers.isEmpty, "drag types")
+    expect(provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier), "drag advertises file url")
     let desktop = root.appendingPathComponent("Desktop", isDirectory: true)
     try FileManager.default.createDirectory(at: desktop, withIntermediateDirectories: true)
     let source = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
@@ -2697,16 +2860,25 @@ private func captureDoesNotInvent() async throws {
 }
 
 private func appDoesNotImportCapture() throws {
-    let appDir = URL(fileURLWithPath: #filePath)
+    let macos = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
-        .appendingPathComponent("App")
+    let appDir = macos.appendingPathComponent("App")
     let files = try FileManager.default.contentsOfDirectory(at: appDir, includingPropertiesForKeys: nil)
         .filter { $0.pathExtension == "swift" }
     expect(files.isEmpty == false, "app sources exist")
     for file in files {
         let text = try String(contentsOf: file, encoding: .utf8)
         expect(text.contains("import DropAgentCapture") == false, "\(file.lastPathComponent) imports Capture")
+    }
+    let manifest = try String(contentsOf: macos.appendingPathComponent("Package.swift"), encoding: .utf8)
+    let appTargets = manifest.components(separatedBy: ".executableTarget(").dropFirst().filter {
+        $0.contains("name: \"DropAgent\"") && $0.contains("path: \"App\"")
+    }
+    expect(appTargets.isEmpty == false, "DropAgent App target missing")
+    for block in appTargets {
+        expect(block.contains("DropAgentCapture") == false, "App target depends on Capture")
+        expect(block.contains("ScreenCaptureKit") == false, "App target links ScreenCaptureKit")
     }
 }
 

@@ -18,7 +18,19 @@ public enum AutomationAccess {
     }
 
     public static func probe(bundleIdentifier: String) -> AutomationState {
-        determine(bundleIdentifier: bundleIdentifier, ask: false)
+        silentState(determine(bundleIdentifier: bundleIdentifier, ask: false))
+    }
+
+    /// Silent TCC reads often return denied before the app is in the list.
+    public static func silentState(_ state: AutomationState) -> AutomationState {
+        switch state {
+        case .allowed:
+            return .allowed
+        case .denied, .notDetermined:
+            return .notDetermined
+        case .unavailable:
+            return .unavailable
+        }
     }
 
     /// In-process TCC prompt. Do not spawn osascript to trigger this.

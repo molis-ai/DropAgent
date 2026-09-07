@@ -37,47 +37,6 @@ public enum AccessibilityPage {
         return nil
     }
 
-    public static func readFileDocuments(pid: pid_t) -> [URL] {
-        guard isTrusted() else { return [] }
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.35)
-        var found: [URL] = []
-        for window in windowsToRead(of: app) {
-            var documentRef: CFTypeRef?
-            if AXUIElementCopyAttributeValue(window, kAXDocumentAttribute as CFString, &documentRef) == .success,
-               let url = existingFileURL(from: documentRef as Any),
-               found.contains(url) == false
-            {
-                found.append(url)
-            }
-        }
-        return found
-    }
-
-    public static func existingFileURL(from raw: Any) -> URL? {
-        let parsed: URL?
-        if let url = raw as? URL {
-            parsed = url
-        } else if let text = raw as? String {
-            parsed = parseFileURL(text)
-        } else if let text = raw as? NSString {
-            parsed = parseFileURL(text as String)
-        } else {
-            parsed = nil
-        }
-        guard let parsed, parsed.isFileURL else { return nil }
-        let resolved = parsed.standardizedFileURL
-        guard FileManager.default.fileExists(atPath: resolved.path) else { return nil }
-        return resolved
-    }
-
-    private static func parseFileURL(_ text: String) -> URL? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let url = URL(string: trimmed), url.isFileURL { return url }
-        if trimmed.hasPrefix("/") { return URL(fileURLWithPath: trimmed) }
-        return nil
-    }
-
     public static func roleRank(_ role: String) -> Int {
         switch role {
         case "AXWebArea": return 3
@@ -110,7 +69,7 @@ public enum AccessibilityPage {
         return nil
     }
 
-    private static func windowsToRead(of app: AXUIElement) -> [AXUIElement] {
+    static func windowsToRead(of app: AXUIElement) -> [AXUIElement] {
         var list: [AXUIElement] = []
         func append(_ window: AXUIElement?) {
             guard let window else { return }
@@ -125,7 +84,7 @@ public enum AccessibilityPage {
         return list
     }
 
-    private static func windows(of app: AXUIElement) -> [AXUIElement] {
+    static func windows(of app: AXUIElement) -> [AXUIElement] {
         var listRef: CFTypeRef?
         AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &listRef)
         let list = (listRef as? [AXUIElement]) ?? []
@@ -134,7 +93,7 @@ public enum AccessibilityPage {
         }
     }
 
-    private static func copyElement(_ parent: AXUIElement, _ attribute: CFString) -> AXUIElement? {
+    static func copyElement(_ parent: AXUIElement, _ attribute: CFString) -> AXUIElement? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(parent, attribute, &ref) == .success,
               let ref,
@@ -145,7 +104,7 @@ public enum AccessibilityPage {
         return unsafeDowncast(ref, to: AXUIElement.self)
     }
 
-    private static func subrole(_ element: AXUIElement) -> String? {
+    static func subrole(_ element: AXUIElement) -> String? {
         AXUIElementSetMessagingTimeout(element, 0.2)
         var ref: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &ref)

@@ -1,29 +1,7 @@
-import CryptoKit
 import DropAgentAgent
 import DropAgentShelf
 import Foundation
 import os
-
-public struct JobID: Hashable, Codable, Sendable, RawRepresentable {
-    public var rawValue: String
-    public init(rawValue: String) { self.rawValue = rawValue }
-    public init() { self.rawValue = UUID().uuidString }
-}
-
-public struct JobRecord: Equatable, Sendable {
-    public var id: JobID
-    public var recipe: RecipeID
-    public var itemIDs: [ItemID]
-    public var directory: URL
-    public var outputFile: URL
-}
-
-public enum JobError: Error, Equatable, Sendable {
-    case noAgent
-    case emptySelection
-    case notStartable
-    case missingItem
-}
 
 public struct JobService: Sendable {
     private let shelf: ShelfStore
@@ -42,7 +20,22 @@ public struct JobService: Sendable {
         agent.cancelCurrent()
     }
 
-    public func start(itemIDs: [ItemID], recipe: RecipeID) async throws -> JobID {
+    public func deleteOwnedOutput(_ record: ResultRecord) {
+        guard let output = record.output else { return }
+        let root = jobsRoot.resolvingSymlinksInPath().standardizedFileURL
+        let file = output.resolvingSymlinksInPath().standardizedFileURL
+        let prefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        guard file.path.hasPrefix(prefix) else { return }
+        let jobDir = file.deletingLastPathComponent().deletingLastPathComponent()
+            .resolvingSymlinksInPath().standardizedFileURL
+        if jobDir.path.hasPrefix(prefix) {
+            JobWorkspace.forceRemove(jobDir)
+        } else {
+            JobWorkspace.forceRemove(file)
+        }
+    }
+
+    public func start(itemIDs: [ItemID], recipe: RecipeID, optionID: String? = nil) async throws -> JobID {
         guard !itemIDs.isEmpty else { throw JobError.emptySelection }
         let presence = agent.discover(settings: agent.settings)
         guard presence.executable != nil else { throw JobError.noAgent }
@@ -73,10 +66,10 @@ public struct JobService: Sendable {
         var relativeNames: [String] = []
         for item in items {
             for part in item.parts {
-                let destInput = uniqueURL(in: input, preferredName: part.name)
-                let destWork = uniqueURL(in: work, preferredName: part.name)
-                try copyRegular(from: part.url, to: destInput)
-                try copyRegular(from: part.url, to: destWork)
+                let destInput = JobWorkspace.uniqueURL(in: input, preferredName: part.name)
+                let destWork = JobWorkspace.uniqueURL(in: work, preferredName: part.name)
+                try JobWorkspace.copyRegular(from: part.url, to: destInput)
+                try JobWorkspace.copyRegular(from: part.url, to: destWork)
                 relativeNames.append(destWork.lastPathComponent)
             }
             try shelf.patch(id: item.id) { live in
@@ -87,15 +80,15 @@ public struct JobService: Sendable {
                 live.failureReason = nil
             }
         }
-        try freezeReadOnly(at: input)
+        try JobWorkspace.freezeReadOnly(at: input)
 
         let promptFile = dir.appendingPathComponent("prompt.txt")
         let listed = relativeNames.map { "- \($0)" }.joined(separator: "\n")
-        let prompt = spec.prompt + "\n\n材料：\n" + listed + "\n"
+        let prompt = RecipeCatalog.prompt(for: recipe, choiceID: optionID) + "\n材料：\n" + listed + "\n"
         try Data(prompt.utf8).write(to: promptFile)
         let outputFile = output.appendingPathComponent(spec.outputFileName)
-        try appendEvent(dir: dir, message: "复制到 input/ 与 work/")
-        try writeManifest(
+        try JobWorkspace.appendEvent(dir: dir, message: "复制到 input/ 与 work/")
+        try JobWorkspace.writeManifest(
             dir: dir,
             jobID: jobID,
             recipe: recipe,
@@ -119,7 +112,7 @@ public struct JobService: Sendable {
             }
             let result = try await agent.run(request) { event in
                 let text = Self.displayEvent(event.message)
-                try? appendEvent(dir: dir, message: event.message)
+                try? JobWorkspace.appendEvent(dir: dir, message: event.message)
                 for id in runningIDs {
                     try? shelf.patch(id: id) { live in
                         guard live.status == .running else { return }
@@ -225,114 +218,6 @@ public struct JobService: Sendable {
         }
     }
 
-    private func copyRegular(from source: URL, to dest: URL) throws {
-        try FileManager.default.copyItem(at: source, to: dest)
-        try stripSymlinks(at: dest)
-    }
-
-    private func stripSymlinks(at url: URL) throws {
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return }
-        if (try url.resourceValues(forKeys: [.isSymbolicLinkKey])).isSymbolicLink == true {
-            try FileManager.default.removeItem(at: url)
-            return
-        }
-        guard isDir.boolValue else { return }
-        for child in try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isSymbolicLinkKey]) {
-            try stripSymlinks(at: child)
-        }
-    }
-
-    private func freezeReadOnly(at url: URL) throws {
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return }
-        if isDir.boolValue {
-            for child in try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil) {
-                try freezeReadOnly(at: child)
-            }
-            try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: url.path)
-        } else {
-            try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: url.path)
-        }
-    }
-
-    private func uniqueURL(in directory: URL, preferredName: String) -> URL {
-        var dest = directory.appendingPathComponent(preferredName)
-        var i = 2
-        let base = dest.deletingPathExtension().lastPathComponent
-        let ext = dest.pathExtension
-        while FileManager.default.fileExists(atPath: dest.path) {
-            let name = ext.isEmpty ? "\(base)-\(i)" : "\(base)-\(i).\(ext)"
-            dest = directory.appendingPathComponent(name)
-            i += 1
-        }
-        return dest
-    }
-
-    private func appendEvent(dir: URL, message: String) throws {
-        let file = dir.appendingPathComponent("events.jsonl")
-        let line = "{\"message\":\(jsonString(message))}\n"
-        if FileManager.default.fileExists(atPath: file.path) {
-            let handle = try FileHandle(forWritingTo: file)
-            defer { try? handle.close() }
-            try handle.seekToEnd()
-            try handle.write(contentsOf: Data(line.utf8))
-        } else {
-            try Data(line.utf8).write(to: file)
-        }
-    }
-
-    private func writeManifest(
-        dir: URL,
-        jobID: JobID,
-        recipe: RecipeID,
-        agent: String,
-        isolation: IsolationGrade,
-        items: [Item]
-    ) throws {
-        let listed: [[String: Any]] = items.map { item in
-            var row: [String: Any] = [
-                "id": item.id.rawValue,
-                "title": item.title,
-            ]
-            if let checksum = item.sourceChecksum {
-                row["checksum"] = checksum
-            }
-            return row
-        }
-        let payload: [String: Any] = [
-            "id": jobID.rawValue,
-            "recipe": recipe.rawValue,
-            "agent": agent,
-            "isolation": isolation.rawValue,
-            "items": listed,
-        ]
-        let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
-        try data.write(to: dir.appendingPathComponent("manifest.json"))
-    }
-
-    private func jsonString(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-        return "\"\(escaped)\""
-    }
-}
-
-enum FileDigest {
-    static func sha256(of url: URL) throws -> String {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        var hasher = SHA256()
-        while autoreleasepool(invoking: {
-            let chunk = try? handle.read(upToCount: 1024 * 1024)
-            guard let chunk, !chunk.isEmpty else { return false }
-            hasher.update(data: chunk)
-            return true
-        }) {}
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
-    }
 }
 
 private extension JobService {
@@ -352,25 +237,5 @@ private extension JobService {
         default:
             return "任务失败"
         }
-    }
-}
-
-final class JobControl: @unchecked Sendable {
-    private let cancelled = OSAllocatedUnfairLock(initialState: false)
-
-    func begin() {
-        cancelled.withLock { $0 = false }
-    }
-
-    func markCancelled() {
-        cancelled.withLock { $0 = true }
-    }
-
-    func end() {
-        cancelled.withLock { $0 = false }
-    }
-
-    var isCancelled: Bool {
-        cancelled.withLock { $0 }
     }
 }

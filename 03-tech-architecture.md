@@ -172,7 +172,7 @@ Shelf 列表存 Application Support 下的 `shelf.json`。不进 iCloud、不做
 | 落点 | 调用 |
 |------|------|
 | 菜单栏图标 | `Ingest.admit` → 只进架子（http(s) 随后抓页） |
-| 屏幕顶边投放 | 同上 |
+| 鼠标旁拖放轮盘 | 同上 |
 | 面板左列表 | 同上 |
 | 面板右 AI 区 | `Ingest.admit(..., capturePages: false)` 得到 Item，立刻 `TUI.send`（框里有字带上） |
 | 粘贴快捷键（默认 ⌘V） | `Ingest.admitClipboard`；http(s) 随后 `captureDroppedPages` |
@@ -227,7 +227,7 @@ Recipe 跑完：对 `sourceURL` 若是本地文件，再读一遍 Hash，必须�
 5. 剪贴板进出  
 6. Capture 快捷键（Safari/Chrome）  
 7. 其余 Recipe  
-8. 顶边投放、多选 Recipe、网站组合拖出文件夹  
+8. 拖放轮盘、多选 Recipe、网站组合拖出文件夹  
 
 设计原型 `prototype/` 与上述状态机对齐，用 Impeccable 打磨；不替代 1–4 的本机验收。
 

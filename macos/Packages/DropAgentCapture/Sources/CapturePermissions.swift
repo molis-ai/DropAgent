@@ -35,7 +35,7 @@ public struct CapturePermissionStatus: Equatable, Sendable {
     }
 
     public var captureReady: Bool {
-        accessibilityTrusted && browsers.allSatisfy(\.allowed)
+        accessibilityTrusted && (browsers.isEmpty || browsers.contains(where: \.allowed))
     }
 }
 

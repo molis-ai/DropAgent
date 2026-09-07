@@ -100,7 +100,7 @@ public struct PageAdmitSetup: Equatable, Sendable {
     }
 
     public var captureReady: Bool {
-        accessibilityTrusted && browsers.allSatisfy(\.allowed)
+        accessibilityTrusted && (browsers.isEmpty || browsers.contains(where: \.allowed))
     }
 
     public static let empty = PageAdmitSetup(accessibilityTrusted: false, browsers: [])

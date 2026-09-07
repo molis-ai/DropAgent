@@ -9,9 +9,13 @@ extension IngestService {
         var admitted: [Item] = []
         var failures: [AdmitFailure] = []
         var pageCaptureIDs: [ItemID] = []
+        var seenPaths = Set<String>()
         for provider in providers {
             if let url = await DropProviders.fileOrHTTPURL(provider) {
-                urls.append(url)
+                let key = url.standardizedFileURL.path
+                if seenPaths.insert(key).inserted {
+                    urls.append(url)
+                }
                 continue
             }
             if let data = await DropProviders.imageData(provider) {
@@ -49,12 +53,24 @@ extension IngestService {
 
 enum DropProviders {
     static func fileOrHTTPURL(_ provider: NSItemProvider) async -> URL? {
-        if provider.canLoadObject(ofClass: URL.self), let url = try? await loadURL(provider) {
+        if provider.canLoadObject(ofClass: URL.self), let url = try? await loadURL(provider), url.isFileURL || url.scheme == "http" || url.scheme == "https" {
             return url
         }
         if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
            let url = try? await loadFileURL(provider) {
             return url
+        }
+        let fileTypes = provider.registeredTypeIdentifiers.filter { id in
+            id != UTType.utf8PlainText.identifier
+                && id != UTType.plainText.identifier
+                && id != UTType.url.identifier
+                && id != UTType.png.identifier
+                && id != UTType.image.identifier
+        }
+        for type in fileTypes {
+            if let url = try? await loadKeptFile(provider, type: type) {
+                return url
+            }
         }
         if provider.canLoadObject(ofClass: NSString.self),
            let text = try? await loadString(provider),
@@ -130,6 +146,28 @@ enum DropProviders {
                     continuation.resume(returning: text as String)
                 } else {
                     continuation.resume(throwing: error ?? IngestError.unsupported)
+                }
+            }
+        }
+    }
+
+    private static func loadKeptFile(_ provider: NSItemProvider, type: String) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadFileRepresentation(forTypeIdentifier: type) { url, error in
+                guard let url else {
+                    continuation.resume(throwing: error ?? IngestError.unsupported)
+                    return
+                }
+                let dest = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("DropAgentDrop", isDirectory: true)
+                    .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                    .appendingPathComponent(url.lastPathComponent)
+                do {
+                    try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try FileManager.default.copyItem(at: url, to: dest)
+                    continuation.resume(returning: dest)
+                } catch {
+                    continuation.resume(throwing: error)
                 }
             }
         }

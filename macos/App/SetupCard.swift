@@ -46,25 +46,28 @@ struct SetupCard: View {
 
 struct SetupChecklist: View {
     @ObservedObject var session: AppSession
+    var includeHotKeys = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             agentRow
-            hotKeyRow(
-                title: SetupCopy.toggleTitle,
-                ready: session.hotKeyToggleOK,
-                fail: SetupCopy.toggleTaken
-            )
-            hotKeyRow(
-                title: SetupCopy.captureTitle,
-                ready: session.hotKeyCaptureOK,
-                fail: SetupCopy.captureTaken
-            )
-            hotKeyRow(
-                title: SetupCopy.filesTitle,
-                ready: session.hotKeyFilesOK,
-                fail: SetupCopy.filesTaken
-            )
+            if includeHotKeys {
+                hotKeyRow(
+                    title: SetupCopy.toggleTitle,
+                    ready: session.hotKeyToggleOK,
+                    fail: SetupCopy.toggleTaken
+                )
+                hotKeyRow(
+                    title: SetupCopy.captureTitle,
+                    ready: session.hotKeyCaptureOK,
+                    fail: SetupCopy.captureTaken
+                )
+                hotKeyRow(
+                    title: SetupCopy.filesTitle,
+                    ready: session.hotKeyFilesOK,
+                    fail: SetupCopy.filesTaken
+                )
+            }
             accessibilityRow
             finderRow
             ForEach(session.setup.browsers) { browser in

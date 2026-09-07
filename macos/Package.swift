@@ -89,7 +89,6 @@ let package = Package(
                 .linkedFramework("AppKit"),
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("Carbon"),
-                .linkedFramework("ScreenCaptureKit"),
             ]
         ),
     ]

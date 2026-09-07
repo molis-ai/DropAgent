@@ -17,8 +17,9 @@ admit(urls: [URL], capturePages: Bool = true) -> AdmitResult
 admitClipboard() throws -> [Item]
 admitPasteboard(_:) -> AdmitResult
 admitProviders(_:) async -> AdmitResult
-captureDroppedPages(ids:) async
-admitCurrentPage(token:) async throws -> Item
+deleteOwnedCopy(_ item: Item)            // Shelf.remove + 删 Inbox 副本；不碰 sourceURL 原件
+captureDroppedPages(ids:) async          // IngestCapture
+admitCurrentPage(token:) async throws -> Item  // IngestCapture
 FrontAdmit.classify / decide / collect
 PageAdmit.freezeFrontBrowser / snapshot / decide / failure
 PageAdmit.setupStatus / requestTrustIfNeeded / requestAutomation / privacyTarget
