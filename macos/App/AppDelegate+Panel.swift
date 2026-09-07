@@ -130,7 +130,8 @@ extension AppDelegate {
             isKey: panel.isKeyWindow,
             mouseInside: mouseInside,
             exporting: exportingFromPanel,
-            diagnostic: isDiagnosticLaunch
+            diagnostic: isDiagnosticLaunch,
+            dragging: session.systemDragActive
         ) else { return }
         panelRecessed = true
         panel.level = PanelIdle.recessedLevel
@@ -161,6 +162,7 @@ extension AppDelegate {
     }
 
     func recessAfterDragLeft() {
+        guard session.systemDragActive == false else { return }
         guard panelRecessed == false, panel?.isKeyWindow == false, exportingFromPanel == false else { return }
         cancelRecess()
         recessPanelIfNeeded()

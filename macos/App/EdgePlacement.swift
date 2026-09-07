@@ -1,6 +1,16 @@
 import AppKit
 import DropAgentIngest
 
+enum WheelRelease {
+    static func admitPayload(live: ClipboardPayload, snapshot: ClipboardPayload) -> ClipboardPayload {
+        live == .empty ? snapshot : live
+    }
+
+    static func panelTakesDrop(overPanel: Bool) -> Bool {
+        overPanel
+    }
+}
+
 enum WheelBand: Equatable {
     case hole
     case slice(Int)

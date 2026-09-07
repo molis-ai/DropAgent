@@ -64,9 +64,15 @@ final class EdgeDropController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         let view = EdgeDropView()
         view.onPick = { [weak self] action, pasteboard in
-            self?.admit(ClipboardPayload.from(pasteboard: pasteboard), action: action)
+            guard let self else { return false }
+            let live = ClipboardPayload.from(pasteboard: pasteboard)
+            let payload = WheelRelease.admitPayload(live: live, snapshot: self.snapshot)
+            self.admit(payload, action: action)
+            return self.didAdmit
         }
-        view.onFinished = { [weak self] in self?.session.finishExternalDrag() }
+        view.onReleased = { [weak self] in
+            self?.finishFromMouseUp()
+        }
         panel.contentView = view
         panel.orderOut(nil)
         window = panel
@@ -84,9 +90,9 @@ final class EdgeDropController {
                 return
             }
             let mouse = NSEvent.mouseLocation
-            if panelVisible(), let frame = panelFrame(), PanelIdle.dragHitsPanel(mouse: mouse, frame: frame) {
+            if panelVisible(), let frame = panelFrame(), PanelIdle.dragApproachingPanel(mouse: mouse, frame: frame) {
                 onDragOverPanel()
-            } else {
+            } else if session.systemDragActive == false {
                 onDragAwayFromPanel()
             }
             noteExternalDrag(at: mouse)
@@ -114,6 +120,7 @@ final class EdgeDropController {
         revealWork?.cancel()
         revealWork = nil
         let hadCargo = dragOrigin != nil || snapshot != .empty || revealed
+        let shouldClear = didAdmit && hadCargo
         snapshot = .empty
         dragOrigin = nil
         dragStartedAt = nil
@@ -121,7 +128,8 @@ final class EdgeDropController {
         dismissed = false
         center = nil
         lastMouse = nil
-        consumedChangeCount = EdgePlacement.consumeDragPasteboard(clearCargo: hadCargo)
+        didAdmit = false
+        consumedChangeCount = EdgePlacement.consumeDragPasteboard(clearCargo: shouldClear)
         concealWheel()
         window?.alphaValue = 1
         window?.level = .statusBar
@@ -133,8 +141,7 @@ final class EdgeDropController {
             lastMouse = mouse
             return
         }
-        let insidePanel = panelVisible() && (panelFrame()?.contains(mouse) ?? false)
-        if insidePanel {
+        if isApproachingPanel(mouse) {
             if catcherArmed { concealWheel() }
             lastMouse = mouse
             return
@@ -184,16 +191,14 @@ final class EdgeDropController {
         revealWork?.cancel()
         revealWork = nil
         let mouse = NSEvent.mouseLocation
-        if catcherArmed, let center, case .slice(let index) = EdgePlacement.band(mouse: mouse, center: center) {
+        if WheelRelease.panelTakesDrop(overPanel: isOverPanel(mouse)) == false,
+           catcherArmed, let center, case .slice(let index) = EdgePlacement.band(mouse: mouse, center: center) {
             let slices = WheelLayout.slices(hasAgent: session.hasAgent, hasRecipe: session.hasRecipe)
             if slices.indices.contains(index), slices[index].enabled {
                 let live = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
-                if live != .empty {
-                    admit(live, action: slices[index].action)
-                    return
-                }
-                if snapshot != .empty {
-                    admit(snapshot, action: slices[index].action)
+                let payload = WheelRelease.admitPayload(live: live, snapshot: snapshot)
+                if payload != .empty {
+                    admit(payload, action: slices[index].action)
                     return
                 }
                 session.systemDragActive = false
@@ -238,10 +243,17 @@ final class EdgeDropController {
 
     private func noteExternalDrag(at mouse: NSPoint) {
         guard session.systemDragActive == false else { return }
-        let insidePanel = panelVisible() && (panelFrame()?.contains(mouse) ?? false)
-        if insidePanel == false {
+        if isOverPanel(mouse) == false {
             session.systemDragActive = true
         }
+    }
+
+    private func isOverPanel(_ mouse: NSPoint) -> Bool {
+        panelVisible() && (panelFrame().map { PanelIdle.dragHitsPanel(mouse: mouse, frame: $0) } ?? false)
+    }
+
+    private func isApproachingPanel(_ mouse: NSPoint) -> Bool {
+        panelVisible() && (panelFrame().map { PanelIdle.dragApproachingPanel(mouse: mouse, frame: $0) } ?? false)
     }
 
     private func showWheel(center: NSPoint, hot: Int?) {

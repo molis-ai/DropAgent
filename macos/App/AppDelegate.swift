@@ -50,7 +50,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reregisterHotKeys()
         session.applyChrome = { [weak self] in self?.applyPanelAppearance() }
         session.applyLayout = { [weak self] in self?.positionPanel() }
-        session.onFinishExternalDrag = { [weak self] in self?.edgeDrop?.hide() }
+        session.onFinishExternalDrag = { [weak self] in
+            self?.edgeDrop?.hide()
+            self?.scheduleRecess()
+        }
         applyPanelAppearance()
         appearanceObserver = DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("AppleInterfaceThemeChangedNotification"),

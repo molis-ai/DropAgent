@@ -34,10 +34,15 @@ extension AppSession {
             return
         }
         lastInternalDropAt = now
-        finishExternalDrag()
+        let fallback = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
         Task {
-            follow(await ingest.admitProviders(providers))
+            var result = await ingest.admitProviders(providers)
+            if result.admitted.isEmpty, fallback != .empty {
+                result = ingest.admitPayload(fallback)
+            }
+            follow(result)
             aiTab = .work
+            finishExternalDrag()
         }
     }
 
@@ -75,12 +80,17 @@ extension AppSession {
     }
 
     func admitToTUI(providers: [NSItemProvider]) {
-        finishExternalDrag()
+        let fallback = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
         Task {
-            let result = await ingest.admitProviders(providers, capturePages: false)
+            var result = await ingest.admitProviders(providers, capturePages: false)
+            if result.admitted.isEmpty, fallback != .empty {
+                result = ingest.admitPayload(fallback, capturePages: false)
+            }
             follow(result)
             let ids = result.admitted.map(\.id)
             shelf.setSelection(Set(ids))
+            finishExternalDrag()
+            if ids.isEmpty { return }
             if hasAgent {
                 sendToTUI(itemIDs: ids)
             } else {

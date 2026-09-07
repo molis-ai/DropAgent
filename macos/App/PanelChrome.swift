@@ -80,7 +80,7 @@ struct AccessibleID: NSViewRepresentable {
     var identifier: String
 
     func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
+        let view = HitThroughIDView(frame: .zero)
         view.setAccessibilityIdentifier(identifier)
         view.setAccessibilityElement(true)
         return view
@@ -89,6 +89,10 @@ struct AccessibleID: NSViewRepresentable {
     func updateNSView(_ view: NSView, context: Context) {
         view.setAccessibilityIdentifier(identifier)
     }
+}
+
+private final class HitThroughIDView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 final class PaperHostView<Content: View>: NSHostingView<Content> {

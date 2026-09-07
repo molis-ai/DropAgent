@@ -1546,12 +1546,23 @@ enum AppE2E {
             ) == false else {
                 fail("diagnostic recessed")
             }
+            guard PanelIdle.shouldRecess(
+                visible: true, isKey: false, mouseInside: false, exporting: false, diagnostic: false, dragging: true
+            ) == false else {
+                fail("dragging recessed")
+            }
             let frame = NSRect(x: 100, y: 100, width: 200, height: 200)
             guard PanelIdle.dragHitsPanel(mouse: NSPoint(x: 94, y: 150), frame: frame) else {
                 fail("halo miss")
             }
             guard PanelIdle.dragHitsPanel(mouse: NSPoint(x: 50, y: 50), frame: frame) == false else {
                 fail("far drag hit panel")
+            }
+            guard PanelIdle.dragApproachingPanel(mouse: NSPoint(x: 50, y: 150), frame: frame) else {
+                fail("approach halo miss")
+            }
+            guard PanelIdle.dragApproachingPanel(mouse: NSPoint(x: 10, y: 10), frame: frame) == false else {
+                fail("far drag counted as approaching")
             }
             let panel = DropAgentPanel(
                 contentRect: NSRect(x: 0, y: 0, width: 40, height: 40),
@@ -1746,6 +1757,20 @@ enum AppE2E {
             dummyBoard.setString("https://example.com", forType: .string)
             if ClipboardPayload.hasDragCargo(dummyBoard) == false {
                 fail("url text not cargo")
+            }
+            let sample = URL(fileURLWithPath: "/tmp/dropagent-wheel.pdf")
+            let snap = ClipboardPayload.files([sample])
+            guard WheelRelease.admitPayload(live: .empty, snapshot: snap) == snap else {
+                fail("empty live should use wheel snapshot")
+            }
+            guard WheelRelease.admitPayload(live: .text("https://example.com"), snapshot: snap) == .text("https://example.com") else {
+                fail("live payload should beat snapshot")
+            }
+            guard WheelRelease.panelTakesDrop(overPanel: true) else {
+                fail("panel drop should beat the wheel")
+            }
+            guard WheelRelease.panelTakesDrop(overPanel: false) == false else {
+                fail("wheel should take drops off the panel")
             }
             let consumed = EdgePlacement.consumeDragPasteboard(clearCargo: true)
             if EdgePlacement.dragPasteboardHasPayload(consumedChangeCount: consumed) {

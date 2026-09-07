@@ -1,3 +1,4 @@
+import DropAgentIngest
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -22,8 +23,14 @@ struct AdmitDropDelegate: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         targeted = false
         let providers = info.itemProviders(for: IncomingDrop.contentTypes)
-        guard providers.isEmpty == false else { return false }
-        admit(providers)
-        return true
+        if providers.isEmpty == false {
+            admit(providers)
+            return true
+        }
+        if ClipboardPayload.hasDragCargo(NSPasteboard(name: .drag)) {
+            admit([])
+            return true
+        }
+        return false
     }
 }

@@ -3,8 +3,8 @@ import DropAgentIngest
 import QuartzCore
 
 final class EdgeDropView: NSView {
-    var onPick: ((WheelAction, NSPasteboard) -> Void)?
-    var onFinished: (() -> Void)?
+    var onPick: ((WheelAction, NSPasteboard) -> Bool)?
+    var onReleased: (() -> Void)?
     private var slices: [WheelSlice] = WheelLayout.slices(hasAgent: true, hasRecipe: true)
     private var hotIndex: Int?
     private var tiles: [WheelSliceView] = []
@@ -83,27 +83,33 @@ final class EdgeDropView: NSView {
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
-        onFinished?()
+        onReleased?()
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        let point = convert(sender.draggingLocation, from: nil)
+        let point = dropPoint(sender)
         guard let index = EdgePlacement.sliceIndex(point: point, in: bounds),
               slices.indices.contains(index),
               slices[index].enabled
         else { return false }
-        onPick?(slices[index].action, sender.draggingPasteboard)
-        onFinished?()
-        return true
+        return onPick?(slices[index].action, sender.draggingPasteboard) ?? false
+    }
+
+    private func dropPoint(_ sender: NSDraggingInfo) -> NSPoint {
+        let fromWindow = convert(sender.draggingLocation, from: nil)
+        if EdgePlacement.sliceIndex(point: fromWindow, in: bounds) != nil {
+            return fromWindow
+        }
+        guard let window else { return fromWindow }
+        return convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
     }
 
     private func highlight(_ sender: NSDraggingInfo) {
-        let point = convert(sender.draggingLocation, from: nil)
-        setHot(EdgePlacement.sliceIndex(point: point, in: bounds))
+        setHot(EdgePlacement.sliceIndex(point: dropPoint(sender), in: bounds))
     }
 
     private func currentOperation(_ sender: NSDraggingInfo) -> NSDragOperation {
-        let point = convert(sender.draggingLocation, from: nil)
+        let point = dropPoint(sender)
         guard let index = EdgePlacement.sliceIndex(point: point, in: bounds),
               slices.indices.contains(index),
               slices[index].enabled
