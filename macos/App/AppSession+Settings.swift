@@ -91,6 +91,26 @@ extension AppSession {
         objectWillChange.send()
     }
 
+    func setShowWork(_ on: Bool) {
+        prefs.showWork = on
+        if on == false {
+            spotlight.setText("")
+        }
+        prefs.save()
+        applyLayout?()
+    }
+
+    func setShowResult(_ on: Bool) {
+        prefs.showResult = on
+        prefs.save()
+        applyLayout?()
+    }
+
+    func setShowDropWheel(_ on: Bool) {
+        prefs.showDropWheel = on
+        prefs.save()
+    }
+
     func chord(for slot: HotKeySlot) -> HotKeyChord {
         switch slot {
         case .toggle: return prefs.toggleHotKey

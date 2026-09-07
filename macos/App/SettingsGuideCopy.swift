@@ -4,8 +4,8 @@ enum SettingsGuideCopy {
     static var dropInTitle: String { Copy.t("拖进去", "Adding Files") }
     static var dropIn: String {
         Copy.t(
-            "菜单栏图标、鼠标旁的轮盘、左侧列表：加入架子（复制进写入区域，原件不动）。右侧 AI：发给当前终端。轮盘六瓣是加入架子、发给终端、总结、抽取、翻译、转 MD；拖出外圈即消失，不开关面板。",
-            "Menu bar icon, the drop wheel beside the pointer, and the left list add to the shelf (a copy in the incoming folder; originals stay put). The right AI pane sends to the current terminal. The wheel has six slices: shelf, send, summarize, extract, translate, to Markdown. Leaving the ring dismisses it; it does not open or close the panel."
+            "菜单栏图标、鼠标旁的轮盘、左侧列表：加入架子（复制进写入区域，原件不动）。右侧 AI：发给当前终端。轮盘六瓣是加入架子、发给终端、总结、抽取、翻译、转 MD；拖出外圈即消失，不开关面板。可在外观里关掉轮盘。",
+            "Menu bar icon, the drop wheel beside the pointer, and the left list add to the shelf (a copy in the incoming folder; originals stay put). The right AI pane sends to the current terminal. The wheel has six slices: shelf, send, summarize, extract, translate, to Markdown. Leaving the ring dismisses it; it does not open or close the panel. Turn the wheel off in Appearance."
         )
     }
 

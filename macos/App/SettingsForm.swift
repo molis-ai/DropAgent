@@ -104,6 +104,45 @@ enum SettingsForm {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.line))
     }
 
+    static func toggleRow(
+        title: String,
+        caption: String,
+        isOn: Bool,
+        identifier: String,
+        onChange: @escaping (Bool) -> Void
+    ) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Palette.text)
+                    .textSelection(.enabled)
+                Text(caption)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.faint)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+            Spacer(minLength: 8)
+            Toggle("", isOn: Binding(
+                get: { isOn },
+                set: { newValue in
+                    onChange(newValue)
+                }
+            ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .tint(Palette.text)
+                .accessibilityLabel(title)
+                .accessibilityIdentifier(identifier)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.panel2.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.line))
+    }
+
     static func sectionTitle(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 11, weight: .medium))

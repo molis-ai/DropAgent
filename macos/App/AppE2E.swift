@@ -75,6 +75,7 @@ enum AppE2E {
             verifyFirstOpen()
             await verifySetupCard()
             verifyShelfWidth()
+            await verifyPaneLayout()
             verifyStatusIcon()
             await verifyPanelSettings()
             verifyFrontFileHotKey()
@@ -1278,9 +1279,20 @@ enum AppE2E {
                   SettingsGuideCopy.browser.contains("tabs"),
                   SettingsGuideCopy.reads.contains("job copy"),
                   SettingsGuideCopy.writes.contains("never overwritten"),
-                  SettingsGuideCopy.dropOut.contains("copy not move")
+                  SettingsGuideCopy.dropOut.contains("does not move")
             else {
                 fail("settings english guide \(SettingsGuideCopy.dropIn)")
+            }
+            session.settingsSection = .appearance
+            await settle()
+            guard settingsShows("Show drop wheel") else {
+                fail("settings appearance missing wheel \(settingsTree())")
+            }
+            guard settingsShows("Work") else {
+                fail("settings appearance missing work \(settingsTree())")
+            }
+            guard settingsShows("Results") else {
+                fail("settings appearance missing results \(settingsTree())")
             }
             session.setLanguage(.zh)
             session.settingsSection = .guide
@@ -1641,6 +1653,9 @@ enum AppE2E {
                 guard decoded.setupCardDismissed == false else {
                     fail("missing setupCardDismissed should be false")
                 }
+                guard decoded.showWork, decoded.showResult, decoded.showDropWheel else {
+                    fail("missing pane prefs should default on")
+                }
             } catch {
                 fail("prefs decode empty \(error)")
             }
@@ -1747,6 +1762,101 @@ enum AppE2E {
             }
             if types.contains(NSPasteboard.PasteboardType("public.item")) == false {
                 fail("edge missing public.item")
+            }
+        }
+
+        private func verifyPaneLayout() async {
+            guard session.prefs.showWork, session.prefs.showResult, session.prefs.showDropWheel else {
+                fail("pane prefs should default on")
+            }
+            let full = LivePanelChrome.fittedWidth(
+                showWork: true, showResult: true,
+                shelfWidth: LivePanelChrome.shelfDefault,
+                resultWidth: LivePanelChrome.resultDefault
+            )
+            guard abs(full - 800) < 0.5 else { fail("full panel width \(full)") }
+            let workOnly = LivePanelChrome.fittedWidth(
+                showWork: true, showResult: false,
+                shelfWidth: LivePanelChrome.shelfDefault,
+                resultWidth: LivePanelChrome.resultDefault
+            )
+            guard abs(workOnly - 588) < 0.5 else { fail("work-only width \(workOnly)") }
+            let resultOnly = LivePanelChrome.fittedWidth(
+                showWork: false, showResult: true,
+                shelfWidth: LivePanelChrome.shelfDefault,
+                resultWidth: LivePanelChrome.resultDefault
+            )
+            guard abs(resultOnly - 408) < 0.5 else { fail("result-only width \(resultOnly)") }
+            let shelfOnly = LivePanelChrome.fittedWidth(
+                showWork: false, showResult: false,
+                shelfWidth: LivePanelChrome.shelfDefault,
+                resultWidth: LivePanelChrome.resultDefault
+            )
+            guard shelfOnly >= LivePanelChrome.shelfOnlyMin,
+                  shelfOnly <= LivePanelChrome.shelfOnlyMax
+            else {
+                fail("shelf-only width \(shelfOnly)")
+            }
+            guard settingsShows("result-stack") else {
+                fail("result pane missing before hide \(settingsTree())")
+            }
+            guard settingsShows("ai-pane") else {
+                fail("work pane missing before hide \(settingsTree())")
+            }
+            session.setShowResult(false)
+            await settle()
+            guard settingsShows("result-stack") == false else {
+                fail("result stack stayed after hide")
+            }
+            guard settingsShows("ai-pane") else {
+                fail("work pane missing after hiding results \(settingsTree())")
+            }
+            session.setShowWork(false)
+            await settle()
+            guard settingsShows("ai-pane") == false else {
+                fail("work pane stayed after hide")
+            }
+            guard settingsShows("shelf-column") else {
+                fail("shelf missing in shelf-only layout \(settingsTree())")
+            }
+            session.setShowWork(false)
+            session.selectResult(ResultID())
+            guard session.prefs.showWork else {
+                fail("selecting a result did not reveal work")
+            }
+            session.setShowResult(false)
+            let note = DropAgentPaths.inbox.appendingPathComponent("pane-layout.md")
+            try? Data("# pane\n".utf8).write(to: note)
+            let record = session.shelf.addResult(
+                ResultRecord(
+                    sourceItemIDs: [],
+                    recipe: "layout",
+                    title: "pane-layout.md",
+                    kind: .markdown,
+                    output: note
+                )
+            )
+            session.adoptNewestResult()
+            guard session.prefs.showResult else {
+                fail("job result did not reveal results pane")
+            }
+            session.hideResult(record.id)
+            session.setShowDropWheel(false)
+            guard session.prefs.showDropWheel == false else {
+                fail("drop wheel did not turn off")
+            }
+            guard let data = try? Data(contentsOf: DropAgentPaths.prefsFile),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  object["showDropWheel"] as? Bool == false
+            else {
+                fail("prefs.json missing showDropWheel")
+            }
+            session.setShowWork(true)
+            session.setShowResult(true)
+            session.setShowDropWheel(true)
+            await settle()
+            guard settingsShows("result-stack"), settingsShows("ai-pane") else {
+                fail("panes did not restore \(settingsTree())")
             }
         }
 

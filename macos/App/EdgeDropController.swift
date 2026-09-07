@@ -128,6 +128,11 @@ final class EdgeDropController {
     }
 
     private func updateWheel(at mouse: NSPoint) {
+        guard session.prefs.showDropWheel else {
+            if catcherArmed { concealWheel() }
+            lastMouse = mouse
+            return
+        }
         let insidePanel = panelVisible() && (panelFrame()?.contains(mouse) ?? false)
         if insidePanel {
             if catcherArmed { concealWheel() }
@@ -200,6 +205,7 @@ final class EdgeDropController {
     }
 
     private func armRevealTimer() {
+        guard session.prefs.showDropWheel else { return }
         guard revealed == false, dismissed == false, revealWork == nil else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -239,6 +245,7 @@ final class EdgeDropController {
     }
 
     private func showWheel(center: NSPoint, hot: Int?) {
+        guard session.prefs.showDropWheel else { return }
         guard let window else { return }
         if catcherArmed == false {
             didAdmit = false

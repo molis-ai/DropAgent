@@ -35,6 +35,7 @@ final class AppSession: ObservableObject {
     let spotlight = SpotlightSearch()
     let jobRunner: (any AgentRunning)?
     var applyChrome: (() -> Void)?
+    var applyLayout: (() -> Void)?
     var onFinishExternalDrag: (() -> Void)?
     var onApplyHotKeys: (() -> Void)?
     @Published var recordingHotKey: HotKeySlot?
@@ -178,10 +179,32 @@ final class AppSession: ObservableObject {
 
     func setShelfWidth(_ width: CGFloat) {
         shelfWidth = min(LivePanelChrome.shelfMax, max(LivePanelChrome.shelfMin, width))
+        if prefs.showWork == false || prefs.showResult == false {
+            applyLayout?()
+        }
     }
 
     func setResultWidth(_ width: CGFloat) {
         resultWidth = min(LivePanelChrome.resultMax, max(LivePanelChrome.resultMin, width))
+        if prefs.showWork == false || prefs.showResult == false {
+            applyLayout?()
+        }
+    }
+
+    var fillsShelf: Bool {
+        settingsOpen == false && showsSetupCard == false && prefs.showWork == false && prefs.showResult == false
+    }
+
+    var panelWidth: CGFloat {
+        if settingsOpen || showsSetupCard {
+            return LivePanelChrome.panelWidth
+        }
+        return LivePanelChrome.fittedWidth(
+            showWork: prefs.showWork,
+            showResult: prefs.showResult,
+            shelfWidth: shelfWidth,
+            resultWidth: resultWidth
+        )
     }
 
     var showsComposer: Bool {

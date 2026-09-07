@@ -48,6 +48,7 @@ struct ResultStack: View {
         .frame(width: session.resultWidth)
         .frame(maxHeight: .infinity)
         .background(Palette.panel2)
+        .background(AccessibleID(identifier: "result-stack").frame(width: 0, height: 0).allowsHitTesting(false))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.t("结果", "Results"))
         .accessibilityIdentifier("result-stack")

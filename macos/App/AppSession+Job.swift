@@ -102,10 +102,13 @@ extension AppSession {
         }
     }
 
-    private func adoptNewestResult() {
+    func adoptNewestResult() {
         refresh()
         guard let newest = results.first else { return }
         selectedResultID = newest.id
         paneFocus = .result
+        if prefs.showResult == false {
+            setShowResult(true)
+        }
     }
 }

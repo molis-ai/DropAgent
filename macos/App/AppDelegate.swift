@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         session.onApplyHotKeys = { [weak self] in self?.reregisterHotKeys() }
         reregisterHotKeys()
         session.applyChrome = { [weak self] in self?.applyPanelAppearance() }
+        session.applyLayout = { [weak self] in self?.positionPanel() }
         session.onFinishExternalDrag = { [weak self] in self?.edgeDrop?.hide() }
         applyPanelAppearance()
         appearanceObserver = DistributedNotificationCenter.default().addObserver(

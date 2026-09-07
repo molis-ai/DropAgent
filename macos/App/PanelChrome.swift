@@ -46,11 +46,48 @@ enum LivePanelChrome {
     static let splitWidth: CGFloat = 16
     static let scrollGutter: CGFloat = 12
     static let columnHeadHeight: CGFloat = 36
+    static let shelfOnlyMin: CGFloat = 260
+    static let shelfOnlyMax: CGFloat = 280
+
+    static func fittedWidth(
+        showWork: Bool,
+        showResult: Bool,
+        shelfWidth: CGFloat,
+        resultWidth: CGFloat
+    ) -> CGFloat {
+        let shelf = min(shelfMax, max(shelfMin, shelfWidth))
+        let result = min(resultMax, max(resultMin, resultWidth))
+        switch (showWork, showResult) {
+        case (true, true):
+            return panelWidth
+        case (true, false):
+            return panelWidth - result - splitWidth
+        case (false, true):
+            return shelf + splitWidth + result
+        case (false, false):
+            return min(shelfOnlyMax, max(shelfOnlyMin, shelf + 64))
+        }
+    }
 }
 
 enum FirstOpen {
     static func shouldReveal(markerExists: Bool, isDiagnostic: Bool) -> Bool {
         isDiagnostic == false && markerExists == false
+    }
+}
+
+struct AccessibleID: NSViewRepresentable {
+    var identifier: String
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        view.setAccessibilityIdentifier(identifier)
+        view.setAccessibilityElement(true)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        view.setAccessibilityIdentifier(identifier)
     }
 }
 

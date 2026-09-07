@@ -15,56 +15,100 @@ struct PanelHeader: View {
                 .foregroundStyle(Palette.text)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
-            statusChip
-                Button {
-                    session.settingsOpen.toggle()
-                } label: {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: session.settingsOpen ? "gearshape.fill" : "gearshape")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(session.settingsOpen ? Palette.text : Palette.faint)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
-                        if session.gearNeedsAttention && session.settingsOpen == false {
-                            Circle()
-                                .fill(Palette.text)
-                                .frame(width: 5, height: 5)
-                                .offset(x: -6, y: 6)
-                                .accessibilityHidden(true)
-                        }
+            if showsStatusChip {
+                statusChip
+            }
+            paneMenu
+            Button {
+                session.settingsOpen.toggle()
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: session.settingsOpen ? "gearshape.fill" : "gearshape")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(session.settingsOpen ? Palette.text : Palette.faint)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                    if session.gearNeedsAttention && session.settingsOpen == false {
+                        Circle()
+                            .fill(Palette.text)
+                            .frame(width: 5, height: 5)
+                            .offset(x: -6, y: 6)
+                            .accessibilityHidden(true)
                     }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Copy.t("设置", "Settings"))
-                .accessibilityHint(Copy.t("打开使用准备、工作区、颜色和语言", "Open setup, workspace, appearance, and language"))
-                .accessibilityIdentifier("settings")
-                Button(action: onMinimize) {
-                    Image(systemName: "minus")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.faint)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Copy.t("最小化", "Minimize"))
-                .accessibilityHint(Copy.t("把面板收起来，和点菜单栏图标一样", "Hide the panel, same as clicking the menu bar icon"))
-                .accessibilityIdentifier("minimize")
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.faint)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Copy.t("关闭", "Close"))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Copy.t("设置", "Settings"))
+            .accessibilityHint(Copy.t("打开使用准备、工作区、颜色和语言", "Open setup, workspace, appearance, and language"))
+            .accessibilityIdentifier("settings")
+            Button(action: onMinimize) {
+                Image(systemName: "minus")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Palette.faint)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Copy.t("最小化", "Minimize"))
+            .accessibilityHint(Copy.t("把面板收起来，和点菜单栏图标一样", "Hide the panel, same as clicking the menu bar icon"))
+            .accessibilityIdentifier("minimize")
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Palette.faint)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Copy.t("关闭", "Close"))
         }
         .padding(.horizontal, 16)
         .frame(height: 48)
         .overlay {
-            HeaderSearchField(session: session)
-                .frame(width: 260)
+            if showsHeaderSearch {
+                HeaderSearchField(session: session)
+                    .frame(width: 260)
+            }
         }
+    }
+
+    private var showsHeaderSearch: Bool {
+        session.settingsOpen || session.showsSetupCard || session.prefs.showWork
+    }
+
+    private var showsStatusChip: Bool {
+        session.settingsOpen || session.showsSetupCard || session.prefs.showWork || session.prefs.showResult
+    }
+
+    private var paneMenu: some View {
+        Menu {
+            Toggle(isOn: Binding(
+                get: { session.prefs.showWork },
+                set: { session.setShowWork($0) }
+            )) {
+                Text(Copy.t("工作", "Work"))
+            }
+            .accessibilityIdentifier("pane-work")
+            Toggle(isOn: Binding(
+                get: { session.prefs.showResult },
+                set: { session.setShowResult($0) }
+            )) {
+                Text(Copy.t("结果", "Results"))
+            }
+            .accessibilityIdentifier("pane-result")
+        } label: {
+            Image(systemName: "rectangle.split.3x1")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Palette.faint)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .accessibilityLabel(Copy.t("栏", "Panes"))
+        .accessibilityHint(Copy.t("显示或收起工作和结果栏", "Show or hide the work and results panes"))
+        .accessibilityIdentifier("pane-menu")
+        .help(Copy.t("栏", "Panes"))
     }
 
     @ViewBuilder

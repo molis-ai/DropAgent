@@ -226,7 +226,8 @@ extension AppDelegate {
     func positionPanel() {
         guard let panel, let screen = statusItem?.button?.window?.screen ?? NSScreen.main else { return }
         let visible = screen.visibleFrame
-        let width: CGFloat = min(LivePanelChrome.panelWidth, max(360, visible.width - 16))
+        let target = session.panelWidth
+        let width: CGFloat = min(target, max(LivePanelChrome.shelfOnlyMin, visible.width - 16))
         let height: CGFloat = min(LivePanelChrome.panelHeight, visible.height - 48)
         let buttonRect: NSRect
         if let button = statusItem?.button, let window = button.window {

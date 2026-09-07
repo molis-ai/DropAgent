@@ -29,6 +29,7 @@
 - 点菜单栏、拖窗口标题栏、改窗口大小：不出现。
 - 同一次拖不进两次。Chrome 承诺数据备份仍有效。
 - 不改四条调用链的方向：进货仍 `Ingest.admit`，发送仍 `TUI.send`，Recipe 仍 `Job.start`。
+- 设置 → 外观可关掉轮盘；关掉后菜单栏图标和输入列表仍接拖。详见 `specs/shelf-only-layout/spec.md`。
 
 ## 非目标
 

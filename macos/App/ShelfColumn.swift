@@ -11,9 +11,14 @@ struct ShelfColumn: View {
             columnHead
             listSection
         }
-        .frame(width: session.shelfWidth)
+        .frame(width: session.fillsShelf ? nil : session.shelfWidth)
+        .frame(maxWidth: session.fillsShelf ? .infinity : nil)
         .frame(maxHeight: .infinity)
         .background(Palette.panel2)
+        .background(AccessibleID(identifier: "shelf-column").frame(width: 0, height: 0).allowsHitTesting(false))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Copy.t("输入", "Input"))
+        .accessibilityIdentifier("shelf-column")
         .onDrop(of: IncomingDrop.contentTypes, delegate: AdmitDropDelegate(targeted: $listHot) { providers in
             session.admitDrop(providers: providers)
         })

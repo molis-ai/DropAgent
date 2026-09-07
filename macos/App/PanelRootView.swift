@@ -11,10 +11,14 @@ struct PanelRootView: View {
             ZStack(alignment: .top) {
                 HStack(spacing: 0) {
                     ShelfColumn(session: session)
-                    PanelSplitBar(session: session, edge: .shelf)
-                    AIPane(session: session)
-                    PanelSplitBar(session: session, edge: .result)
-                    ResultStack(session: session)
+                    if session.prefs.showWork {
+                        PanelSplitBar(session: session, edge: .shelf)
+                        AIPane(session: session)
+                    }
+                    if session.prefs.showResult {
+                        PanelSplitBar(session: session, edge: session.prefs.showWork ? .result : .shelf)
+                        ResultStack(session: session)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .opacity(coversBody ? 0 : 1)
@@ -48,6 +52,10 @@ struct PanelRootView: View {
         .onAppear { session.refreshSetup() }
         .onChange(of: session.settingsOpen) { _, _ in
             session.refreshSetup()
+            session.applyLayout?()
+        }
+        .onChange(of: session.showsSetupCard) { _, _ in
+            session.applyLayout?()
         }
     }
 

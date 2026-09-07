@@ -19,6 +19,9 @@ extension AppSession {
         selectedResultID = id
         paneFocus = .result
         aiTab = .result
+        if prefs.showWork == false {
+            setShowWork(true)
+        }
     }
 
     func removeResult(_ id: ResultID) {

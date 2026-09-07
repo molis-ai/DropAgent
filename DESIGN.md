@@ -92,7 +92,7 @@ SF Pro / PingFang. Tracked 10px wordmark. Intro 15px. Meta in tiny mono. SF Mono
 
 ## Layout
 
-800px panel. Header 48px, brand left. Input 196px, results 196px, work fills the rest. Work pane is a single column of action rows: a 120px paper button on the left, one muted sentence on the right. 其他 is the last row. The bottom field stays hidden until 其他 is on, then expands in place. The terminal tab does not show the composer.
+800px panel by default. Header 48px, brand left. Input 196px, results 196px, work fills the rest. Work and results can hide; the window shrinks, down to about 260px for the shelf alone. Work pane is a single column of action rows: a 120px paper button on the left, one muted sentence on the right. 其他 is the last row. The bottom field stays hidden until 其他 is on, then expands in place. The terminal tab does not show the composer.
 
 ## Elevation & Depth
 

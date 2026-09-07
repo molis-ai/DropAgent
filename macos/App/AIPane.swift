@@ -123,6 +123,9 @@ struct AIPane: View {
         }
         .frame(minHeight: 168)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AccessibleID(identifier: "ai-pane").frame(width: 0, height: 0).allowsHitTesting(false))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ai-pane")
         .onDrop(of: IncomingDrop.contentTypes, delegate: AdmitDropDelegate(targeted: $aiHot) { providers in
             session.admitToTUI(providers: providers)
         })
