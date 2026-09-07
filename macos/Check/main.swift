@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import CryptoKit
 import os
 import DropAgentAgent
@@ -17,16 +18,21 @@ enum DropAgentCheck {
         do {
             try shelf()
             try htmlMarkdown()
+            try readableHTML()
             try browserFront()
             try captureRecovery()
+            try await frontFiles()
             try automationAccess()
+            try capturePermissions()
             try await captureService()
             try await liveWebAdmit()
             try ingest()
+            try await ingestDropURLCapture()
             try ingestPasteboard()
             try await ingestDropProvider()
             try await architectureAcceptance()
             try await captureDoesNotInvent()
+            try appDoesNotImportCapture()
             try agent()
             try await job()
             try tui()
@@ -89,6 +95,21 @@ private func digest(_ url: URL) -> String {
     SHA256.hash(data: try! Data(contentsOf: url)).map { String(format: "%02x", $0) }.joined()
 }
 
+private func plantHelpBinary(in directory: URL, name: String, help: String) throws -> URL {
+    let url = directory.appendingPathComponent(name)
+    let script = """
+    #!/bin/sh
+    if [ "$1" = "--help" ] || [ "$1" = "exec" ]; then
+    cat <<'EOF'
+    \(help)
+    EOF
+    fi
+    """
+    try Data(script.utf8).write(to: url)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+    return url
+}
+
 private func shelfItem(title: String, status: ItemStatus = .idle) -> Item {
     Item(
         kind: .pdf,
@@ -136,6 +157,29 @@ private func shelf() throws {
     let added = try persist.add(shelfItem(title: "keep.pdf"))
     persist.load()
     expectEqual(persist.items().map(\.id), [added.id])
+    expectEqual(persist.results().count, 0)
+
+    let legacyURL = root.appendingPathComponent("legacy.json")
+    try JSONEncoder().encode([shelfItem(title: "old.pdf")]).write(to: legacyURL)
+    let legacy = ShelfStore(fileURL: legacyURL)
+    legacy.load()
+    expectEqual(legacy.items().map(\.title), ["old.pdf"])
+    expectEqual(legacy.results().count, 0)
+
+    let withResult = ShelfStore(fileURL: root.appendingPathComponent("results.json"))
+    let source = try withResult.add(shelfItem(title: "keep.pdf"))
+    _ = withResult.addResult(
+        ResultRecord(
+            sourceItemIDs: [source.id],
+            recipe: "总结文件",
+            title: "summary.md",
+            kind: .markdown,
+            output: URL(fileURLWithPath: "/tmp/summary.md")
+        )
+    )
+    withResult.load()
+    expectEqual(withResult.items().map(\.title), ["keep.pdf"])
+    expectEqual(withResult.results().map(\.title), ["summary.md"])
 
     let webIdle = Item(
         kind: .web,
@@ -327,6 +371,27 @@ private func htmlMarkdown() throws {
     expect(!bodyOnly.contains("**"), "body is not bold")
 }
 
+private func readableHTML() throws {
+    let md = ReadableHTML.markdown(
+        from: "<html><h1>Hi</h1><script>alert(1)</script><p>Body &amp; more</p></html>"
+    )
+    expect(md.contains("# Hi"), "readable heading")
+    expect(md.contains("Body & more"), "readable entity")
+    expect(!md.contains("alert"), "readable script stripped")
+    expect(
+        ReadableHTML.isHTMLFile(URL(fileURLWithPath: "/tmp/page.html")),
+        "html file"
+    )
+    expect(
+        ReadableHTML.isHTMLFile(URL(fileURLWithPath: "/tmp/page.HTM")),
+        "htm file"
+    )
+    expect(
+        ReadableHTML.isHTMLFile(URL(fileURLWithPath: "/tmp/page.md")) == false,
+        "md is not html"
+    )
+}
+
 private func browserFront() throws {
     let safari = BrowserFront.resolve(
         frontmostBundle: "com.apple.Safari",
@@ -377,12 +442,15 @@ private func browserFront() throws {
     expectEqual(owners[1].pid, 33)
     expect(BrowserFront.Kind.from(bundleID: "com.apple.SafariTechnologyPreview") == nil, "STP not v1 safari")
     expectEqual(BrowserFront.Kind.safari.primaryBundleIdentifier, "com.apple.Safari")
-    expectEqual(BrowserFront.Kind.chrome.primaryBundleIdentifier, "com.google.chrome")
+    expectEqual(BrowserFront.Kind.chrome.primaryBundleIdentifier, "com.google.Chrome")
     expectEqual(BrowserFront.Kind.edge.primaryBundleIdentifier, "com.microsoft.edgemac")
     expect(BrowserFront.Kind.from(bundleID: "com.brave.Browser") == .brave, "brave kind")
     expectEqual(BrowserFront.Kind.brave.appleScriptName, "Brave Browser")
     expect(BrowserFront.Kind.brave.usesAppleScript, "brave uses applescript")
     expect(BrowserFront.Kind.arc.usesAppleScript == false, "arc ax only")
+    expect(BrowserFront.Kind.appleScriptCases.contains(.safari), "safari in applescript cases")
+    expect(BrowserFront.Kind.appleScriptCases.contains(.arc) == false, "arc not in applescript cases")
+    expect(BrowserFront.Kind.chrome.knownBundleIdentifiers.contains("com.google.Chrome.canary"), "chrome includes canary")
     expect(
         AppleScriptBrowser.shouldUseAppleScript(
             kind: .chrome,
@@ -439,6 +507,7 @@ private func browserFront() throws {
     expectEqual(AccessibilityPage.httpURL(from: "https://example.com")?.host, "example.com")
     expectEqual(AccessibilityPage.httpURL(from: "http://localhost/a")?.scheme, "http")
     expect(AccessibilityPage.httpURL(from: "file:///tmp/x") == nil, "reject file url")
+    expect(AccessibilityPage.existingFileURL(from: "https://example.com") == nil, "http is not a local file")
     expect(AccessibilityPage.httpURL(from: "not a url") == nil, "reject junk")
     expectEqual(AccessibilityPage.httpURL(from: URL(string: "https://example.org")!)?.host, "example.org")
     expectEqual(AccessibilityPage.httpURL(from: "Example Domain — https://example.com/page")?.host, "example.com")
@@ -450,6 +519,110 @@ private func browserFront() throws {
     let axStart = Date()
     _ = AccessibilityPage.read(pid: ProcessInfo.processInfo.processIdentifier)
     expect(Date().timeIntervalSince(axStart) < 3, "AX read of self does not hang")
+}
+
+private func frontFiles() async throws {
+    expectEqual(FrontFiles.classify(bundleID: "com.apple.finder", selfBundle: "local.dropagent"), .finder)
+    expectEqual(FrontFiles.classify(bundleID: "com.apple.Safari", selfBundle: "local.dropagent"), .browser)
+    expectEqual(FrontFiles.classify(bundleID: "com.google.chrome", selfBundle: "local.dropagent"), .browser)
+    expectEqual(FrontFiles.classify(bundleID: "local.dropagent", selfBundle: "local.dropagent"), .self)
+    expectEqual(FrontFiles.classify(bundleID: "com.microsoft.VSCode", selfBundle: "local.dropagent"), .other)
+
+    func expectFail(_ result: Result<Void, FrontFileFailure>, _ expected: FrontFileFailure) {
+        if case .failure(let actual) = result {
+            expectEqual(actual, expected)
+        } else {
+            fail("expected \(expected)")
+        }
+    }
+    func expectOK(_ result: Result<Void, FrontFileFailure>) {
+        if case .failure(let actual) = result {
+            fail("expected success, got \(actual)")
+        }
+    }
+    expectFail(FrontFiles.decide(kind: .browser, axTrusted: true, finderAllowed: true), .browser)
+    expectFail(FrontFiles.decide(kind: .self, axTrusted: true, finderAllowed: true), .selfApp)
+    expectFail(FrontFiles.decide(kind: .finder, axTrusted: true, finderAllowed: false), .needFinderAutomation)
+    expectFail(FrontFiles.decide(kind: .other, axTrusted: false, finderAllowed: true), .needAccessibility)
+    expectOK(FrontFiles.decide(kind: .other, axTrusted: true, finderAllowed: false))
+    expectOK(FrontFiles.decide(kind: .finder, axTrusted: false, finderAllowed: true))
+
+    let root = try tempDir()
+    let first = root.appendingPathComponent("a.pdf")
+    let second = root.appendingPathComponent("b.md")
+    try Data("a".utf8).write(to: first)
+    try Data("b".utf8).write(to: second)
+    let firstURL = first.standardizedFileURL
+    let secondURL = second.standardizedFileURL
+
+    expectEqual(FrontFiles.paths(fromText: first.path), [firstURL])
+    expectEqual(FrontFiles.paths(fromText: "\(first.path)\n\(second.path)"), [firstURL, secondURL])
+    expectEqual(FrontFiles.paths(fromText: "\"\(first.path)\""), [firstURL])
+    expect(FrontFiles.paths(fromText: "\(first.path)\nnot-a-file").isEmpty, "mixed text is not files")
+    expect(FrontFiles.paths(fromText: "vscode-remote://host\(first.path)").isEmpty, "reject remote")
+    expect(FrontFiles.paths(fromText: "relative.pdf").isEmpty, "reject relative")
+    expectEqual(FrontFiles.paths(fromText: firstURL.absoluteString), [firstURL])
+    expectEqual(AccessibilityPage.existingFileURL(from: firstURL.absoluteString), firstURL)
+
+    let finder = await FrontFiles.resolve(
+        kind: .finder,
+        axTrusted: true,
+        finderAllowed: true,
+        finderURLs: { [firstURL] },
+        copiedURLs: { [secondURL] },
+        documentURLs: { [secondURL] }
+    )
+    expectEqual(finder, .success(FrontFileRead(urls: [firstURL], source: .finder)))
+
+    let emptyFinder = await FrontFiles.resolve(
+        kind: .finder,
+        axTrusted: true,
+        finderAllowed: true,
+        finderURLs: { [] },
+        copiedURLs: { [secondURL] },
+        documentURLs: { [secondURL] }
+    )
+    expectEqual(emptyFinder, .failure(.emptyFinder))
+
+    let copied = await FrontFiles.resolve(
+        kind: .other,
+        axTrusted: true,
+        finderAllowed: true,
+        finderURLs: { [firstURL] },
+        copiedURLs: { [firstURL, secondURL] },
+        documentURLs: { [secondURL] }
+    )
+    expectEqual(copied, .success(FrontFileRead(urls: [firstURL, secondURL], source: .copy)))
+
+    let document = await FrontFiles.resolve(
+        kind: .other,
+        axTrusted: true,
+        finderAllowed: true,
+        finderURLs: { [] },
+        copiedURLs: { [] },
+        documentURLs: { [firstURL] }
+    )
+    expectEqual(document, .success(FrontFileRead(urls: [firstURL], source: .document)))
+
+    let emptyOther = await FrontFiles.resolve(
+        kind: .other,
+        axTrusted: true,
+        finderAllowed: true,
+        finderURLs: { [] },
+        copiedURLs: { [] },
+        documentURLs: { [] }
+    )
+    expectEqual(emptyOther, .failure(.empty))
+
+    let board = NSPasteboard.withUniqueName()
+    board.clearContents()
+    board.setString("keep-me", forType: .string)
+    let copiedPaths = await FrontFiles.copyFileURLs(pid: 0, pasteboard: board, postCopy: { _ in
+        board.clearContents()
+        board.setString(first.path, forType: .string)
+    })
+    expectEqual(copiedPaths, [firstURL])
+    expectEqual(board.string(forType: .string), "keep-me")
 }
 
 private func captureRecovery() throws {
@@ -492,10 +665,31 @@ private func captureRecovery() throws {
 }
 
 private func automationAccess() throws {
+    let missing = "local.dropagent.missing.\(UUID().uuidString)"
     let start = Date()
-    let allowed = AutomationAccess.isAllowed(bundleIdentifier: "local.dropagent.missing.\(UUID().uuidString)")
+    let allowed = AutomationAccess.isAllowed(bundleIdentifier: missing)
     expect(allowed == false, "unknown bundle is not automatable")
     expect(Date().timeIntervalSince(start) < 2, "automation probe does not hang")
+
+    let requestStart = Date()
+    let requested = AutomationAccess.requestIfNeeded(bundleIdentifier: missing)
+    expect(requested != .allowed, "missing bundle is not allowed after request")
+    expect(Date().timeIntervalSince(requestStart) < 2, "automation request of missing bundle does not hang")
+
+    expectEqual(AutomationAccess.state(from: noErr), .allowed)
+    expectEqual(AutomationAccess.state(from: OSStatus(errAEEventNotPermitted)), .denied)
+    expectEqual(AutomationAccess.state(from: OSStatus(errAEEventWouldRequireUserConsent)), .notDetermined)
+    expectEqual(AutomationAccess.state(from: OSStatus(-600)), .unavailable)
+
+    let chromeRunning = NSWorkspace.shared.runningApplications.contains {
+        $0.activationPolicy == .regular && $0.bundleIdentifier == "com.google.Chrome"
+    }
+    if chromeRunning {
+        expectEqual(
+            AutomationAccess.resolvedBundleIdentifier("com.google.chrome"),
+            "com.google.Chrome"
+        )
+    }
 
     let scriptStart = Date()
     do {
@@ -504,6 +698,84 @@ private func automationAccess() throws {
         expect(error is CaptureError, "frontPage fails with CaptureError when it cannot read")
     }
     expect(Date().timeIntervalSince(scriptStart) < 8, "AppleScript frontPage does not hang")
+}
+
+private func capturePermissions() throws {
+    let safariOnly = CapturePermissions.status(
+        accessibilityTrusted: true,
+        installedBundleIDs: ["com.apple.Safari"],
+        runningBundleIDs: ["com.apple.Safari"],
+        stateForBundle: { _ in .notDetermined }
+    )
+    expectEqual(safariOnly.browsers.map(\.kind), [.safari])
+    expect(safariOnly.browsers.contains { $0.kind == .chrome } == false, "uninstalled chrome is omitted")
+    expect(safariOnly.captureReady == false, "undetermined safari is not capture ready")
+
+    let withArc = CapturePermissions.status(
+        accessibilityTrusted: true,
+        installedBundleIDs: ["com.apple.Safari", "company.thebrowser.Browser"],
+        runningBundleIDs: ["company.thebrowser.Browser"],
+        stateForBundle: { _ in .allowed }
+    )
+    expect(withArc.browsers.contains { $0.kind == .arc } == false, "arc is not an automation row")
+    expect(withArc.browsers.contains { $0.kind == .safari }, "safari still listed")
+
+    let ready = CapturePermissions.status(
+        accessibilityTrusted: true,
+        installedBundleIDs: ["com.apple.Safari", "com.google.chrome"],
+        runningBundleIDs: ["com.google.chrome"],
+        stateForBundle: { _ in .allowed }
+    )
+    expectEqual(ready.browsers.map(\.kind), [.safari, .chrome])
+    expect(ready.captureReady, "trusted ax and allowed browsers are capture ready")
+
+    let canary = CapturePermissions.status(
+        accessibilityTrusted: true,
+        installedBundleIDs: ["com.google.chrome.canary"],
+        runningBundleIDs: ["com.google.chrome.canary"],
+        stateForBundle: { $0 == "com.google.chrome.canary" ? .denied : .unavailable }
+    )
+    expectEqual(canary.browsers.count, 1)
+    expectEqual(canary.browsers[0].kind, .chrome)
+    expectEqual(canary.browsers[0].bundleIdentifier, "com.google.chrome.canary")
+    expectEqual(canary.browsers[0].state, .denied)
+
+    let closedDenied = CapturePermissions.status(
+        accessibilityTrusted: true,
+        installedBundleIDs: ["com.google.chrome"],
+        runningBundleIDs: [],
+        stateForBundle: { _ in .denied }
+    )
+    expectEqual(closedDenied.browsers.count, 1)
+    expectEqual(closedDenied.browsers[0].running, false)
+    expectEqual(closedDenied.browsers[0].state, .unavailable)
+    expect(closedDenied.browsers[0].allowed == false, "closed chrome is not capture ready")
+
+    let liveCase = CapturePermissions.status(
+        accessibilityTrusted: true,
+        installedBundleIDs: ["com.google.chrome"],
+        runningBundleIDs: ["com.google.Chrome"],
+        stateForBundle: { $0 == "com.google.Chrome" ? .denied : .unavailable }
+    )
+    expectEqual(liveCase.browsers.count, 1)
+    expectEqual(liveCase.browsers[0].bundleIdentifier, "com.google.Chrome")
+    expect(liveCase.browsers[0].running, "live chrome stays running")
+    expectEqual(liveCase.browsers[0].state, .denied)
+    expectEqual(
+        CapturePermissions.pickBundle(
+            kind: .chrome,
+            preferred: ["com.google.Chrome"],
+            fallback: ["com.google.chrome"]
+        ),
+        "com.google.Chrome"
+    )
+
+    let wrapped = PageAdmit.setupStatus(ready)
+    expect(wrapped.captureReady, "page admit setup mirrors capture ready")
+    expectEqual(wrapped.browsers.map(\.displayName), ["Safari", "Google Chrome"])
+
+    let noneTarget = PageAdmit.privacyTarget(token: .none)
+    expect(noneTarget == nil, "explicit none has no privacy target")
 }
 
 private func ingest() throws {
@@ -536,13 +808,26 @@ private func ingest() throws {
     expectEqual(partial.failures.count, 1)
 
     let url = URL(string: "https://example.com/a")!
-    expectEqual(ingest.admit(urls: [url]).admitted.first?.kind, .url)
+    let urlAdmit = ingest.admit(urls: [url])
+    expectEqual(urlAdmit.admitted.first?.kind, .web)
+    expectEqual(urlAdmit.admitted.first?.parts.first?.name, "url.txt")
+    expectEqual(urlAdmit.admitted.first?.event, IngestService.pageCapturePendingEvent)
+    expectEqual(urlAdmit.admitted.first?.status, .idle)
+    expectEqual(urlAdmit.pageCaptureIDs, urlAdmit.admitted.map(\.id))
+    let quietURL = ingest.admit(urls: [url], capturePages: false)
+    expectEqual(quietURL.admitted.first?.kind, .url)
+    expectEqual(quietURL.admitted.first?.parts.first?.name, "link.txt")
+    expect(quietURL.pageCaptureIDs.isEmpty, "tui url is not captured")
 
     let clip = try ingest.admitClipboard(MemoryClipboard(payload: .text("渠道折扣收到 9%")))
     expectEqual(clip.first?.kind, .clip)
 
     let clipURL = try ingest.admitClipboard(MemoryClipboard(payload: .text("https://dropoverapp.com")))
-    expectEqual(clipURL.first?.kind, .url)
+    expectEqual(clipURL.first?.kind, .web)
+    expectEqual(clipURL.first?.parts.first?.name, "url.txt")
+    let quietClip = try ingest.admitClipboard(MemoryClipboard(payload: .text("https://dropoverapp.com")), capturePages: false)
+    expectEqual(quietClip.first?.kind, .url)
+    expectEqual(quietClip.first?.parts.first?.name, "link.txt")
 
     do {
         _ = try ingest.admitClipboard(MemoryClipboard(payload: .empty))
@@ -569,10 +854,18 @@ private func ingest() throws {
     """
     try Data(plist.utf8).write(to: webloc)
     let fromWebloc = ingest.admit(urls: [webloc]).admitted.first
-    expectEqual(fromWebloc?.kind, .url)
+    expectEqual(fromWebloc?.kind, .web)
     expectEqual(fromWebloc?.sourceURL.absoluteString, "https://example.com/page")
-    expectEqual(fromWebloc?.parts.first?.name, "link.txt")
-    expectEqual(try String(contentsOf: fromWebloc!.parts[0].url, encoding: .utf8), "https://example.com/page")
+    expectEqual(fromWebloc?.parts.first?.name, "url.txt")
+    expectEqual(
+        try String(contentsOf: fromWebloc!.parts[0].url, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+        "https://example.com/page"
+    )
+    expectEqual(fromWebloc?.event, IngestService.pageCapturePendingEvent)
+    let quietWebloc = ingest.admit(urls: [webloc], capturePages: false).admitted.first
+    expectEqual(quietWebloc?.kind, .url)
+    expectEqual(quietWebloc?.parts.first?.name, "link.txt")
 
     let junkWebloc = root.appendingPathComponent("bad.webloc")
     try Data("not a plist".utf8).write(to: junkWebloc)
@@ -650,6 +943,59 @@ private func ingest() throws {
     expectEqual(noteItem?.displayTag, "MD")
 }
 
+private func ingestDropURLCapture() async throws {
+    let root = try tempDir()
+    let failedShelf = ShelfStore(fileURL: root.appendingPathComponent("fail-shelf.json"))
+    let failed = IngestService(
+        shelf: failedShelf,
+        inboxRoot: root.appendingPathComponent("FailInbox"),
+        capture: CaptureService(
+            browser: FailBrowser(),
+            fetcher: FailFetch(),
+            snapshot: FailSnap(),
+            pageSnapshot: NullPageSnapshot()
+        )
+    )
+    let url = URL(string: "https://example.com/dropped")!
+    let stub = failed.admit(urls: [url])
+    expectEqual(stub.admitted.first?.kind, .web)
+    expectEqual(stub.admitted.first?.event, IngestService.pageCapturePendingEvent)
+    expectEqual(stub.admitted.first?.parts.map(\.name), ["url.txt"])
+    expectEqual(stub.admitted.first?.status, .idle)
+    expectEqual(stub.pageCaptureIDs.count, 1)
+    await failed.captureDroppedPages(ids: stub.pageCaptureIDs)
+    let afterFail = failedShelf.item(id: stub.admitted[0].id)
+    expectEqual(afterFail?.kind, .web)
+    expect(afterFail?.event.contains("正文没拉下来") == true, "network failure labeled")
+    expect(afterFail?.parts.contains { $0.name == "page.md" } == false, "no fake markdown")
+    expect(afterFail?.parts.contains { $0.name == "url.txt" } == true, "url kept")
+
+    let okRoot = try tempDir()
+    let okShelf = ShelfStore(fileURL: okRoot.appendingPathComponent("ok-shelf.json"))
+    let ok = IngestService(
+        shelf: okShelf,
+        inboxRoot: okRoot.appendingPathComponent("OkInbox"),
+        capture: CaptureService(
+            browser: FailBrowser(),
+            fetcher: StubFetcher(result: .success(Data(
+                "<html><head><title>Example Domain</title></head><p>Hi from drop</p></html>".utf8
+            ))),
+            snapshot: FailSnap(),
+            pageSnapshot: StubPageSnapshot(data: Data([0x89, 0x50, 0x4E, 0x47]))
+        )
+    )
+    let admitted = ok.admit(urls: [url])
+    await ok.captureDroppedPages(ids: admitted.pageCaptureIDs)
+    let filled = okShelf.item(id: admitted.admitted[0].id)
+    expectEqual(filled?.kind, .web)
+    expectEqual(filled?.title, "Example Domain")
+    expectEqual(filled?.event, "")
+    expect(filled?.parts.contains { $0.name == "page.md" } == true, "page.md written")
+    expect(filled?.parts.contains { $0.name == "snapshot.png" } == true, "snapshot written")
+    let md = filled?.parts.first { $0.name == "page.md" }.flatMap { try? String(contentsOf: $0.url, encoding: .utf8) } ?? ""
+    expect(md.contains("Hi from drop"), "markdown body")
+}
+
 private func ingestPasteboard() throws {
     let root = try tempDir()
     let shelf = ShelfStore(fileURL: root.appendingPathComponent("shelf.json"))
@@ -673,6 +1019,14 @@ private func ingestPasteboard() throws {
         return
     }
     expectEqual(urls.map(\.path), [original.path])
+    let namesBoard = NSPasteboard.withUniqueName()
+    namesBoard.clearContents()
+    namesBoard.setPropertyList([original.path], forType: NSPasteboard.PasteboardType("NSFilenamesPboardType"))
+    guard case .files(let named) = ClipboardPayload.from(pasteboard: namesBoard) else {
+        fail("filenames pasteboard")
+        return
+    }
+    expectEqual(named.map(\.path), [original.path])
     let admitted = ingest.admit(urls: urls)
     expectEqual(admitted.admitted.first?.kind, .pdf)
     expectEqual(try Data(contentsOf: original), bytes)
@@ -686,8 +1040,9 @@ private func ingestPasteboard() throws {
     }
     expectEqual(text, "https://example.com/a")
     let fromBoard = try ingest.admitClipboard(PasteboardClipboard(board))
-    expectEqual(fromBoard.first?.kind, .url)
+    expectEqual(fromBoard.first?.kind, .web)
     expectEqual(fromBoard.first?.sourceURL.absoluteString, "https://example.com/a")
+    expectEqual(fromBoard.first?.parts.first?.name, "url.txt")
 
     board.clearContents()
     board.setString("渠道折扣收到 9%", forType: .string)
@@ -730,6 +1085,58 @@ private func ingestPasteboard() throws {
     let shot = try ingest.admitClipboard(PasteboardClipboard(board))
     expectEqual(shot.first?.kind, .image)
     expectEqual(shot.first?.parts.first?.name, "clipboard.png")
+
+    board.clearContents()
+    let titlesType = NSPasteboard.PasteboardType("WebURLsWithTitlesPboardType")
+    board.declareTypes([titlesType], owner: nil)
+    board.setPropertyList(
+        [["https://example.com/tab"], ["Example Domain"]],
+        forType: titlesType
+    )
+    guard case .text(let tabText) = ClipboardPayload.from(pasteboard: board) else {
+        fail("web titles pasteboard")
+        return
+    }
+    expectEqual(tabText, "https://example.com/tab")
+    let fromTab = try ingest.admitClipboard(PasteboardClipboard(board))
+    expectEqual(fromTab.first?.kind, .web)
+    expectEqual(fromTab.first?.sourceURL.absoluteString, "https://example.com/tab")
+
+    board.clearContents()
+    let missing = URL(fileURLWithPath: "/tmp/dropagent-no-such-\(UUID().uuidString).webloc")
+    let tab = URL(string: "https://example.com/tab")!
+    expect(board.writeObjects([missing as NSURL, tab as NSURL]), "write phantom webloc plus url")
+    guard case .text(let mixed) = ClipboardPayload.from(pasteboard: board) else {
+        fail("tab pasteboard prefers http")
+        return
+    }
+    expectEqual(mixed, "https://example.com/tab")
+
+    board.clearContents()
+    expect(board.writeObjects([missing as NSURL]), "write missing file")
+    expectEqual(ClipboardPayload.from(pasteboard: board), .empty)
+
+    board.clearContents()
+    board.declareTypes([.URL], owner: nil)
+    board.setData(Data("https://example.com/data".utf8), forType: .URL)
+    guard case .text(let fromData) = ClipboardPayload.from(pasteboard: board) else {
+        fail("url data pasteboard")
+        return
+    }
+    expectEqual(fromData, "https://example.com/data")
+
+    board.clearContents()
+    let bookmarkType = NSPasteboard.PasteboardType("org.chromium.bookmark-dictionary-list")
+    board.declareTypes([bookmarkType], owner: nil)
+    board.setPropertyList(
+        [["URL": "https://example.com/bookmark", "Title": "Bookmark"]],
+        forType: bookmarkType
+    )
+    guard case .text(let fromBookmark) = ClipboardPayload.from(pasteboard: board) else {
+        fail("chromium bookmark pasteboard")
+        return
+    }
+    expectEqual(fromBookmark, "https://example.com/bookmark")
 }
 
 private func ingestDropProvider() async throws {
@@ -826,10 +1233,52 @@ private func agent() throws {
     expectEqual(IsolationShown.workspace.spokenFact, service.isolationCopy(for: workspace))
     expect(!service.isolationCopy(for: workspace).contains("完全看不到"), "no overclaim")
 
+    let grokUnknown = AgentPresence.grok(path: URL(fileURLWithPath: "/opt/homebrew/bin/grok"), isolation: .unknown)
+    expectEqual(service.isolationCopy(for: grokUnknown), "未确认工作区限制，仍在副本目录跑")
+    expect(!service.isolationCopy(for: grokUnknown).contains("Workspace"), "grok no workspace")
+    let grokTUI = AgentPresence.grok(path: URL(fileURLWithPath: "/opt/homebrew/bin/grok"), isolation: .tui)
+    expectEqual(service.isolationCopy(for: grokTUI), "在终端执行，不是副本沙箱")
+
+    let request = AgentRunRequest(
+        workdir: URL(fileURLWithPath: "/tmp/work"),
+        promptFile: URL(fileURLWithPath: "/tmp/prompt.txt"),
+        outputFile: URL(fileURLWithPath: "/tmp/out.md"),
+        isolation: .workspace
+    )
+    let grokHelp = """
+      --cwd <CWD>
+      --prompt-file <PATH>
+      --output-format <OUTPUT_FORMAT>
+  -p, --single <PROMPT>
+      --always-approve
+      --permission-mode bypassPermissions
+"""
+    expect(HeadlessCLI.canRunJob(engine: .grok, help: grokHelp), "grok job")
+    expect(!HeadlessCLI.canRunJob(engine: .grok, help: "Grok Build TUI"), "grok tui only")
+    expect(HeadlessCLI.canRunJob(engine: .claude, help: "use -p/--print for non-interactive"), "claude job")
+    expect(HeadlessCLI.canRunJob(engine: .codex, help: "Commands:\n  exec              Run Codex non-interactively"), "codex job")
+    expect(!HeadlessCLI.canRunJob(engine: .codex, help: "Auto-approve all tool executions"), "executions is not exec")
+    expect(HeadlessCLI.canRunJob(engine: .gemini, help: "  --prompt <prompt>"), "gemini job")
+    let grokArgs = HeadlessCLI.arguments(engine: .grok, help: grokHelp, request: request, prompt: "hello")
+    expect(grokArgs.contains("--prompt-file"), "grok prompt file")
+    expect(grokArgs.contains("--cwd"), "grok cwd")
+    expect(!grokArgs.contains("--always-approve"), "grok no always-approve")
+    expect(!grokArgs.contains("bypassPermissions"), "grok no bypass")
+    let claudeArgs = HeadlessCLI.arguments(
+        engine: .claude,
+        help: "-p, --print\n--output-format\n--add-dir\n--dangerously-skip-permissions",
+        request: request,
+        prompt: "hello"
+    )
+    expect(claudeArgs.contains("--print"), "claude print")
+    expect(claudeArgs.contains("hello"), "claude prompt")
+    expect(!claudeArgs.contains("--dangerously-skip-permissions"), "claude no skip")
+    let geminiArgs = HeadlessCLI.arguments(engine: .gemini, help: "--prompt <prompt>", request: request, prompt: "hello")
+    expect(geminiArgs.contains("--prompt"), "gemini prompt flag")
+    expect(!HeadlessCLI.canRunJob(engine: .gemini, help: ""), "gemini empty")
+
     let root = try tempDir()
-    let binary = root.appendingPathComponent("codex")
-    try Data("#!/bin/sh\n".utf8).write(to: binary)
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+    let binary = try plantHelpBinary(in: root, name: "codex", help: "Commands:\n  exec              Run Codex non-interactively\n")
     let found = AgentService(
         runner: StubExecutor(sandbox: true),
         settings: AgentSettings(executableOverride: binary.path),
@@ -841,12 +1290,6 @@ private func agent() throws {
     let missing = AgentService(runner: StubExecutor(), pathEnvironment: "/empty", home: URL(fileURLWithPath: "/tmp/no-home-\(UUID().uuidString)"))
     expectEqual(missing.discover(settings: AgentSettings()), AgentPresence.none)
 
-    let request = AgentRunRequest(
-        workdir: URL(fileURLWithPath: "/tmp/work"),
-        promptFile: URL(fileURLWithPath: "/tmp/prompt.txt"),
-        outputFile: URL(fileURLWithPath: "/tmp/out.md"),
-        isolation: .workspace
-    )
     let args = CodexCLI.execArguments(request: request, prompt: "hello")
     expect(args.contains("--ephemeral"), "ephemeral")
     expect(args.contains("--ignore-user-config"), "ignore config")
@@ -882,15 +1325,21 @@ private func agent() throws {
     expectEqual(decoded.tuiEngine, .auto)
 
     let bothRoot = try tempDir()
-    func plant(_ name: String) throws -> URL {
-        let url = bothRoot.appendingPathComponent(name)
-        try Data("#!/bin/sh\n".utf8).write(to: url)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-        return url
-    }
-    let grokBin = try plant("grok")
-    let claudeBin = try plant("claude")
-    _ = try plant("codex")
+    let grokBin = try plantHelpBinary(
+        in: bothRoot,
+        name: "grok",
+        help: "      --cwd <CWD>\n      --prompt-file <PATH>\n  -p, --single <PROMPT>\n      --output-format\n"
+    )
+    let claudeBin = try plantHelpBinary(
+        in: bothRoot,
+        name: "claude",
+        help: "Claude Code - use -p/--print for non-interactive output\n"
+    )
+    _ = try plantHelpBinary(
+        in: bothRoot,
+        name: "codex",
+        help: "Commands:\n  exec              Run Codex non-interactively\n"
+    )
     let mixed = AgentService(
         runner: StubExecutor(sandbox: true),
         settings: AgentSettings(),
@@ -900,7 +1349,7 @@ private func agent() throws {
     let autoTUI = mixed.tuiPresence(settings: AgentSettings(tuiEngine: .auto))
     expectEqual(autoTUI.engine, .grok)
     expectEqual(autoTUI.executable, grokBin)
-    expectEqual(mixed.recipePresence(settings: AgentSettings()).engine, .codex)
+    expectEqual(mixed.recipePresence(settings: AgentSettings()).engine, .grok)
     let forced = mixed.tuiPresence(settings: AgentSettings(tuiEngine: .codex))
     expectEqual(forced.engine, .codex)
     let claudeTUI = mixed.tuiPresence(settings: AgentSettings(tuiEngine: .claude))
@@ -923,6 +1372,105 @@ private func agent() throws {
     )
     expectEqual(grokOnly.tuiPresence(settings: AgentSettings()).engine, .grok)
     expectEqual(grokOnly.recipePresence(settings: AgentSettings()), .none)
+
+    let grokJobRoot = try tempDir()
+    let grokJobBin = try plantHelpBinary(
+        in: grokJobRoot,
+        name: "grok",
+        help: "      --prompt-file <PATH>\n  -p, --single <PROMPT>\n"
+    )
+    let grokJobAgent = AgentService(
+        runner: StubExecutor(sandbox: true),
+        settings: AgentSettings(),
+        pathEnvironment: grokJobRoot.path,
+        home: grokJobRoot
+    )
+    expectEqual(grokJobAgent.tuiPresence(settings: AgentSettings()).engine, .grok)
+    expectEqual(grokJobAgent.recipePresence(settings: AgentSettings()), .grok(path: grokJobBin, isolation: .unknown))
+    expectEqual(grokJobAgent.tuiPresence(settings: AgentSettings(tuiEngine: .claude)), .none)
+
+    let claudeForced = mixed.recipePresence(settings: AgentSettings(tuiEngine: .claude))
+    expectEqual(claudeForced.engine, .claude)
+    expectEqual(claudeForced.isolation, .unknown)
+
+    expectEqual(AgentEngine.identified(binaryName: "agent", help: "Grok Build TUI", path: "/Users/me/.grok/bin/agent"), .grok)
+    expectEqual(AgentEngine.identified(binaryName: "cursor-agent", help: "Cursor Agent\n  -p, --print", path: "/usr/local/bin/cursor-agent"), .cursor)
+    expectEqual(AgentEngine.identified(binaryName: "agent", help: "Grok Build TUI", path: "/opt/bin/agent"), .grok)
+    expectEqual(AgentEngine.identified(binaryName: "agent", help: "Cursor CLI --print", path: "/Users/me/.local/bin/agent"), .cursor)
+    expectEqual(CLICommand.posixQuote("it's"), "'it'\\''s'")
+
+    let extraRoot = try tempDir()
+    let extraHome = extraRoot.appendingPathComponent("home", isDirectory: true)
+    let grokAgentDir = extraHome.appendingPathComponent(".grok/bin", isDirectory: true)
+    try FileManager.default.createDirectory(at: grokAgentDir, withIntermediateDirectories: true)
+    _ = try plantHelpBinary(in: grokAgentDir, name: "agent", help: "Grok Build TUI\n")
+    let grokInExtra = try plantHelpBinary(
+        in: extraRoot,
+        name: "grok",
+        help: "      --prompt-file <PATH>\n  -p, --single <PROMPT>\n"
+    )
+    let opencodeBin = try plantHelpBinary(
+        in: extraRoot,
+        name: "opencode",
+        help: """
+        opencode [project]
+              --prompt
+              --auto
+        Commands:
+          run [message..]
+              --dir
+        """
+    )
+    let cursorBin = try plantHelpBinary(
+        in: extraRoot,
+        name: "cursor-agent",
+        help: "Cursor Agent\n  -p, --print\n  --force\n  --yolo\n"
+    )
+    let extra = AgentService(
+        runner: StubExecutor(sandbox: true),
+        settings: AgentSettings(),
+        pathEnvironment: extraRoot.path,
+        home: extraHome
+    )
+    expectEqual(extra.tuiPresence(settings: AgentSettings()).engine, .grok)
+    expectEqual(extra.tuiPresence(settings: AgentSettings(tuiEngine: .opencode)).executable, opencodeBin)
+    expectEqual(extra.recipePresence(settings: AgentSettings(tuiEngine: .opencode)).engine, .opencode)
+    expectEqual(extra.tuiPresence(settings: AgentSettings(tuiEngine: .cursor)).executable, cursorBin)
+    expectEqual(extra.recipePresence(settings: AgentSettings(tuiEngine: .cursor)).engine, .cursor)
+    expectEqual(extra.tuiPresence(settings: AgentSettings(tuiEngine: .grok)).executable, grokInExtra)
+    let opencodeArgs = HeadlessCLI.arguments(
+        engine: .opencode,
+        help: "run [message..]\n--dir\n--auto",
+        request: request,
+        prompt: "hello"
+    )
+    expectEqual(opencodeArgs.first, "run")
+    expect(opencodeArgs.contains("--dir"), "opencode dir")
+    expect(opencodeArgs.contains("hello"), "opencode prompt")
+    expect(!opencodeArgs.contains("--auto"), "opencode no auto")
+    let cursorArgs = HeadlessCLI.arguments(
+        engine: .cursor,
+        help: "-p, --print\n--yolo\n--force",
+        request: request,
+        prompt: "hello"
+    )
+    expect(cursorArgs.contains("--print") || cursorArgs.contains("-p"), "cursor print")
+    expect(!cursorArgs.contains("--yolo"), "cursor no yolo")
+    expect(!cursorArgs.contains("--force"), "cursor no force")
+
+    let customBin = try plantHelpBinary(in: extraRoot, name: "my-agent", help: "just a tui\n")
+    let custom = CustomRuntime(id: "c1", title: "Mine", executable: customBin.path, kind: .tui)
+    let customSettings = AgentSettings(customRuntimes: [custom], selectedCustomID: "c1")
+    let customPresence = extra.tuiPresence(settings: customSettings)
+    expectEqual(customPresence.runtimeKey, "custom:c1")
+    expectEqual(customPresence.shortTitle, "Mine")
+    expectEqual(customPresence.executable, customBin)
+    expect(extra.installedEngines(settings: customSettings).contains { $0.runtimeKey == "custom:c1" }, "custom listed")
+
+    let llmBin = try plantHelpBinary(in: extraRoot, name: "llm", help: "llm [prompt]\n")
+    expectEqual(extra.tuiPresence(settings: AgentSettings(tuiEngine: .llm)).executable, llmBin)
+    expectEqual(extra.recipePresence(settings: AgentSettings(tuiEngine: .llm)).engine, .llm)
+    expectEqual(HeadlessCLI.arguments(engine: .llm, help: "", request: request, prompt: "hello"), ["hello"])
 
     func event(_ json: String) -> String? {
         CodexJSONL.event(from: Data(json.utf8))?.message
@@ -1009,18 +1557,18 @@ private func job() async throws {
     expectEqual(noneEnv.0.item(id: noneEnv.3.id)?.status, .idle)
 
     let grokEnv = try setup()
-    let grokJob = JobService(
-        shelf: grokEnv.0,
-        agent: FakeAgent(presence: .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
-        jobsRoot: grokEnv.1
-    )
-    do {
-        _ = try await grokJob.start(itemIDs: [grokEnv.3.id], recipe: .summarize)
-        fail("grok cannot run recipe")
-    } catch let error as JobError {
-        expectEqual(error, .noAgent)
-    }
+    let grokAgent = FakeAgent(presence: .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .unknown))
+    let grokJob = JobService(shelf: grokEnv.0, agent: grokAgent, jobsRoot: grokEnv.1)
+    _ = try await grokJob.start(itemIDs: [grokEnv.3.id], recipe: .summarize)
+    expectEqual(try Data(contentsOf: grokEnv.2), Data("original-bytes".utf8))
     expectEqual(grokEnv.0.item(id: grokEnv.3.id)?.status, .idle)
+    expectEqual(grokEnv.0.item(id: grokEnv.3.id)?.title, "source.pdf")
+    expectEqual(grokEnv.0.results().first?.title, "summary.md")
+    expectEqual(grokEnv.0.results().first?.status, .done)
+    let grokDirs = try FileManager.default.contentsOfDirectory(at: grokEnv.1, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+    let grokManifest = try JSONSerialization.jsonObject(with: Data(contentsOf: grokDirs[0].appendingPathComponent("manifest.json"))) as? [String: Any]
+    expectEqual(grokManifest?["agent"] as? String, "grok")
+    expectEqual(grokManifest?["isolation"] as? String, "unknown")
 
     let env = try setup()
     let agent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
@@ -1029,9 +1577,13 @@ private func job() async throws {
     let jobID = try await job.start(itemIDs: [env.3.id], recipe: .summarize)
     expectEqual(try Data(contentsOf: env.2), Data("original-bytes".utf8))
     let finished = env.0.item(id: env.3.id)!
-    expectEqual(finished.status, .done)
-    expectEqual(finished.title, "summary.md")
-    expectEqual(finished.isolationShown, .workspace)
+    expectEqual(finished.status, .idle)
+    expectEqual(finished.title, "source.pdf")
+    expectEqual(finished.kind, .pdf)
+    expectEqual(finished.isolationShown, .none)
+    expectEqual(env.0.results().first?.title, "summary.md")
+    expectEqual(env.0.results().first?.isolationShown, .workspace)
+    expectEqual(env.0.results().first?.sourceItemIDs, [env.3.id])
     expect(!agent.lastPrompt.contains(env.2.path), "prompt has original path")
     expect(agent.lastPrompt.contains("source.pdf"), "relative name")
     let workFile = agent.lastRequest!.workdir.appendingPathComponent("source.pdf")
@@ -1068,10 +1620,11 @@ private func job() async throws {
     let changedAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
     _ = try await JobService(shelf: changed.0, agent: changedAgent, jobsRoot: changed.1)
         .start(itemIDs: [changed.3.id], recipe: .summarize)
-    expectEqual(changed.0.item(id: changed.3.id)?.status, .failed)
-    expectEqual(changed.0.item(id: changed.3.id)?.failureReason, "原件中途变了，结果按副本做的")
-    expectEqual(changed.0.item(id: changed.3.id)?.title, "summary.md")
-    expect(changed.0.item(id: changed.3.id)?.output != nil, "hash mismatch keeps output")
+    expectEqual(changed.0.item(id: changed.3.id)?.status, .idle)
+    expectEqual(changed.0.item(id: changed.3.id)?.title, "source.pdf")
+    expectEqual(changed.0.results().first?.status, .failed)
+    expectEqual(changed.0.results().first?.failureReason, "原件中途变了，结果按副本做的")
+    expect(changed.0.results().first?.output != nil, "hash mismatch keeps output")
 
     let unknownEnv = try setup()
     _ = try await JobService(
@@ -1079,8 +1632,9 @@ private func job() async throws {
         agent: FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .unknown)),
         jobsRoot: unknownEnv.1
     ).start(itemIDs: [unknownEnv.3.id], recipe: .summarize)
-    expectEqual(unknownEnv.0.item(id: unknownEnv.3.id)?.isolationShown, .unconfirmed)
-    expect(unknownEnv.0.item(id: unknownEnv.3.id)?.isolationShown != .safeCopy, "unknown is not Safe Copy")
+    expectEqual(unknownEnv.0.item(id: unknownEnv.3.id)?.status, .idle)
+    expectEqual(unknownEnv.0.results().first?.isolationShown, .unconfirmed)
+    expect(unknownEnv.0.results().first?.isolationShown != .safeCopy, "unknown is not Safe Copy")
 
     let failEnv = try setup()
     let failAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
@@ -1093,8 +1647,10 @@ private func job() async throws {
     } catch let error as AgentError {
         expectEqual(error, .failed(1))
     }
-    expectEqual(failEnv.0.item(id: failEnv.3.id)?.status, .failed)
-    expectEqual(failEnv.0.item(id: failEnv.3.id)?.failureReason, "失败")
+    expectEqual(failEnv.0.item(id: failEnv.3.id)?.status, .idle)
+    expectEqual(failEnv.0.item(id: failEnv.3.id)?.title, "source.pdf")
+    expectEqual(failEnv.0.results().first?.status, .failed)
+    expectEqual(failEnv.0.results().first?.failureReason, "失败")
     expectEqual(try Data(contentsOf: failEnv.2), Data("original-bytes".utf8))
 
     let blankFail = try setup()
@@ -1107,18 +1663,22 @@ private func job() async throws {
     } catch let error as AgentError {
         expectEqual(error, .failed(2))
     }
-    expectEqual(blankFail.0.item(id: blankFail.3.id)?.failureReason, "任务失败")
+    expectEqual(blankFail.0.item(id: blankFail.3.id)?.status, .idle)
+    expectEqual(blankFail.0.results().first?.failureReason, "任务失败")
 
     let extractEnv = try setup()
     let extractAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
     extractAgent.outputText = "{\"ok\":true}"
     let extractJob = JobService(shelf: extractEnv.0, agent: extractAgent, jobsRoot: extractEnv.1)
     let extractID = try await extractJob.start(itemIDs: [extractEnv.3.id], recipe: .extract)
-    expectEqual(extractEnv.0.item(id: extractEnv.3.id)?.title, "extracted.json")
-    expectEqual(extractEnv.0.item(id: extractEnv.3.id)?.kind, .markdown)
-    expectEqual(extractEnv.0.item(id: extractEnv.3.id)?.displayTag, "JSON")
+    expectEqual(extractEnv.0.item(id: extractEnv.3.id)?.title, "source.pdf")
+    expectEqual(extractEnv.0.item(id: extractEnv.3.id)?.kind, .pdf)
+    expectEqual(extractEnv.0.item(id: extractEnv.3.id)?.status, .idle)
+    expectEqual(extractEnv.0.results().first?.title, "extracted.json")
+    expectEqual(extractEnv.0.results().first?.kind, .markdown)
+    expectEqual(extractEnv.0.results().first?.takeawayItem().displayTag, "JSON")
     expectEqual(RecipeCatalog.spec(.extract).outputKind, .markdown)
-    expectEqual(try String(contentsOf: extractEnv.0.item(id: extractEnv.3.id)!.output!, encoding: .utf8), "{\"ok\":true}")
+    expectEqual(try String(contentsOf: extractEnv.0.results().first!.output!, encoding: .utf8), "{\"ok\":true}")
     expectEqual(extractJob.job(id: extractID)?.recipe, .extract)
     expectEqual(extractJob.job(id: extractID)?.outputFile.lastPathComponent, "extracted.json")
     expect(extractJob.job(id: JobID(rawValue: "missing")) == nil, "missing job")
@@ -1128,7 +1688,7 @@ private func job() async throws {
     fencedAgent.outputText = "```json\n{\"ok\":true}\n```"
     _ = try await JobService(shelf: fenced.0, agent: fencedAgent, jobsRoot: fenced.1)
         .start(itemIDs: [fenced.3.id], recipe: .extract)
-    expectEqual(try String(contentsOf: fenced.0.item(id: fenced.3.id)!.output!, encoding: .utf8), "{\"ok\":true}")
+    expectEqual(try String(contentsOf: fenced.0.results().first!.output!, encoding: .utf8), "{\"ok\":true}")
     expectEqual(RecipeOutput.finalize("```json\n{\"a\":1}\n```", fileName: "extracted.json"), "{\"a\":1}")
     expectEqual(RecipeOutput.finalize("hello", fileName: "summary.md"), "hello")
     expectEqual(RecipeOutput.finalize("{\"a\":1}", fileName: "extracted.json"), "{\"a\":1}")
@@ -1140,9 +1700,10 @@ private func job() async throws {
             .start(itemIDs: [env.3.id], recipe: recipe)
         let spec = RecipeCatalog.spec(recipe)
         let item = env.0.item(id: env.3.id)!
-        expectEqual(item.status, .done, recipe.rawValue)
-        expectEqual(item.title, spec.outputFileName, recipe.rawValue)
-        expect(FileManager.default.fileExists(atPath: item.output?.path ?? ""), "\(recipe.rawValue) output")
+        expectEqual(item.status, .idle, recipe.rawValue)
+        expectEqual(item.title, "source.pdf", recipe.rawValue)
+        expectEqual(env.0.results().first?.title, spec.outputFileName, recipe.rawValue)
+        expect(FileManager.default.fileExists(atPath: env.0.results().first?.output?.path ?? ""), "\(recipe.rawValue) output")
         expectEqual(try Data(contentsOf: env.2), Data("original-bytes".utf8), recipe.rawValue)
         expect(!agent.lastPrompt.contains(env.2.path), "\(recipe.rawValue) original path")
     }
@@ -1189,8 +1750,9 @@ private func job() async throws {
         ).start(itemIDs: [admittedFolder.id], recipe: .summarize)
         expectEqual(try String(contentsOf: notes, encoding: .utf8), "folder-notes")
         let finishedFolder = folderShelf.item(id: admittedFolder.id)!
-        expectEqual(finishedFolder.status, .done)
-        expectEqual(finishedFolder.title, "summary.md")
+        expectEqual(finishedFolder.status, .idle)
+        expectEqual(finishedFolder.title, "bundle")
+        expectEqual(folderShelf.results().first?.title, "summary.md")
         expect(!folderAgent.lastPrompt.contains(originalFolder.path), "folder prompt original path")
         expect(folderAgent.lastPrompt.contains("bundle"), "folder relative name")
         let workBundle = folderAgent.lastRequest!.workdir.appendingPathComponent("bundle")
@@ -1255,17 +1817,21 @@ private func job() async throws {
     expect(briefAgent.lastPrompt.contains("b.md"), "brief lists second")
     expectEqual(try Data(contentsOf: originalA), Data("alpha-source".utf8))
     expectEqual(try Data(contentsOf: originalB), Data("beta-source".utf8))
-    expectEqual(briefShelf.item(id: itemA.id)?.status, .done)
-    expectEqual(briefShelf.item(id: itemB.id)?.status, .done)
-    expectEqual(briefShelf.item(id: itemA.id)?.title, "brief.md")
-    expectEqual(briefShelf.item(id: itemA.id)?.output, briefShelf.item(id: itemB.id)?.output)
+    expectEqual(briefShelf.item(id: itemA.id)?.status, .idle)
+    expectEqual(briefShelf.item(id: itemB.id)?.status, .idle)
+    expectEqual(briefShelf.item(id: itemA.id)?.title, "a.md")
+    expectEqual(briefShelf.item(id: itemB.id)?.title, "b.md")
+    expectEqual(briefShelf.results().count, 1)
+    expectEqual(briefShelf.results().first?.title, "brief.md")
+    expectEqual(Set(briefShelf.results().first?.sourceItemIDs ?? []), [itemA.id, itemB.id])
 
     let translateEnv = try setup()
     let translateAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
     _ = try await JobService(shelf: translateEnv.0, agent: translateAgent, jobsRoot: translateEnv.1)
         .start(itemIDs: [translateEnv.3.id], recipe: .translate)
     expectEqual(translateAgent.lastRequest?.network, true)
-    expectEqual(translateEnv.0.item(id: translateEnv.3.id)?.title, "translated.md")
+    expectEqual(translateEnv.0.item(id: translateEnv.3.id)?.title, "source.pdf")
+    expectEqual(translateEnv.0.results().first?.title, "translated.md")
 
     let cancelEnv = try setup()
     let waiting = WaitingAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
@@ -1280,6 +1846,7 @@ private func job() async throws {
         fail("cancel should throw")
     } catch AgentError.cancelled {
         expectEqual(cancelEnv.0.item(id: cancelEnv.3.id)?.status, .idle)
+        expectEqual(cancelEnv.0.results().count, 0)
     }
 
     let streamEnv = try setup()
@@ -1292,7 +1859,8 @@ private func job() async throws {
     expectEqual(streamEnv.0.item(id: streamEnv.3.id)?.status, .running)
     expectEqual(streamEnv.0.item(id: streamEnv.3.id)?.event, "工具调用")
     _ = try await streamTask.value
-    expectEqual(streamEnv.0.item(id: streamEnv.3.id)?.status, .done)
+    expectEqual(streamEnv.0.item(id: streamEnv.3.id)?.status, .idle)
+    expectEqual(streamEnv.0.results().first?.status, .done)
 }
 
 final class WaitingAgent: AgentRunning, @unchecked Sendable {
@@ -1530,6 +2098,39 @@ private func tui() throws {
     expect(!geminiPrepared.session.arguments.contains("--yolo"), "gemini no yolo")
     expect(geminiPrepared.session.environment.contains { $0.hasPrefix("GEMINI_CONFIG_DIR=") }, "gemini config dir")
 
+    let opencodePrepared = try TUIService(
+        shelf: shelf,
+        agent: FakeAgent(presence: .opencode(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
+        inboxRoot: root.appendingPathComponent("OpenCodeInbox")
+    ).send(itemIDs: [item2.id], text: "用 OpenCode 看")
+    expect(opencodePrepared.session.arguments.contains("--prompt"), "opencode prompt")
+    expect(opencodePrepared.session.arguments.contains(opencodePrepared.cwd.path), "opencode project")
+    expect(!opencodePrepared.session.arguments.contains("--auto"), "opencode no auto")
+    expect(opencodePrepared.session.environment.contains { $0.hasPrefix("OPENCODE_CONFIG_DIR=") }, "opencode config dir")
+    expectEqual(opencodePrepared.isolatedHome.lastPathComponent, "opencode-home")
+    expect(opencodePrepared.feedOnLaunch == false, "opencode is tui")
+
+    let cursorPrepared = try TUIService(
+        shelf: shelf,
+        agent: FakeAgent(presence: .cursor(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
+        inboxRoot: root.appendingPathComponent("CursorInbox")
+    ).send(itemIDs: [item2.id], text: "用 Cursor 看")
+    expect(cursorPrepared.session.arguments.contains { $0.contains("用 Cursor 看") }, "cursor prompt")
+    expect(!cursorPrepared.session.arguments.contains("--yolo"), "cursor tui no yolo")
+    expect(!cursorPrepared.session.arguments.contains("--force"), "cursor tui no force")
+
+    let llmPrepared = try TUIService(
+        shelf: shelf,
+        agent: FakeAgent(presence: .llm(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
+        inboxRoot: root.appendingPathComponent("LLMInbox")
+    ).send(itemIDs: [item2.id], text: "译成中文")
+    expectEqual(llmPrepared.session.arguments, ["-l"])
+    expectEqual(llmPrepared.session.executable, CLICommand.shellExecutable())
+    expect(llmPrepared.feedOnLaunch, "cli feeds shell")
+    expect(llmPrepared.injection.contains("/usr/bin/true"), "cli binary")
+    expect(llmPrepared.injection.contains("译成中文"), "cli prompt")
+    expect(!llmPrepared.injection.contains(original.path), "cli no original")
+
     let originalBundle = root.appendingPathComponent("bundle", isDirectory: true)
     try FileManager.default.createDirectory(at: originalBundle, withIntermediateDirectories: true)
     try Data("inside".utf8).write(to: originalBundle.appendingPathComponent("a.txt"))
@@ -1551,6 +2152,27 @@ private func tui() throws {
     expect(!folderSend.injection.contains(originalBundle.path), "folder tui original path")
     expect(folderSend.injection.contains("bundle"), "folder tui relative")
     expectEqual(shelf.item(id: folderTUI.id)?.status, .sent)
+
+    let extra = root.appendingPathComponent("from-result.md")
+    try Data("result-body".utf8).write(to: extra)
+    let keepIdleFile = root.appendingPathComponent("keep-idle.md")
+    try Data("keep".utf8).write(to: keepIdleFile)
+    let keepIdle = try shelf.add(Item(
+        kind: .markdown,
+        title: "keep-idle.md",
+        sourceURL: keepIdleFile,
+        parts: [ItemPart(name: "keep-idle.md", url: keepIdleFile)]
+    ))
+    let extraSend = try TUIService(
+        shelf: shelf,
+        agent: FakeAgent(presence: .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
+        inboxRoot: root.appendingPathComponent("TUIResult")
+    ).send(itemIDs: [], text: "看结果", extraFiles: [extra])
+    expectEqual(try String(contentsOf: extraSend.cwd.appendingPathComponent("from-result.md"), encoding: .utf8), "result-body")
+    expect(extraSend.injection.contains("from-result.md"), "result file listed")
+    expectEqual(extraSend.itemIDs, [])
+    expectEqual(shelf.item(id: keepIdle.id)?.status, .idle, "sending a result does not mark inputs sent")
+    expectEqual(shelf.item(id: folderTUI.id)?.status, .sent, "extra files do not patch other items")
 }
 
 private func pasteboard() throws {
@@ -1976,6 +2598,21 @@ private func captureService() async throws {
     ).captureFrontBrowser()
     expectEqual(hostFallback.title, "example.com")
 
+    let dropSnap = RecordingSnap()
+    let dropped = await CaptureService(
+        browser: FailBrowser(),
+        fetcher: StubFetcher(result: .success(Data(
+            "<html><head><title>Dropped Title</title></head><p>Hi</p></html>".utf8
+        ))),
+        snapshot: dropSnap,
+        pageSnapshot: StubPageSnapshot(data: Data([0x89, 0x50, 0x4E, 0x47]))
+    ).captureURL(URL(string: "https://example.com/drop")!)
+    expectEqual(dropped.title, "Dropped Title")
+    expect(dropped.markdown != nil, "drop capture has markdown")
+    expect(dropped.snapshotPNG != nil, "drop capture uses page snapshot")
+    expectEqual(dropSnap.pid, -1)
+    expect(dropped.failures.isEmpty, "drop capture no failures")
+
     let sheet: [String: Any] = [
         kCGWindowOwnerPID as String: pid_t(99),
         kCGWindowLayer as String: 0,
@@ -2057,6 +2694,20 @@ private func captureDoesNotInvent() async throws {
         expectEqual(error, .captureFailed)
     }
     expect(shelf.items().isEmpty, "no fake web item")
+}
+
+private func appDoesNotImportCapture() throws {
+    let appDir = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("App")
+    let files = try FileManager.default.contentsOfDirectory(at: appDir, includingPropertiesForKeys: nil)
+        .filter { $0.pathExtension == "swift" }
+    expect(files.isEmpty == false, "app sources exist")
+    for file in files {
+        let text = try String(contentsOf: file, encoding: .utf8)
+        expect(text.contains("import DropAgentCapture") == false, "\(file.lastPathComponent) imports Capture")
+    }
 }
 
 private func liveCapture() async throws {

@@ -6,9 +6,15 @@ public enum ShelfError: Error, Equatable, Sendable {
     case runningLocked
 }
 
+private struct ShelfDocument: Codable {
+    var items: [Item]
+    var results: [ResultRecord]
+}
+
 public final class ShelfStore: @unchecked Sendable {
     private let lock = NSLock()
     private var ordered: [Item] = []
+    private var artifacts: [ResultRecord] = []
     private var selectionIDs: Set<ItemID> = []
     private let fileURL: URL
     public var onChange: (@Sendable () -> Void)?
@@ -21,6 +27,18 @@ public final class ShelfStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return ordered
+    }
+
+    public func results() -> [ResultRecord] {
+        lock.lock()
+        defer { lock.unlock() }
+        return artifacts
+    }
+
+    public func result(id: ResultID) -> ResultRecord? {
+        lock.lock()
+        defer { lock.unlock() }
+        return artifacts.first { $0.id == id }
     }
 
     public func item(id: ItemID) -> Item? {
@@ -63,6 +81,36 @@ public final class ShelfStore: @unchecked Sendable {
         }
         ordered.removeAll { ids.contains($0.id) }
         selectionIDs.subtract(ids)
+        lock.unlock()
+        persist()
+        notify()
+    }
+
+    @discardableResult
+    public func addResult(_ record: ResultRecord) -> ResultRecord {
+        lock.lock()
+        artifacts.insert(record, at: 0)
+        lock.unlock()
+        persist()
+        notify()
+        return record
+    }
+
+    public func removeResults(ids: [ResultID]) {
+        lock.lock()
+        artifacts.removeAll { ids.contains($0.id) }
+        lock.unlock()
+        persist()
+        notify()
+    }
+
+    public func patchResult(id: ResultID, mutate: (inout ResultRecord) -> Void) {
+        lock.lock()
+        guard let index = artifacts.firstIndex(where: { $0.id == id }) else {
+            lock.unlock()
+            return
+        }
+        mutate(&artifacts[index])
         lock.unlock()
         persist()
         notify()
@@ -122,25 +170,33 @@ public final class ShelfStore: @unchecked Sendable {
         defer { lock.unlock() }
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             ordered = []
+            artifacts = []
             return
         }
         do {
             let data = try Data(contentsOf: fileURL)
-            ordered = try JSONDecoder().decode([Item].self, from: data)
+            if let document = try? JSONDecoder().decode(ShelfDocument.self, from: data) {
+                ordered = document.items
+                artifacts = document.results
+            } else {
+                ordered = try JSONDecoder().decode([Item].self, from: data)
+                artifacts = []
+            }
         } catch {
             ordered = []
+            artifacts = []
         }
         selectionIDs = []
     }
 
     public func persist() {
         lock.lock()
-        let snapshot = ordered
+        let document = ShelfDocument(items: ordered, results: artifacts)
         let url = fileURL
         lock.unlock()
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let data = try JSONEncoder().encode(snapshot)
+            let data = try JSONEncoder().encode(document)
             try data.write(to: url, options: .atomic)
         } catch {
             // Persistence is best-effort; the in-memory shelf remains the source of truth.

@@ -4,7 +4,7 @@
 
 ## 做什么
 
-对选中条目做**副本任务**：建 `Jobs/<id>`、按 Recipe 调 Agent、写 `output/`、记 `events.jsonl`、跑完校验原件 Hash、`Shelf.patch` 成 done/failed。
+对选中条目做**副本任务**：建 `Jobs/<id>`、按 Recipe 调 Agent、写 `output/`、记 `events.jsonl`、跑完校验原件 Hash、把输入 `patch` 回 idle、`Shelf.addResult` 追加产出。
 
 ## 不做什么
 
@@ -45,4 +45,4 @@ Application Support/DropAgent/Jobs/<id>/
 
 ## 调用
 
-`Agent.run(config)`；`Shelf.patch`。
+`Agent.run(config)`（执行者是 `recipePresence` 那家 CLI，不是写死 Codex）；`Shelf.patch` 把输入拉回 idle；`Shelf.addResult` 追加产出。取消不写结果。没有 `recipePresence` 时 `start` 失败，条目保持 idle。

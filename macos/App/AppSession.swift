@@ -15,6 +15,11 @@ enum AITab: String {
     case result
 }
 
+enum PaneFocus: String {
+    case input
+    case result
+}
+
 struct TTYLine: Identifiable, Equatable {
     var id = UUID()
     var kind: String
@@ -24,27 +29,28 @@ struct TTYLine: Identifiable, Equatable {
 @MainActor
 final class AppSession: ObservableObject {
     let shelf: ShelfStore
-    let ingest: IngestService
-    let job: JobService
+    var ingest: IngestService
+    var job: JobService
     let tui: TUIService
     let agent: AgentService
+    let spotlight = SpotlightSearch()
+    private let jobRunner: (any AgentRunning)?
+    var applyChrome: (() -> Void)?
+    var onFinishExternalDrag: (() -> Void)?
+    var onApplyHotKeys: (() -> Void)?
+    @Published var recordingHotKey: HotKeySlot?
+    private var cancellables = Set<AnyCancellable>()
 
     @Published var items: [Item] = []
+    @Published var results: [ResultRecord] = []
+    @Published var selectedResultID: ResultID?
+    @Published var paneFocus: PaneFocus = .input
     @Published var presence: AgentPresence = .none
     @Published var recipePresence: AgentPresence = .none
     @Published var installedEngines: [AgentPresence] = []
-    @Published var aiTab: AITab = .work {
-        didSet {
-            guard oldValue != aiTab else { return }
-            if aiTab == .tty {
-                giveTerminalRoom()
-            } else if oldValue == .tty {
-                restoreListAfterTerminal()
-            }
-        }
-    }
-    @Published var listHeight: CGFloat = 140
-    private var listHeightTouched = false
+    @Published var aiTab: AITab = .work
+    @Published var shelfWidth: CGFloat = LivePanelChrome.shelfDefault
+    @Published var multiSelect = false
     @Published var promptText: String = ""
     @Published var copiedID: ItemID?
     @Published var ttyLines: [TTYLine] = []
@@ -52,22 +58,42 @@ final class AppSession: ObservableObject {
     @Published var pendingTUI: PreparedTUISend?
     @Published var tuiSessionDirectory: URL?
     @Published var settings = AgentSettings()
+    @Published var prefs = AppPreferences.default
+    @Published var settingsOpen = false
     @Published var offerPrivacySettings = false
     @Published var offerCaptureRetry = false
+    @Published var setup = PageAdmitSetup.empty
+    @Published var setupPermissionsOverride: PageAdmitSetup?
+    @Published var suppressSetupCard = false
+    @Published var authorizingID: String?
     @Published var tuiProcessRunning = false
     @Published var ptyLive = false
     @Published var isCapturing = false
+    private var isAdmittingFiles = false
+    private var retryFrontFiles = false
+    private var filesPrivacy: FilesPrivacy = .none
+    private var lastFrontBundle: String?
+    private var lastFrontPID: pid_t = 0
+    private var hasFrozenFront = false
     @Published var systemDragActive = false
     @Published var hotKeyToggleOK = true
     @Published var hotKeyCaptureOK = true
+    @Published var hotKeyFilesOK = true
     @Published var tuiEpoch = UUID()
     private var lastCaptureToken: PageAdmitToken?
-    private var listHeightBeforeTerminal: CGFloat?
-    private var terminalOwnsListHeight = false
+    private var setupLoaded = false
+    private var setupWatchCount = 0
+    private var setupWatchTask: Task<Void, Never>?
 
     static let captureFailedCopy = PageAdmitCopy.needAccessibility
 
     init(jobRunner: (any AgentRunning)? = nil) {
+        self.jobRunner = jobRunner
+        let loadedPrefs = AppPreferences.load()
+        prefs = loadedPrefs
+        DropAgentPaths.inboxOverride = loadedPrefs.inboxURL
+        DropAgentPaths.jobsOverride = loadedPrefs.jobsURL
+        Copy.language = loadedPrefs.language
         try? DropAgentPaths.ensure()
         var loaded = AgentSettings()
         if let data = try? Data(contentsOf: DropAgentPaths.settingsFile),
@@ -80,53 +106,81 @@ final class AppSession: ObservableObject {
         agent = AgentService(runner: CodexCLI(), settings: loaded)
         job = JobService(shelf: shelf, agent: jobRunner ?? agent, jobsRoot: DropAgentPaths.jobs)
         tui = TUIService(shelf: shelf, agent: agent, inboxRoot: DropAgentPaths.tuiInbox)
+        Palette.isDark = prefs.appearance.resolvedIsDark
+        let args = ProcessInfo.processInfo.arguments
+        suppressSetupCard = args.contains("--e2e") || args.contains("--preview") || args.contains("--capture")
         shelf.load()
         refreshPresence()
         refresh()
+        refreshSetup()
         shelf.onChange = { [weak self] in
             Task { @MainActor in
                 self?.refresh()
             }
         }
-        let chrome = Self.storedChrome()
-        listHeight = chrome.height
-        listHeightTouched = chrome.touched
+        shelfWidth = Self.storedShelfWidth()
+        spotlight.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     var selectedItems: [Item] { shelf.selectedItems() }
-    var hasAgent: Bool { presence.engine != nil }
+    var hasAgent: Bool { presence.executable != nil }
     var canSendToTUI: Bool {
-        hasAgent && isCapturing == false && selectedItems.contains { $0.status == .running || $0.status == .confirm } == false
+        guard hasAgent, isCapturing == false else { return false }
+        if selectedItems.contains(where: { $0.status == .running || $0.status == .confirm }) {
+            return false
+        }
+        if paneFocus == .result {
+            return selectedResult?.output != nil
+        }
+        return true
     }
     var composerPlaceholder: String {
-        if hasAgent == false { return "未发现终端 Agent" }
-        if isCapturing { return "正在抓当前页" }
-        if selectedItems.contains(where: { $0.status == .running }) { return "等任务结束，或点取消" }
-        if selectedItems.contains(where: { $0.status == .confirm }) { return "先运行或取消这次动作" }
-        return "写给 \(tuiTitle)，回车发送"
+        if hasAgent == false { return Copy.t("未发现终端 Agent", "No terminal agent found") }
+        if isCapturing { return Copy.t("正在抓当前页", "Capturing the current page") }
+        if selectedItems.contains(where: { $0.status == .running }) {
+            return Copy.t("等任务结束，或点取消", "Wait for the job to finish, or cancel")
+        }
+        if selectedItems.contains(where: { $0.status == .confirm }) {
+            return Copy.t("先运行或取消这次动作", "Run or cancel this action first")
+        }
+        return Copy.t("写给 \(tuiTitle)，回车发送", "Write to \(tuiTitle), press Return to send")
     }
     var hasRecipe: Bool {
-        if case .codex = recipePresence { return true }
-        return false
+        let key = presence.runtimeKey
+        return key.isEmpty == false && key == recipePresence.runtimeKey
     }
-    var tuiTitle: String { presence.engine?.shortTitle ?? "Agent" }
+    var tuiTitle: String { presence.shortTitle }
+    var showsSetupCard: Bool {
+        SetupCardPolicy.shouldShowCard(
+            dismissed: prefs.setupCardDismissed,
+            captureReady: SetupCardPolicy.captureReady(setup),
+            isDiagnostic: suppressSetupCard,
+            panelVisible: true
+        )
+    }
+    var gearNeedsAttention: Bool {
+        SetupCardPolicy.gearNeedsAttention(hasAgent: hasAgent, setup: setup)
+    }
     var recipeActorLine: String {
         HotKeyCopy.recipeActorLine(hasRecipe: hasRecipe, hasAgent: hasAgent, tuiTitle: tuiTitle)
     }
     var recipeIsolationFact: String {
-        guard hasRecipe else { return "无 Codex" }
+        guard hasRecipe else { return Copy.t("无执行入口", "No exec entry") }
         return agent.isolationCopy(for: recipePresence)
     }
     var recipeWriteFact: String {
-        guard hasRecipe else { return "无 Codex" }
-        if recipePresence.isolation == .workspace { return "仅任务目录" }
-        return "未确认仅任务目录"
+        guard hasRecipe else { return Copy.t("无执行入口", "No exec entry") }
+        if recipePresence.isolation == .workspace { return Copy.t("仅任务目录", "Job folder only") }
+        return Copy.t("未确认仅任务目录", "Job-folder limit unconfirmed")
     }
     var recipeNetworkFact: String {
-        guard hasRecipe else { return "无 Codex" }
-        if recipePresence.isolation != .workspace { return "未确认" }
+        guard hasRecipe else { return Copy.t("无执行入口", "No exec entry") }
+        if recipePresence.isolation != .workspace { return Copy.t("未确认", "Unconfirmed") }
         let wants = confirmRecipeID.map { RecipeCatalog.spec($0).needsNetwork } ?? false
-        return wants ? "开" : "关"
+        return wants ? Copy.t("开", "On") : Copy.t("关", "Off")
     }
     var confirmRecipeID: RecipeID? {
         let title = selectedItems.first(where: { $0.status == .confirm })?.recipe
@@ -134,14 +188,14 @@ final class AppSession: ObservableObject {
         return RecipeID.allCases.first { $0.fullTitle == title }
     }
     var shortcutFooter: String {
-        let keys = HotKeyCopy.hotkeyLine(hasAgent: hasAgent, toggleOK: hotKeyToggleOK, captureOK: hotKeyCaptureOK)
+        let keys = HotKeyCopy.hotkeyLine(hasAgent: hasAgent, toggleOK: hotKeyToggleOK, captureOK: hotKeyCaptureOK, filesOK: hotKeyFilesOK)
         if isCapturing {
             return "正在抓当前页，完成前先不发送。\n" + keys
         }
         if selectedItems.contains(where: { $0.status == .confirm || $0.status == .running }) {
             return keys
         }
-        return HotKeyCopy.footer(hasAgent: hasAgent, tuiTitle: tuiTitle, toggleOK: hotKeyToggleOK, captureOK: hotKeyCaptureOK)
+        return HotKeyCopy.footer(hasAgent: hasAgent, tuiTitle: tuiTitle, toggleOK: hotKeyToggleOK, captureOK: hotKeyCaptureOK, filesOK: hotKeyFilesOK)
     }
 
     var recipeBatch: [Item] {
@@ -156,12 +210,20 @@ final class AppSession: ObservableObject {
     }
 
     func recipeHelp(_ recipe: RecipeID) -> String {
-        if hasRecipe == false { return "动作需要 Codex" }
-        if recipeFitsSelection(recipe) { return recipe.fullTitle }
-        if recipeBatch.count < recipe.minimumCount {
-            return "「\(recipe.shortTitle)」至少要两份材料"
+        if hasRecipe == false {
+            return hasAgent ? HotKeyCopy.missingJobLine(tuiTitle: tuiTitle) : "未发现终端 Agent"
         }
-        return "选中的材料不能用「\(recipe.shortTitle)」"
+        if recipeFitsSelection(recipe) { return Copy.recipeFull(recipe) }
+        if recipeBatch.count < recipe.minimumCount {
+            return Copy.t(
+                "「\(Copy.recipeShort(recipe))」至少要两份材料",
+                "“\(Copy.recipeShort(recipe))” needs at least two items"
+            )
+        }
+        return Copy.t(
+            "选中的材料不能用「\(Copy.recipeShort(recipe))」",
+            "The selected items cannot use “\(Copy.recipeShort(recipe))”"
+        )
     }
 
     var recipeChooserHint: String {
@@ -169,7 +231,7 @@ final class AppSession: ObservableObject {
             return "安装终端 Agent 后可发送。现在只能暂存，或点右上角选择已装的 TUI。"
         }
         if hasRecipe == false {
-            return "动作需要 Codex。下面可以发给 \(tuiTitle)。"
+            return "\(tuiTitle) 没有无界面执行入口，动作不能跑。下面可以发给 \(tuiTitle)。"
         }
         if RecipeID.allCases.contains(where: recipeFitsSelection) {
             return "或在下面写一句话，发送到 \(tuiTitle) 终端。"
@@ -224,8 +286,19 @@ final class AppSession: ObservableObject {
         currentResult()?.isolationShown.spokenFact
     }
 
+    var selectedResult: ResultRecord? {
+        guard let id = selectedResultID else { return nil }
+        return results.first { $0.id == id } ?? shelf.result(id: id)
+    }
+
     func refresh() {
         items = shelf.items()
+        results = shelf.results()
+        if items.isEmpty { multiSelect = false }
+        if let id = selectedResultID, shelf.result(id: id) == nil {
+            selectedResultID = nil
+            if paneFocus == .result { paneFocus = .input }
+        }
     }
 
     func refreshPresence() {
@@ -243,32 +316,57 @@ final class AppSession: ObservableObject {
         refreshPresence()
     }
 
+    func finishExternalDrag() {
+        systemDragActive = false
+        onFinishExternalDrag?()
+    }
+
     func admit(urls: [URL]) {
-        note(ingest.admit(urls: urls))
-        refresh()
+        follow(ingest.admit(urls: urls))
         aiTab = .work
+        finishExternalDrag()
+    }
+
+    func pickFilesToAdmit() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.canCreateDirectories = false
+        panel.prompt = Copy.t("加入", "Add")
+        panel.message = Copy.t("选择要放到架子上的文件或文件夹。原件不动。", "Choose files or folders to put on the shelf. Originals stay put.")
+        let urls = OpenPanelHost.run(panel)
+        guard urls.isEmpty == false else { return }
+        admit(urls: urls)
+    }
+
+    func admitSpotlight(_ hit: SpotlightHit) {
+        admit(urls: [hit.url])
     }
 
     func admitDrop(providers: [NSItemProvider]) {
+        finishExternalDrag()
         Task {
-            let result = await ingest.admitProviders(providers)
-            note(result)
-            refresh()
+            follow(await ingest.admitProviders(providers))
             aiTab = .work
         }
     }
 
     func admitPasteboard(_ pasteboard: NSPasteboard) {
-        note(ingest.admitPasteboard(pasteboard))
-        refresh()
+        admitPayload(ClipboardPayload.from(pasteboard: pasteboard))
+    }
+
+    func admitPayload(_ payload: ClipboardPayload) {
+        follow(ingest.admitPayload(payload))
         aiTab = .work
+        finishExternalDrag()
     }
 
     func admitToTUI(providers: [NSItemProvider]) {
+        finishExternalDrag()
         Task {
-            let result = await ingest.admitProviders(providers)
-            note(result)
-            refresh()
+            let result = await ingest.admitProviders(providers, capturePages: false)
+            follow(result)
             let ids = result.admitted.map(\.id)
             shelf.setSelection(Set(ids))
             if hasAgent {
@@ -281,9 +379,8 @@ final class AppSession: ObservableObject {
     }
 
     func admitToTUI(urls: [URL]) {
-        let result = ingest.admit(urls: urls)
-        note(result)
-        refresh()
+        let result = ingest.admit(urls: urls, capturePages: false)
+        follow(result)
         let ids = result.admitted.map(\.id)
         shelf.setSelection(Set(ids))
         if hasAgent {
@@ -295,13 +392,18 @@ final class AppSession: ObservableObject {
     }
 
     func pasteFromClipboard(_ clipboard: any ClipboardReading = SystemClipboard()) {
-        do {
-            _ = try ingest.admitClipboard(clipboard)
-            refresh()
-            aiTab = .work
-        } catch {
-            errorText = human(error)
+        let payload = clipboard.read()
+        if case .empty = payload {
+            errorText = human(IngestError.emptyClipboard)
+            return
         }
+        let result = ingest.admitPayload(payload)
+        if result.admitted.isEmpty {
+            errorText = human(result.failures.first?.error ?? IngestError.unsupported)
+            return
+        }
+        follow(result)
+        aiTab = .work
     }
 
     func prepareCapture() {
@@ -362,36 +464,279 @@ final class AppSession: ObservableObject {
 
     private func captureCopy(_ message: String) -> String {
         if message == PageAdmitCopy.noBrowser, hotKeyCaptureOK {
-            return PageAdmitCopy.noBrowserHotKey
+            let key = prefs.captureHotKey.label
+            return Copy.t(
+                "没读到当前页。把 Safari、Chrome 或 Edge 放到最前面，再按 \(key)。",
+                "No current page. Bring Safari, Chrome, or Edge to the front, then press \(key)."
+            )
         }
         return message
     }
 
     func retryCapture() {
-        guard isCapturing == false else { return }
-        Task { await captureCurrentPage() }
+        guard isCapturing == false, isAdmittingFiles == false else { return }
+        if retryFrontFiles {
+            Task { await admitFrontSelection() }
+        } else {
+            Task { await captureCurrentPage() }
+        }
     }
 
     func dismissError() {
         errorText = nil
         offerPrivacySettings = false
         offerCaptureRetry = false
+        retryFrontFiles = false
+        filesPrivacy = .none
+    }
+
+    func prepareFrontFiles() {
+        let front = NSWorkspace.shared.frontmostApplication
+        lastFrontBundle = front?.bundleIdentifier
+        lastFrontPID = front?.processIdentifier ?? 0
+        hasFrozenFront = true
+    }
+
+    func admitFrontSelection() async {
+        guard isCapturing == false, isAdmittingFiles == false else { return }
+        isAdmittingFiles = true
+        errorText = nil
+        offerPrivacySettings = false
+        offerCaptureRetry = false
+        retryFrontFiles = true
+        filesPrivacy = .none
+        aiTab = .work
+        if hasFrozenFront == false {
+            prepareFrontFiles()
+        }
+        hasFrozenFront = false
+        let bundle = lastFrontBundle
+        let pid = lastFrontPID
+        let kind = FrontAdmit.classify(bundleID: bundle)
+        var ax = PageAdmit.isTrusted()
+        var finderOK = FrontAdmit.finderAllowed()
+        if case .failure(let fail) = FrontAdmit.decide(kind: kind, axTrusted: ax, finderAllowed: finderOK) {
+            if fail == .needAccessibility {
+                PageAdmit.requestTrustIfNeeded()
+                ax = PageAdmit.isTrusted()
+            }
+            if fail == .needFinderAutomation {
+                _ = PageAdmit.requestAutomation(bundleIdentifier: FrontAdmit.finderBundleID)
+                finderOK = FrontAdmit.finderAllowed()
+            }
+        }
+        if case .failure(let fail) = FrontAdmit.decide(kind: kind, axTrusted: ax, finderAllowed: finderOK) {
+            presentFilesFailure(fail)
+            isAdmittingFiles = false
+            return
+        }
+        switch await FrontAdmit.collect(frontBundleID: bundle, frontPID: pid) {
+        case .success(let read):
+            let result = ingest.admit(urls: read.urls)
+            follow(result)
+            if result.admitted.isEmpty == false {
+                shelf.setSelection(Set(result.admitted.map(\.id)))
+                errorText = nil
+                offerPrivacySettings = false
+                offerCaptureRetry = false
+                retryFrontFiles = false
+                filesPrivacy = .none
+            } else if errorText == nil {
+                presentFilesFailure(.empty)
+            }
+            aiTab = .work
+        case .failure(let fail):
+            presentFilesFailure(fail)
+        }
+        isAdmittingFiles = false
+    }
+
+    private enum FilesPrivacy {
+        case none
+        case accessibility
+        case finder
+    }
+
+    private func presentFilesFailure(_ fail: FrontAdmitError) {
+        offerCaptureRetry = true
+        retryFrontFiles = true
+        switch fail {
+        case .selfApp:
+            errorText = Copy.t("到 Finder 或编辑器里选中文件再按。", "Select files in Finder or an editor, then press the shortcut.")
+            offerPrivacySettings = false
+            filesPrivacy = .none
+        case .browser:
+            let key = prefs.captureHotKey.label
+            errorText = Copy.t(
+                "这不是文件。网页请用 \(key)。",
+                "That is not a file. Capture a page with \(key)."
+            )
+            offerPrivacySettings = false
+            filesPrivacy = .none
+        case .needAccessibility:
+            errorText = Copy.t("加入选中文件需要辅助功能。", "Adding selected files needs Accessibility.")
+            offerPrivacySettings = true
+            filesPrivacy = .accessibility
+        case .needFinderAutomation:
+            errorText = Copy.t(
+                "加入 Finder 里选中的文件需要允许控制 Finder。",
+                "Adding Finder selection needs control of Finder."
+            )
+            offerPrivacySettings = true
+            filesPrivacy = .finder
+        case .emptyFinder:
+            errorText = Copy.t("请先在 Finder 里选中文件。", "Select files in Finder first.")
+            offerPrivacySettings = false
+            filesPrivacy = .none
+        case .empty:
+            errorText = Copy.t(
+                "没读到选中的文件。可在 Finder 里选，或打开一个本地文件。",
+                "No selected files. Select in Finder, or open a local file."
+            )
+            offerPrivacySettings = PageAdmit.isTrusted() == false
+            filesPrivacy = offerPrivacySettings ? .accessibility : .none
+        }
     }
 
     func openPrivacySettings() {
-        let wantAccessibility = PageAdmit.isTrusted() == false
-        if wantAccessibility {
-            PageAdmit.requestTrustIfNeeded()
+        Task { await authorizeCaptureFailure() }
+    }
+
+    func refreshSetup() {
+        let showing = setupLoaded && showsSetupCard
+        setup = setupPermissionsOverride ?? PageAdmit.setupStatus()
+        setupLoaded = true
+        if showing && SetupCardPolicy.captureReady(setup) {
+            dismissSetupCard()
         }
-        let panes = wantAccessibility
-            ? [
-                "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility",
-                "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-            ]
-            : [
-                "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Automation",
-                "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
-            ]
+    }
+
+    func dismissSetupCard() {
+        guard prefs.setupCardDismissed == false else { return }
+        prefs.setupCardDismissed = true
+        prefs.save()
+    }
+
+    func beginSetupWatch() {
+        setupWatchCount += 1
+        guard setupWatchTask == nil else { return }
+        setupWatchTask = Task { @MainActor in
+            while Task.isCancelled == false {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if authorizingID == nil {
+                    refreshSetup()
+                }
+            }
+        }
+    }
+
+    func endSetupWatch() {
+        setupWatchCount = max(0, setupWatchCount - 1)
+        guard setupWatchCount == 0 else { return }
+        setupWatchTask?.cancel()
+        setupWatchTask = nil
+    }
+
+    func openAutomationSettings() {
+        openSystemPane(Self.automationPanes)
+    }
+
+    func authorizeAccessibility() {
+        Task { await authorizeAccessibilityNow() }
+    }
+
+    func authorizeBrowser(_ row: PageAdmitBrowserRow) {
+        Task { await authorizeBrowserRow(row, openSettingsIfDenied: true) }
+    }
+
+    private func authorizeAccessibilityNow() async {
+        authorizingID = "ax"
+        StatusChrome.hideForPrompt()
+        PageAdmit.requestTrustIfNeeded()
+        openSystemPane(Self.accessibilityPanes)
+        StatusChrome.finishPromptKeepHidden()
+        authorizingID = nil
+        refreshSetup()
+    }
+
+    private func authorizeCaptureFailure() async {
+        if retryFrontFiles {
+            switch filesPrivacy {
+            case .finder:
+                await authorizeBrowserRow(setup.finder, openSettingsIfDenied: true)
+            case .accessibility, .none:
+                await authorizeAccessibilityNow()
+            }
+            return
+        }
+        if PageAdmit.isTrusted() == false {
+            await authorizeAccessibilityNow()
+            return
+        }
+        let token = lastCaptureToken ?? .snapshot()
+        if let target = PageAdmit.privacyTarget(token: token) {
+            await authorizeBrowserRow(target, openSettingsIfDenied: true)
+            return
+        }
+    }
+
+    private func authorizeBrowserRow(_ row: PageAdmitBrowserRow, openSettingsIfDenied: Bool) async {
+        authorizingID = row.bundleIdentifier
+        var bundle = row.bundleIdentifier
+        var running = row.running
+        if running == false {
+            running = await openBrowser(bundleIdentifier: bundle)
+            refreshSetup()
+            if row.bundleIdentifier == FrontAdmit.finderBundleID {
+                bundle = setup.finder.bundleIdentifier
+                running = setup.finder.running
+            } else if let updated = setup.browsers.first(where: { $0.displayName == row.displayName }) {
+                bundle = updated.bundleIdentifier
+                running = updated.running
+            }
+            if running == false {
+                authorizingID = nil
+                return
+            }
+        }
+        StatusChrome.hideForPrompt()
+        let state = PageAdmit.requestAutomation(bundleIdentifier: bundle)
+        authorizingID = nil
+        refreshSetup()
+        if openSettingsIfDenied && state == .denied {
+            StatusChrome.finishPromptKeepHidden()
+            openSystemPane(Self.automationPanes)
+            return
+        }
+        StatusChrome.restore()
+    }
+
+    private func openBrowser(bundleIdentifier: String) async -> Bool {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+            return false
+        }
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        do {
+            _ = try await NSWorkspace.shared.openApplication(at: url, configuration: config)
+        } catch {
+            return false
+        }
+        let deadline = Date().addingTimeInterval(8)
+        while Date() < deadline {
+            if isBrowserRunning(bundleIdentifier) { return true }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        return isBrowserRunning(bundleIdentifier)
+    }
+
+    private func isBrowserRunning(_ bundleIdentifier: String) -> Bool {
+        NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier?.caseInsensitiveCompare(bundleIdentifier) == .orderedSame
+        }
+    }
+
+    private func openSystemPane(_ panes: [String]) {
         for pane in panes {
             if let url = URL(string: pane), NSWorkspace.shared.open(url) {
                 return
@@ -399,7 +744,18 @@ final class AppSession: ObservableObject {
         }
     }
 
+    private static let accessibilityPanes = [
+        "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+    ]
+
+    private static let automationPanes = [
+        "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Automation",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
+    ]
+
     func toggleSelect(id: ItemID, command: Bool) {
+        paneFocus = .input
         shelf.toggleSelect(id: id, command: command)
         if command { return }
         if let item = shelf.item(id: id) {
@@ -409,12 +765,31 @@ final class AppSession: ObservableObject {
         }
     }
 
+    func selectResult(_ id: ResultID) {
+        selectedResultID = id
+        paneFocus = .result
+        aiTab = .result
+    }
+
+    func removeResult(_ id: ResultID) {
+        shelf.removeResults(ids: [id])
+        if selectedResultID == id {
+            selectedResultID = nil
+            paneFocus = .input
+        }
+        refresh()
+    }
+
     func remove(id: ItemID) {
         try? shelf.remove(ids: [id])
         refresh()
     }
 
     func removeSelected() {
+        if paneFocus == .result, let id = selectedResultID {
+            removeResult(id)
+            return
+        }
         let ids = selectedItems.filter { $0.status != .running }.map(\.id)
         guard !ids.isEmpty else { return }
         try? shelf.remove(ids: ids)
@@ -422,6 +797,7 @@ final class AppSession: ObservableObject {
     }
 
     func moveSelection(offset: Int) {
+        paneFocus = .input
         shelf.moveSelection(offset: offset)
         if let item = selectedItems.first {
             if item.status == .done || item.status == .failed { aiTab = .result }
@@ -447,6 +823,7 @@ final class AppSession: ObservableObject {
             errorText = "有 \(skipped) 项不能用「\(recipe.shortTitle)」"
         }
         aiTab = .work
+        refresh()
     }
 
     func cancelConfirm() {
@@ -461,8 +838,8 @@ final class AppSession: ObservableObject {
     func confirmRun() async {
         guard hasRecipe else {
             errorText = hasAgent
-                ? "动作需要 Codex。终端仍可发送给 \(tuiTitle)。"
-                : "未发现 Codex。安装后再运行。"
+                ? "\(tuiTitle) 没有无界面执行入口。终端仍可发送给 \(tuiTitle)。"
+                : "未发现终端 Agent。"
             return
         }
         let batch = selectedItems.filter { $0.status == .confirm }
@@ -471,12 +848,14 @@ final class AppSession: ObservableObject {
         }
         do {
             _ = try await job.start(itemIDs: batch.map(\.id), recipe: recipe)
+            adoptNewestResult()
             aiTab = .result
         } catch AgentError.cancelled {
             aiTab = .work
         } catch {
             errorText = human(error)
-            if selectedItems.contains(where: { $0.status == .failed }) {
+            if shelf.results().isEmpty == false {
+                adoptNewestResult()
                 aiTab = .result
             }
         }
@@ -487,17 +866,21 @@ final class AppSession: ObservableObject {
     }
 
     func sendToTUI(itemIDs: [ItemID]? = nil) {
-        guard canSendToTUI, let engine = presence.engine else {
+        guard canSendToTUI, presence.executable != nil else {
             if hasAgent == false {
                 errorText = "未发现终端 Agent。文件已留在架子上。"
             }
+            return
+        }
+        if paneFocus == .result, let record = selectedResult, let file = record.output {
+            sendResultToTUI(record, file: file)
             return
         }
         let ids = itemIDs ?? selectedItems.map(\.id)
         do {
             let prepared = try tui.send(itemIDs: ids, text: promptText, sessionDirectory: tuiSessionDirectory)
             if ttyLines.isEmpty {
-                ttyLines.append(TTYLine(kind: "sys", text: "\(engine.shortTitle)  ·  本机会话"))
+                ttyLines.append(TTYLine(kind: "sys", text: "\(presence.shortTitle)  ·  本机会话"))
             }
             for id in ids {
                 if let item = shelf.item(id: id) {
@@ -515,7 +898,34 @@ final class AppSession: ObservableObject {
         }
     }
 
+    private func sendResultToTUI(_ record: ResultRecord, file: URL) {
+        do {
+            let prepared = try tui.send(
+                itemIDs: [],
+                text: promptText,
+                sessionDirectory: tuiSessionDirectory,
+                extraFiles: [file]
+            )
+            if ttyLines.isEmpty {
+                ttyLines.append(TTYLine(kind: "sys", text: "\(presence.shortTitle)  ·  本机会话"))
+            }
+            ttyLines.append(TTYLine(kind: "file", text: "结果  \(record.title)"))
+            let shown = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+            ttyLines.append(TTYLine(kind: "in", text: shown.isEmpty ? "›  （没有附带说明）" : "›  \(shown)"))
+            promptText = ""
+            pendingTUI = prepared
+            tuiSessionDirectory = prepared.cwd
+            aiTab = .tty
+        } catch {
+            errorText = human(error)
+        }
+    }
+
     func copySelected() {
+        if paneFocus == .result, let record = selectedResult {
+            copyItem(record.takeawayItem())
+            return
+        }
         guard let item = selectedItems.first, item.status != .running else { return }
         copyItem(item)
     }
@@ -530,9 +940,19 @@ final class AppSession: ObservableObject {
     }
 
     func currentResult() -> Item? {
-        selectedItems.first { $0.status == .done || $0.status == .failed }
+        if paneFocus == .result, let record = selectedResult {
+            return record.takeawayItem()
+        }
+        return selectedItems.first { $0.status == .done || $0.status == .failed }
             ?? selectedItems.first { $0.status == .sent }
             ?? selectedItems.first
+    }
+
+    private func adoptNewestResult() {
+        refresh()
+        guard let newest = results.first else { return }
+        selectedResultID = newest.id
+        paneFocus = .result
     }
 
     func tuiProcessExited() {
@@ -550,36 +970,185 @@ final class AppSession: ObservableObject {
 
     func pickTUIExecutable() {
         let panel = NSOpenPanel()
-        panel.title = "选择终端 Agent 可执行文件"
+        panel.title = Copy.t("选择终端 Agent 可执行文件", "Choose a terminal agent executable")
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK, let url = panel.url {
-            let name = url.lastPathComponent.lowercased()
-            let engine: AgentEngine
-            if name == "grok" || name == "agent" {
-                engine = .grok
-            } else if name == "claude" {
-                engine = .claude
-            } else if name == "gemini" {
-                engine = .gemini
-            } else {
-                engine = .codex
-            }
+        if let url = OpenPanelHost.run(panel).first {
+            adoptExecutable(url)
+        }
+    }
+
+    func adoptExecutable(_ url: URL) {
+        let help = HeadlessCLI.readHelp(at: url)
+        if let engine = AgentEngine.identified(
+            binaryName: url.lastPathComponent,
+            help: help,
+            path: url.path
+        ) {
             if engine == .codex {
                 settings.executableOverride = url.path
             }
             settings.tuiOverrides[engine.rawValue] = url.path
-            settings.tuiEngine = TUIEnginePreference(rawValue: engine.rawValue) ?? .codex
-            resetTUISession()
-            saveSettings()
+            settings.tuiEngine = TUIEnginePreference(rawValue: engine.rawValue) ?? .auto
+            settings.selectedCustomID = nil
+        } else {
+            let custom = CustomRuntime(
+                title: url.deletingPathExtension().lastPathComponent,
+                executable: url.path,
+                kind: AgentEngine.detectedKind(binaryName: url.lastPathComponent, help: help)
+            )
+            settings.customRuntimes.append(custom)
+            settings.selectedCustomID = custom.id
         }
+        resetTUISession()
+        saveSettings()
     }
 
     func setTUIPreference(_ preference: TUIEnginePreference) {
         settings.tuiEngine = preference
+        settings.selectedCustomID = nil
         resetTUISession()
         saveSettings()
+    }
+
+    func setCustomRuntime(_ id: String) {
+        settings.selectedCustomID = id
+        resetTUISession()
+        saveSettings()
+    }
+
+    func removeCustomRuntime(_ id: String) {
+        settings.customRuntimes.removeAll { $0.id == id }
+        if settings.selectedCustomID == id {
+            settings.selectedCustomID = nil
+            settings.tuiEngine = .auto
+        }
+        resetTUISession()
+        saveSettings()
+    }
+
+    func setCustomRuntimeKind(_ id: String, kind: RuntimeKind) {
+        guard let index = settings.customRuntimes.firstIndex(where: { $0.id == id }) else { return }
+        settings.customRuntimes[index].kind = kind
+        resetTUISession()
+        saveSettings()
+    }
+
+    enum WorkspaceFolder {
+        case inbox
+        case jobs
+    }
+
+    func setAppearance(_ value: AppearancePreference) {
+        Palette.isDark = value.resolvedIsDark
+        prefs.appearance = value
+        prefs.save()
+        applyChrome?()
+    }
+
+    func setLanguage(_ value: AppLanguage) {
+        Copy.language = value
+        prefs.language = value
+        prefs.save()
+    }
+
+    func chord(for slot: HotKeySlot) -> HotKeyChord {
+        switch slot {
+        case .toggle: return prefs.toggleHotKey
+        case .capture: return prefs.captureHotKey
+        case .files: return prefs.filesHotKey
+        case .hide: return prefs.hideHotKey
+        case .paste: return prefs.pasteHotKey
+        case .copy: return prefs.copyHotKey
+        case .delete: return prefs.deleteHotKey
+        }
+    }
+
+    func beginRecording(_ slot: HotKeySlot) {
+        recordingHotKey = slot
+    }
+
+    func cancelRecording() {
+        recordingHotKey = nil
+    }
+
+    func applyRecordedHotKey(from event: NSEvent) {
+        guard let slot = recordingHotKey, let chord = HotKeyChord.from(event: event) else { return }
+        if slot.isGlobal, chord.hasModifier == false { return }
+        setHotKey(slot, chord)
+        recordingHotKey = nil
+    }
+
+    func resetHotKey(_ slot: HotKeySlot) {
+        setHotKey(slot, slot.defaultChord)
+    }
+
+    func setHotKey(_ slot: HotKeySlot, _ chord: HotKeyChord) {
+        if slot.isGlobal, chord.hasModifier == false { return }
+        switch slot {
+        case .toggle: prefs.toggleHotKey = chord
+        case .capture: prefs.captureHotKey = chord
+        case .files: prefs.filesHotKey = chord
+        case .hide: prefs.hideHotKey = chord
+        case .paste: prefs.pasteHotKey = chord
+        case .copy: prefs.copyHotKey = chord
+        case .delete: prefs.deleteHotKey = chord
+        }
+        prefs.save()
+        onApplyHotKeys?()
+    }
+
+    func pickWorkspaceFolder(_ kind: WorkspaceFolder) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = Copy.t("选择", "Choose")
+        panel.message = kind == .inbox
+            ? Copy.t("选择存放文件副本的文件夹。", "Choose the folder for staged file copies.")
+            : Copy.t("选择存放输出结果的文件夹。", "Choose the folder for recipe results.")
+        guard let url = OpenPanelHost.run(panel).first else { return }
+        setWorkspaceFolder(kind, url: url)
+    }
+
+    func setWorkspaceFolder(_ kind: WorkspaceFolder, url: URL?) {
+        if let url {
+            do {
+                try Self.prepareWorkspaceDirectory(url)
+            } catch {
+                errorText = Copy.t("这个文件夹不能用。", "That folder cannot be used.")
+                return
+            }
+        }
+        switch kind {
+        case .inbox:
+            prefs.inboxPath = url?.path
+            DropAgentPaths.inboxOverride = url
+        case .jobs:
+            prefs.jobsPath = url?.path
+            DropAgentPaths.jobsOverride = url
+        }
+        try? DropAgentPaths.ensure()
+        ingest = IngestService(shelf: shelf, inboxRoot: DropAgentPaths.inbox)
+        job = JobService(shelf: shelf, agent: jobRunner ?? agent, jobsRoot: DropAgentPaths.jobs)
+        prefs.save()
+    }
+
+    private static func prepareWorkspaceDirectory(_ url: URL) throws {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        if fm.fileExists(atPath: url.path, isDirectory: &isDir) {
+            let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
+            if values.isSymbolicLink == true { throw IngestError.symlinkRejected }
+            if isDir.boolValue == false { throw IngestError.unsupported }
+        } else {
+            try fm.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+        if fm.isWritableFile(atPath: url.path) == false {
+            throw IngestError.unsupported
+        }
     }
 
     func resetTUISession() {
@@ -598,37 +1167,27 @@ final class AppSession: ObservableObject {
     }
 
     func persistChrome() {
-        terminalOwnsListHeight = false
-        listHeightBeforeTerminal = nil
         try? DropAgentPaths.ensure()
-        let payload = ["listHeight": Double(listHeight)]
+        let payload = ["shelfWidth": Double(shelfWidth)]
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) {
             try? data.write(to: DropAgentPaths.panelFile, options: .atomic)
         }
     }
 
-    var displayListHeight: CGFloat {
-        if terminalOwnsListHeight { return listHeight }
-        if listHeightTouched { return listHeight }
-        return fittedListHeight()
+    func setShelfWidth(_ width: CGFloat) {
+        shelfWidth = min(LivePanelChrome.shelfMax, max(LivePanelChrome.shelfMin, width))
     }
 
-    func fittedListHeight(cap: CGFloat = 320) -> CGFloat {
-        if items.isEmpty { return min(cap, 140) }
-        return min(cap, max(56, CGFloat(items.count) * 56))
+    func setMultiSelect(_ on: Bool) {
+        multiSelect = on
     }
 
-    func setListHeight(_ height: CGFloat) {
-        listHeight = min(320, max(56, height))
-        listHeightTouched = true
-    }
-
-    private static func storedChrome() -> (height: CGFloat, touched: Bool) {
+    private static func storedShelfWidth() -> CGFloat {
         guard let data = try? Data(contentsOf: DropAgentPaths.panelFile),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let height = object["listHeight"] as? Double
-        else { return (140, false) }
-        return (min(320, max(56, height)), true)
+              let width = object["shelfWidth"] as? Double
+        else { return LivePanelChrome.shelfDefault }
+        return min(LivePanelChrome.shelfMax, max(LivePanelChrome.shelfMin, width))
     }
 
     var tuiCaption: String {
@@ -639,25 +1198,19 @@ final class AppSession: ObservableObject {
         return ttyLines.last(where: { $0.kind == "sys" })?.text ?? "\(tuiTitle)  ·  本机会话"
     }
 
-    private func giveTerminalRoom() {
-        let target = fittedListHeight(cap: 108)
-        guard displayListHeight > target + 0.5 else { return }
-        if listHeightBeforeTerminal == nil {
-            listHeightBeforeTerminal = listHeight
-        }
-        listHeight = target
-        terminalOwnsListHeight = true
+    private func follow(_ result: AdmitResult) {
+        note(result)
+        refresh()
+        followPageCaptures(result)
     }
 
-    private func restoreListAfterTerminal() {
-        guard terminalOwnsListHeight, let saved = listHeightBeforeTerminal else {
-            listHeightBeforeTerminal = nil
-            terminalOwnsListHeight = false
-            return
+    private func followPageCaptures(_ result: AdmitResult) {
+        let ids = result.pageCaptureIDs
+        guard ids.isEmpty == false else { return }
+        Task {
+            await ingest.captureDroppedPages(ids: ids)
+            refresh()
         }
-        listHeight = saved
-        listHeightBeforeTerminal = nil
-        terminalOwnsListHeight = false
     }
 
     private func note(_ result: AdmitResult) {
@@ -670,17 +1223,20 @@ final class AppSession: ObservableObject {
 
     private func human(_ error: Error) -> String {
         switch error {
-        case IngestError.emptyClipboard: return "剪贴板是空的"
-        case IngestError.missingSource: return "找不到原文件"
+        case IngestError.emptyClipboard: return Copy.t("剪贴板是空的", "Clipboard is empty")
+        case IngestError.missingSource: return Copy.t("找不到原文件", "Original file is missing")
         case IngestError.captureFailed: return PageAdmitCopy.needAccessibilityRetry
-        case IngestError.symlinkRejected: return "不接收符号链接"
-        case JobError.noAgent: return "动作需要 Codex"
-        case TUIError.noAgent, AgentError.notFound: return "未发现终端 Agent"
-        case TUIError.launchFailed: return "没能打开 \(tuiTitle) 终端。"
+        case IngestError.symlinkRejected: return Copy.t("不接收符号链接", "Symbolic links are not accepted")
+        case JobError.noAgent:
+            return hasAgent
+                ? HotKeyCopy.missingJobLine(tuiTitle: tuiTitle)
+                : Copy.t("未发现终端 Agent", "No terminal agent found")
+        case TUIError.noAgent, AgentError.notFound: return Copy.t("未发现终端 Agent", "No terminal agent found")
+        case TUIError.launchFailed: return Copy.t("没能打开 \(tuiTitle) 终端。", "Could not open the \(tuiTitle) terminal.")
         case AgentError.cancelled: return ""
-        case JobError.notStartable: return "这项现在不能跑这个动作"
-        case JobError.emptySelection, TUIError.empty: return "先选文件，或写一句话再发送"
-        default: return "没能完成这一步"
+        case JobError.notStartable: return Copy.t("这项现在不能跑这个动作", "This item cannot run that action now")
+        case JobError.emptySelection, TUIError.empty: return Copy.t("先选文件，或写一句话再发送", "Select a file, or write something and send")
+        default: return Copy.t("没能完成这一步", "Could not finish this step")
         }
     }
 }

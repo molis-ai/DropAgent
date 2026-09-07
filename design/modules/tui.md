@@ -21,7 +21,7 @@ PTY 由 App 的 `TerminalHostView` 嵌进「终端」Tab，不在本包。`text`
 
 材料：对每个 Item，使用 Inbox/Jobs 里已有副本；若还没有副本，TUI 先做一次与 Job 相同的安全复制到 `TUIInbox/<id>/`，再引用这些路径。禁止直接把 Desktop 原路径 paste 进会话。
 
-终端引擎由 `Agent.tuiPresence` 决定（Grok / Claude / Gemini / Codex）。隔离 home：Codex 用 `CODEX_HOME`，Grok 用 `GROK_HOME`（拷 `auth.json`；首次种子 `config.toml` 可带用户已确认的 `privacy_banner_acked`，不拷 MCP / always-approve），Claude 用 `CLAUDE_CONFIG_DIR` + 空 MCP。不加载用户全局 MCP / Hooks。
+终端引擎由 `Agent.tuiPresence` 决定。TUI（Grok / Claude / Gemini / OpenCode / Cursor CLI / Codex / 自定义 TUI）把副本路径和文本送进交互会话。纯 CLI（llm / aichat / sgpt / 自定义 CLI）在默认 shell 里发出译好的命令，不假装内嵌 Agent 画面。隔离 home：Codex 用 `CODEX_HOME`，Grok 用 `GROK_HOME`（拷 `auth.json`；首次种子 `config.toml` 可带用户已确认的 `privacy_banner_acked`，不拷 MCP / always-approve），Claude 用 `CLAUDE_CONFIG_DIR` + 空 MCP，OpenCode 用空的 `OPENCODE_CONFIG_DIR`。不加载用户全局 MCP / Hooks。
 
 ## 调用
 

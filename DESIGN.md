@@ -1,6 +1,6 @@
 ---
 name: DropAgent
-description: Menu-bar shelf plus in-panel TUI. Files above, AI below. Paper over a dark desk.
+description: Menu-bar shelf plus in-panel TUI. Files left, AI right. Paper over a dark desk.
 colors:
   desk: "#121212"
   panel: "#f7f7f5"
@@ -64,7 +64,7 @@ components:
 
 ## Overview
 
-DropAgent is a light paper panel hung from the macOS menu bar. One column: files above, AI below. Near-white ground, ink type. Black only for send, selection, and drop. Actions use SF Symbols. File kinds stay letter tags.
+DropAgent is a light paper panel hung from the macOS menu bar. Two columns: files left, AI right. Near-white ground, ink type. Black only for send, selection, and drop. Actions use SF Symbols. File kinds stay letter tags.
 
 ## Colors
 
@@ -76,7 +76,7 @@ SF Pro for chrome. New York for the wordmark. SF Mono only inside the terminal l
 
 ## Layout
 
-400px panel hung from the menu bar. Header 44px; the DropAgent wordmark is centered, engine chip and close sit on the right. Empty shelf about 140px; with items it hugs the rows and can be dragged 56–320px. AI chrome stays on the same paper. The terminal well is near-black.
+680px panel hung from the menu bar. Header 44px; the DropAgent wordmark is centered; engine chip, settings, minimize, and close sit on the right. Shelf column default 240px, draggable 200–320px. AI fills the rest on the same paper. The terminal well is near-black.
 
 ## Elevation & Depth
 
@@ -88,7 +88,8 @@ Panel 12px. Controls 8px. Type tags 4px.
 
 ## Components
 
-- File row: tag + name + time + status. Whole row drags.
+- File row: tag + name + time + status. Multi-select shows a leading check. Whole row drags. Shelf chrome: + to pick files, Spotlight search to add from this Mac.
+- Header: wordmark centered; engine chip, settings, minimize, and close on the right. Settings overlay: readiness list, editable shortcuts (including add-selected-files), drop/read/write guide, workspace paths, runtime, appearance, language.
 - AI tabs: 动作 / 终端 / 结果, each with an icon.
 - Composer: count, field, clipboard icon, paperplane send.
 - Recipes: icon over short title.
@@ -97,6 +98,6 @@ Panel 12px. Controls 8px. Type tags 4px.
 
 ## Do's and Don'ts
 
-Do: keep files above talk; show results in-tool; copy and drag as the takeaway.
+Do: keep files beside talk; show results in-tool; copy and drag as the takeaway.
 
 Don't: system blue or pine accents; colored status dots; file pictograms; a separate Terminal window; clipboard history as home.

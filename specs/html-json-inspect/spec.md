@@ -10,7 +10,7 @@
 
 ## 范围
 
-- 本地 `.html` / `.htm` → `file`，标签 `HTML` / `HTM`。不做 HTML 阅读器。
+- 本地 `.html` / `.htm` → `file`，标签 `HTML` / `HTM`。kind 仍是 file，翻译等动作不变。结果区抽可读正文，不嵌网页。
 - 未跑且 kind 是 markdown、正文是 JSON：结果页用和 Job JSON 相同的 pretty-print，不用 Markdown。
 - Check：html 进 file；剪贴板 HTML 若抽成字仍按现有 CLIP 走（本刀不改剪贴板）。
 - 预览加 `19-json-staged`：未跑 compact JSON 能看出字段，不是糊成一行。
@@ -20,11 +20,11 @@
 
 - Developer ID。
 - 不把 JSON 改成 kind `file`（那样就不能在结果页看正文，也丢掉总结/抽取）。
-- 不做 HTML 转 Markdown 阅读器。
+- 不做 HTML 转 Markdown 的网页阅读器，也不嵌 WKWebView。结果区可以抽正文，见 `result-readable`。
 
 ## 使用场景
 
-拖进保存的网页 `报价.html`：架子上是 HTML 文件，翻译是暗的，拖出用浏览器打开。拖进 `extracted.json`：点「结果」看到缩进后的字段，再决定发给 Grok。
+拖进保存的网页 `报价.html`：架子上是 HTML 文件，翻译是暗的。结果区能读抽出的正文；要看原页就拖出到浏览器。拖进 `extracted.json`：点「结果」看到缩进后的字段，再决定发给 Grok。
 
 ## 方案与关键决策
 

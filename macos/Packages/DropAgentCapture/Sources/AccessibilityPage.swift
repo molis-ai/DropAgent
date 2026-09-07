@@ -1,9 +1,21 @@
+import AppKit
 import ApplicationServices
 import Foundation
 
 public enum AccessibilityPage {
     public static func isTrusted() -> Bool {
         AXIsProcessTrusted()
+    }
+
+    public static func hasSiblingDropAgent() -> Bool {
+        let selfPID = ProcessInfo.processInfo.processIdentifier
+        return NSWorkspace.shared.runningApplications.contains { app in
+            guard app.processIdentifier != selfPID else { return false }
+            let bid = app.bundleIdentifier?.lowercased() ?? ""
+            let name = app.localizedName?.lowercased() ?? ""
+            let exe = app.executableURL?.lastPathComponent.lowercased() ?? ""
+            return bid == "local.dropagent" || name.contains("dropagent") || exe == "dropagent"
+        }
     }
 
     public static func requestTrustIfNeeded() {
@@ -22,6 +34,47 @@ public enum AccessibilityPage {
                 return page
             }
         }
+        return nil
+    }
+
+    public static func readFileDocuments(pid: pid_t) -> [URL] {
+        guard isTrusted() else { return [] }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.35)
+        var found: [URL] = []
+        for window in windowsToRead(of: app) {
+            var documentRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(window, kAXDocumentAttribute as CFString, &documentRef) == .success,
+               let url = existingFileURL(from: documentRef as Any),
+               found.contains(url) == false
+            {
+                found.append(url)
+            }
+        }
+        return found
+    }
+
+    public static func existingFileURL(from raw: Any) -> URL? {
+        let parsed: URL?
+        if let url = raw as? URL {
+            parsed = url
+        } else if let text = raw as? String {
+            parsed = parseFileURL(text)
+        } else if let text = raw as? NSString {
+            parsed = parseFileURL(text as String)
+        } else {
+            parsed = nil
+        }
+        guard let parsed, parsed.isFileURL else { return nil }
+        let resolved = parsed.standardizedFileURL
+        guard FileManager.default.fileExists(atPath: resolved.path) else { return nil }
+        return resolved
+    }
+
+    private static func parseFileURL(_ text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmed), url.isFileURL { return url }
+        if trimmed.hasPrefix("/") { return URL(fileURLWithPath: trimmed) }
         return nil
     }
 

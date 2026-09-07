@@ -13,7 +13,7 @@
 - 新 kind：`file`。标签优先 1–4 位扩展名（`ZIP` / `DOCX`），否则 `FILE`；类型字「文件」。
 - 判定：不是 PDF / 图 / md·txt / 文件夹 / URL 的本地文件 → `file`。纯文本 UTType 仍是 markdown。
 - Recipe：按 `01` 表。总结 / 抽取 / 翻译 / 脱敏 / 转 MD **不**接 generic file；「新交付」接（多文件组合）。仍可发给 TUI、拖出文件。
-- 拖出：只要 file URL。动作区 / 结果：点开说明拖出打开，不做阅读器。
+- 拖出：只要 file URL。动作区 / 结果：点开说明拖出打开（HTML 抽正文，见 `result-readable`）。不做网页阅读器。
 - 更新 `03` kind 表、Ingest / Pasteboard 模块说明。
 
 ## 非目标

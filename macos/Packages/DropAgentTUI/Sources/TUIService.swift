@@ -8,6 +8,7 @@ public struct PreparedTUISend: Equatable, Sendable {
     public var injection: String
     public var itemIDs: [ItemID]
     public var isolatedHome: URL
+    public var feedOnLaunch: Bool
 }
 
 public enum TUIError: Error, Equatable, Sendable {
@@ -28,14 +29,20 @@ public struct TUIService: Sendable {
         self.inboxRoot = inboxRoot
     }
 
-    public func send(itemIDs: [ItemID], text: String, sessionDirectory: URL? = nil) throws -> PreparedTUISend {
+    public func send(
+        itemIDs: [ItemID],
+        text: String,
+        sessionDirectory: URL? = nil,
+        extraFiles: [URL] = []
+    ) throws -> PreparedTUISend {
         let presence = agent.tuiPresence(settings: agent.settings)
-        guard let engine = presence.engine else { throw TUIError.noAgent }
+        guard presence.executable != nil else { throw TUIError.noAgent }
         var session = try agent.ensureInteractiveSession()
         guard FileManager.default.isExecutableFile(atPath: session.executable.path) else {
             throw TUIError.launchFailed
         }
-        guard !itemIDs.isEmpty || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !itemIDs.isEmpty || !trimmed.isEmpty || !extraFiles.isEmpty else {
             throw TUIError.empty
         }
 
@@ -64,12 +71,14 @@ public struct TUIService: Sendable {
                 }
             }
         }
+        for file in extraFiles {
+            try copyNamed(file.lastPathComponent, from: file, into: cwd, names: &names, claimed: &claimed)
+        }
 
         var injection = "请阅读当前目录中的副本材料，不要访问目录之外的文件。\n"
         if !names.isEmpty {
             injection += names.map { "- \($0)" }.joined(separator: "\n") + "\n"
         }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             injection += "没有附带说明。要做什么，直接问我。\n"
         } else {
@@ -79,21 +88,41 @@ public struct TUIService: Sendable {
             injection += "\n"
         }
 
-        let isolatedHome = IsolatedTUIHome.directory(in: inboxRoot, engine: engine)
-        try IsolatedTUIHome.prepare(engine: engine, at: isolatedHome, cwd: cwd)
-        InteractiveLaunch.configure(
-            &session,
-            engine: engine,
-            cwd: cwd,
-            injection: injection,
-            isolatedHome: isolatedHome
-        )
+        let isolatedHome = IsolatedTUIHome.directory(in: inboxRoot, presence: presence)
+        try IsolatedTUIHome.prepare(presence: presence, at: isolatedHome, cwd: cwd)
+        if presence.kind == .cli, let binary = presence.executable {
+            let help = HeadlessCLI.readHelp(at: binary)
+            session.executable = CLICommand.shellExecutable()
+            session.arguments = ["-l"]
+            session.environment = InteractiveLaunch.processEnvironment(executable: binary)
+            return PreparedTUISend(
+                cwd: cwd,
+                session: session,
+                injection: CLICommand.line(executable: binary, prompt: injection, help: help),
+                itemIDs: itemIDs,
+                isolatedHome: isolatedHome,
+                feedOnLaunch: true
+            )
+        }
+        if let engine = presence.engine {
+            InteractiveLaunch.configure(
+                &session,
+                engine: engine,
+                cwd: cwd,
+                injection: injection,
+                isolatedHome: isolatedHome
+            )
+        } else {
+            session.arguments = [injection]
+            session.environment = InteractiveLaunch.processEnvironment(executable: session.executable)
+        }
         return PreparedTUISend(
             cwd: cwd,
             session: session,
             injection: injection,
             itemIDs: itemIDs,
-            isolatedHome: isolatedHome
+            isolatedHome: isolatedHome,
+            feedOnLaunch: false
         )
     }
 

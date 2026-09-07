@@ -1,5 +1,7 @@
 import AppKit
+import Carbon
 import DropAgentAgent
+import DropAgentIngest
 import SwiftTerm
 import SwiftUI
 
@@ -10,6 +12,12 @@ final class DropAgentPanel: NSPanel {
 
 enum LivePanelChrome {
     static var styleMask: NSWindow.StyleMask { .borderless }
+    static let panelWidth: CGFloat = 680
+    static let panelHeight: CGFloat = 620
+    static let shelfDefault: CGFloat = 240
+    static let shelfMin: CGFloat = 200
+    static let shelfMax: CGFloat = 320
+    static let splitWidth: CGFloat = 7
 }
 
 enum FirstOpen {
@@ -39,9 +47,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hosting: PaperHostView<PanelRootView>?
     private var edge: NSWindow?
     private var dragMonitor: Any?
+    private var localDragMonitor: Any?
     private var localMonitor: Any?
     private var edgeShown = false
+    private var edgeCatcherArmed = false
+    private var edgeDidAdmit = false
+    private var edgeSnapshot: ClipboardPayload = .empty
     private var hideEdgeWork: DispatchWorkItem?
+    private var dragWatchdog: DispatchWorkItem?
+    private var appearanceObserver: NSObjectProtocol?
+    private var localeObserver: NSObjectProtocol?
 
     func application(_ application: NSApplication, open urls: [URL]) {
         session.admit(urls: urls)
@@ -52,19 +67,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupPanel()
         setupEdge()
-        let keys = HotKeyCenter.shared.register(
-            toggle: { [weak self] in self?.togglePanel() },
-            capture: { [weak self] in
-                Task { @MainActor in
-                    self?.session.prepareCapture()
-                    self?.showPanel()
-                    await self?.session.captureCurrentPage()
-                }
+        session.onApplyHotKeys = { [weak self] in self?.reregisterHotKeys() }
+        reregisterHotKeys()
+        session.applyChrome = { [weak self] in self?.applyPanelAppearance() }
+        session.onFinishExternalDrag = { [weak self] in self?.hideEdge() }
+        applyPanelAppearance()
+        appearanceObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.session.prefs.appearance == .system else { return }
+                Palette.isDark = AppearancePreference.system.resolvedIsDark
+                self.session.objectWillChange.send()
+                self.applyPanelAppearance()
             }
-        )
-        session.hotKeyToggleOK = keys.toggle
-        session.hotKeyCaptureOK = keys.capture
-        dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
+        }
+        localeObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleLanguagePreferencesChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.session.prefs.language == .system else { return }
+                Copy.language = .system
+                self.session.objectWillChange.send()
+            }
+        }
+        let onDrag: (NSEvent) -> Void = { [weak self] event in
             let type = event.type
             if Thread.isMainThread {
                 MainActor.assumeIsolated { self?.handleDrag(type: type) }
@@ -74,21 +105,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp], handler: onDrag)
+        localDragMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { event in
+            onDrag(event)
+            return event
+        }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             guard let self else { return event }
+            if self.session.recordingHotKey != nil {
+                self.session.applyRecordedHotKey(from: event)
+                return nil
+            }
             let first = NSApp.keyWindow?.firstResponder
             let typing = self.isTyping(in: first)
-            if event.keyCode == 53 {
+            if self.session.prefs.hideHotKey.matches(event) {
                 if typing { return event }
                 self.hidePanel()
                 return nil
             }
             if typing { return event }
-            if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "v" {
+            if self.session.prefs.pasteHotKey.matches(event) {
                 self.session.pasteFromClipboard()
                 return nil
             }
-            if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "c" {
+            if self.session.prefs.copyHotKey.matches(event) {
                 if self.panel?.isVisible == true {
                     self.session.copySelected()
                     return nil
@@ -103,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.session.moveSelection(offset: -1)
                     return nil
                 }
-                if event.keyCode == 51 || event.keyCode == 117 {
+                if self.matchesDelete(event) {
                     self.session.removeSelected()
                     return nil
                 }
@@ -153,6 +193,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        if StatusChrome.restoresOnActivate {
+            StatusChrome.restore()
+        }
+        session.refreshSetup()
+    }
+
     private func revealOnFirstOpenIfNeeded() {
         try? DropAgentPaths.ensure()
         let marker = DropAgentPaths.openedFile
@@ -164,6 +211,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         FileManager.default.createFile(atPath: marker.path, contents: Data("1".utf8))
     }
 
+    private func reregisterHotKeys() {
+        let keys = HotKeyCenter.shared.register(
+            toggle: { [weak self] in
+                guard self?.session.recordingHotKey == nil else { return }
+                self?.togglePanel()
+            },
+            capture: { [weak self] in
+                guard self?.session.recordingHotKey == nil else { return }
+                Task { @MainActor in
+                    self?.session.prepareCapture()
+                    self?.showPanel()
+                    await self?.session.captureCurrentPage()
+                }
+            },
+            files: { [weak self] in
+                guard self?.session.recordingHotKey == nil else { return }
+                Task { @MainActor in
+                    self?.session.prepareFrontFiles()
+                    self?.showPanel()
+                    await self?.session.admitFrontSelection()
+                }
+            },
+            toggleChord: session.prefs.toggleHotKey,
+            captureChord: session.prefs.captureHotKey,
+            filesChord: session.prefs.filesHotKey,
+            hideChord: session.prefs.hideHotKey,
+            pasteChord: session.prefs.pasteHotKey,
+            copyChord: session.prefs.copyHotKey,
+            deleteChord: session.prefs.deleteHotKey
+        )
+        session.hotKeyToggleOK = keys.toggle
+        session.hotKeyCaptureOK = keys.capture
+        session.hotKeyFilesOK = keys.files
+    }
+
+    private func matchesDelete(_ event: NSEvent) -> Bool {
+        if session.prefs.deleteHotKey == .deleteDefault {
+            return event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete)
+        }
+        return session.prefs.deleteHotKey.matches(event)
+    }
+
     func togglePanel() {
         guard let panel else { return }
         if panel.isVisible { hidePanel() } else { showPanel() }
@@ -172,7 +261,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panelGeneration = 0
 
     func showPanel() {
+        StatusChrome.restore()
         session.refreshPresence()
+        session.refreshSetup()
         NSApp.activate(ignoringOtherApps: true)
         positionPanel()
         guard let panel else { return }
@@ -275,32 +366,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showMenu() {
         let menu = NSMenu()
         menu.autoenablesItems = false
-        menu.addItem(withTitle: session.hasAgent ? "\(session.tuiTitle) 已连接" : "未发现终端 Agent", action: nil, keyEquivalent: "")
-        let tuiMenu = NSMenu(title: "终端")
-        let autoItem = tuiMenu.addItem(withTitle: "自动", action: #selector(selectTUIAuto), keyEquivalent: "")
+        menu.addItem(
+            withTitle: session.hasAgent
+                ? Copy.t("\(session.tuiTitle) 已连接", "\(session.tuiTitle) connected")
+                : Copy.t("未发现终端 Agent", "No terminal agent found"),
+            action: nil,
+            keyEquivalent: ""
+        )
+        let tuiMenu = NSMenu(title: Copy.t("终端", "Terminal"))
+        let autoItem = tuiMenu.addItem(withTitle: Copy.t("自动", "Auto"), action: #selector(selectTUIAuto), keyEquivalent: "")
         autoItem.target = self
         autoItem.state = session.settings.tuiEngine == .auto ? .on : .off
         tuiMenu.addItem(.separator())
-        for engine in AgentEngine.allCases {
+        for engine in AgentEngine.tuiCases + AgentEngine.cliCases {
             let found = session.installedEngines.contains { $0.engine == engine }
-            let title = found ? engine.shortTitle : "\(engine.shortTitle)（未安装）"
+            let title = found
+                ? engine.shortTitle
+                : Copy.t("\(engine.shortTitle)（未安装）", "\(engine.shortTitle) (not installed)")
             let item = tuiMenu.addItem(withTitle: title, action: #selector(selectTUIEngine(_:)), keyEquivalent: "")
             item.representedObject = engine.rawValue
             item.target = self
-            let selected = session.settings.tuiEngine.engine == engine
-                || (session.settings.tuiEngine == .auto && session.presence.engine == engine)
+            let selected = session.settings.selectedCustomID == nil
+                && (session.settings.tuiEngine.engine == engine
+                    || (session.settings.tuiEngine == .auto && session.presence.engine == engine))
             item.state = selected ? .on : .off
         }
-        let tuiItem = menu.addItem(withTitle: "选择终端…", action: nil, keyEquivalent: "")
+        if session.settings.customRuntimes.isEmpty == false {
+            tuiMenu.addItem(.separator())
+            for custom in session.settings.customRuntimes {
+                let found = session.installedEngines.contains { $0.runtimeKey == "custom:\(custom.id)" }
+                let kind = custom.kind == .cli ? "CLI" : "TUI"
+                let title = found ? "\(custom.title) · \(kind)" : Copy.t("\(custom.title)（未安装）", "\(custom.title) (not installed)")
+                let item = tuiMenu.addItem(withTitle: title, action: #selector(selectCustomRuntime(_:)), keyEquivalent: "")
+                item.representedObject = custom.id
+                item.target = self
+                item.state = session.settings.selectedCustomID == custom.id ? .on : .off
+            }
+        }
+        let tuiItem = menu.addItem(withTitle: Copy.t("选择终端…", "Choose terminal…"), action: nil, keyEquivalent: "")
         menu.setSubmenu(tuiMenu, for: tuiItem)
-        menu.addItem(withTitle: "指定可执行文件…", action: #selector(pickTUIExecutable), keyEquivalent: "")
-        for engine in AgentEngine.allCases {
-            let item = menu.addItem(withTitle: "如何安装 \(engine.shortTitle)", action: #selector(openEngineInstall(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: Copy.t("指定可执行文件…", "Choose executable…"), action: #selector(pickTUIExecutable), keyEquivalent: "")
+        for engine in AgentEngine.tuiCases {
+            let item = menu.addItem(
+                withTitle: Copy.t("如何安装 \(engine.shortTitle)", "How to install \(engine.shortTitle)"),
+                action: #selector(openEngineInstall(_:)),
+                keyEquivalent: ""
+            )
             item.representedObject = engine.rawValue
         }
         menu.addItem(withTitle: HotKeyCopy.menuCaptureTitle(captureOK: session.hotKeyCaptureOK), action: #selector(capturePage), keyEquivalent: "")
+        menu.addItem(withTitle: HotKeyCopy.menuFilesTitle(filesOK: session.hotKeyFilesOK), action: #selector(admitFrontFiles), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "退出 DropAgent", action: #selector(quit), keyEquivalent: "q")
+        menu.addItem(withTitle: Copy.t("退出 DropAgent", "Quit DropAgent"), action: #selector(quit), keyEquivalent: "q")
         for item in menu.items {
             item.target = self
             if item.submenu == nil {
@@ -326,11 +443,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         else { return }
         session.setTUIPreference(preference)
     }
+    @objc private func selectCustomRuntime(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        session.setCustomRuntime(id)
+    }
     @objc private func capturePage() {
         Task { @MainActor [weak self] in
             self?.session.prepareCapture()
             self?.showPanel()
             await self?.session.captureCurrentPage()
+        }
+    }
+
+    @objc private func admitFrontFiles() {
+        Task { @MainActor [weak self] in
+            self?.session.prepareFrontFiles()
+            self?.showPanel()
+            await self?.session.admitFrontSelection()
         }
     }
     @objc private func quit() { NSApp.terminate(nil) }
@@ -341,7 +470,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupPanel() {
         let panel = DropAgentPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 620),
+            contentRect: NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight),
             styleMask: LivePanelChrome.styleMask,
             backing: .buffered,
             defer: false
@@ -354,19 +483,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.isMovable = false
         panel.hasShadow = true
         panel.becomesKeyOnlyIfNeeded = false
-        let host = PaperHostView(rootView: PanelRootView(session: session, onClose: { [weak self] in self?.hidePanel() }))
-        host.frame = NSRect(x: 0, y: 0, width: 400, height: 620)
+        let hide: () -> Void = { [weak self] in self?.hidePanel() }
+        let host = PaperHostView(rootView: PanelRootView(session: session, onClose: hide, onMinimize: hide))
+        host.frame = NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
         panel.contentView = host
         Palette.applyPaperChrome(to: panel, host: host)
         hosting = host
         self.panel = panel
+        applyPanelAppearance()
+    }
+
+    private func applyPanelAppearance() {
+        Palette.isDark = session.prefs.appearance.resolvedIsDark
+        switch session.prefs.appearance {
+        case .light:
+            panel?.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            panel?.appearance = NSAppearance(named: .darkAqua)
+        case .system:
+            panel?.appearance = nil
+        }
+        if let panel, let host = hosting {
+            Palette.applyPaperChrome(to: panel, host: host)
+        }
     }
 
     private func positionPanel() {
         guard let panel, let screen = statusItem?.button?.window?.screen ?? NSScreen.main else { return }
         let visible = screen.visibleFrame
-        let width: CGFloat = 400
-        let height: CGFloat = min(620, visible.height - 48)
+        let width: CGFloat = min(LivePanelChrome.panelWidth, max(360, visible.width - 16))
+        let height: CGFloat = min(LivePanelChrome.panelHeight, visible.height - 48)
         let buttonRect: NSRect
         if let button = statusItem?.button, let window = button.window {
             let rect = window.convertToScreen(button.convert(button.bounds, to: nil))
@@ -382,21 +528,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.invalidateShadow()
     }
 
+    private var edgeView: EdgeDropView? {
+        edge?.contentView as? EdgeDropView
+    }
+
     private func setupEdge() {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 36),
-            styleMask: [.borderless],
+        let window = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: EdgePlacement.barHeight),
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         window.isOpaque = false
         window.backgroundColor = .clear
+        window.isFloatingPanel = true
+        window.hidesOnDeactivate = false
+        window.becomesKeyOnlyIfNeeded = true
+        window.worksWhenModal = true
+        window.sharingType = .readWrite
         window.level = .statusBar
+        window.hasShadow = false
         window.ignoresMouseEvents = false
+        window.isMovable = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        let view = EdgeDropView(session: session)
-        view.onAdmitted = { [weak self] in self?.showPanel() }
-        view.onFinished = { [weak self] in self?.hideEdge() }
+        window.registerForDraggedTypes(IncomingDrop.draggedTypes)
+        let view = EdgeDropView()
+        view.onDrop = { [weak self] pasteboard in self?.admitFromEdge(pasteboard) }
+        view.onFinished = { [weak self] in self?.session.finishExternalDrag() }
         window.contentView = view
         window.orderOut(nil)
         edge = window
@@ -407,24 +565,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hideEdgeWork?.cancel()
             hideEdgeWork = nil
             guard EdgePlacement.dragPasteboardHasPayload() else {
-                session.systemDragActive = false
-                hideEdge()
+                session.finishExternalDrag()
                 return
             }
             noteExternalDrag(at: NSEvent.mouseLocation)
-            if let frame = EdgePlacement.frame(mouse: NSEvent.mouseLocation, screens: NSScreen.screens) {
-                showEdge(frame: frame)
-            } else {
+            pokeDragWatchdog()
+            let mouse = NSEvent.mouseLocation
+            let inBand = EdgePlacement.frame(mouse: mouse, screens: NSScreen.screens) != nil
+            let insidePanel = panel?.isVisible == true && (panel?.frame.contains(mouse) ?? false)
+            if insidePanel, inBand == false {
                 hideEdge()
+                return
+            }
+            guard let screen = EdgePlacement.screen(for: mouse, screens: NSScreen.screens) else {
+                hideEdge()
+                return
+            }
+            armCatcher(frame: EdgePlacement.strip(on: screen), visible: inBand)
+            let live = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
+            if live != .empty {
+                edgeSnapshot = live
             }
             return
         }
-        session.systemDragActive = false
-        if edgeShown, let edge, edge.frame.insetBy(dx: -8, dy: -8).contains(NSEvent.mouseLocation) {
+        finishDragFromMouseUp()
+    }
+
+    private func finishDragFromMouseUp() {
+        dragWatchdog?.cancel()
+        dragWatchdog = nil
+        let inBand = edgeCatcherArmed
+            && EdgePlacement.frame(mouse: NSEvent.mouseLocation, screens: NSScreen.screens) != nil
+        if inBand {
+            let live = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
+            if live != .empty {
+                admitFromEdge(live)
+                return
+            }
+            if edgeSnapshot != .empty {
+                admitFromEdge(edgeSnapshot)
+                return
+            }
+            session.systemDragActive = false
             scheduleHideEdge()
             return
         }
-        hideEdge()
+        session.finishExternalDrag()
+    }
+
+    private func pokeDragWatchdog() {
+        dragWatchdog?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.checkDragButtonReleased()
+        }
+        dragWatchdog = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+
+    private func checkDragButtonReleased() {
+        guard session.systemDragActive || edgeCatcherArmed else { return }
+        if NSEvent.pressedMouseButtons & 1 != 0 {
+            pokeDragWatchdog()
+            return
+        }
+        finishDragFromMouseUp()
     }
 
     private func noteExternalDrag(at mouse: NSPoint) {
@@ -435,37 +639,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func showEdge(frame: NSRect) {
+    private func armCatcher(frame: NSRect, visible: Bool) {
         guard let edge else { return }
-        if edgeShown {
+        edgeView?.setOffered(visible)
+        if visible { edgeView?.setHot(true) }
+        edgeShown = visible
+        if edgeCatcherArmed {
             if edge.frame.equalTo(frame) == false {
                 edge.setFrame(frame, display: true)
             }
+            edge.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 8)
+            edge.alphaValue = visible ? 1 : 0.01
             return
         }
-        edgeShown = true
-        if shouldSkipPanelMotion {
-            edge.alphaValue = 1
+        edgeCatcherArmed = true
+        edgeDidAdmit = false
+        edge.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 8)
+        edge.alphaValue = visible ? 1 : 0.01
+        if visible {
+            var nudged = frame
+            nudged.origin.x += 1
+            edge.setFrame(nudged, display: true)
+            edge.orderFrontRegardless()
+            edge.setFrame(frame, display: true)
+        } else {
             edge.setFrame(frame, display: true)
             edge.orderFrontRegardless()
-            return
         }
-        var from = frame
-        from.origin.y += 8
-        edge.alphaValue = 0
-        edge.setFrame(from, display: true)
-        edge.orderFrontRegardless()
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
-            edge.animator().alphaValue = 1
-            edge.animator().setFrame(frame, display: true)
-        }
+    }
+
+    private func admitFromEdge(_ pasteboard: NSPasteboard) {
+        admitFromEdge(ClipboardPayload.from(pasteboard: pasteboard))
+    }
+
+    private func admitFromEdge(_ payload: ClipboardPayload) {
+        guard edgeDidAdmit == false else { return }
+        guard payload != .empty else { return }
+        edgeDidAdmit = true
+        session.admitPayload(payload)
+        session.finishExternalDrag()
     }
 
     private func scheduleHideEdge() {
         hideEdgeWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            self?.hideEdge()
+            self?.session.finishExternalDrag()
         }
         hideEdgeWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
@@ -474,8 +692,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func hideEdge() {
         hideEdgeWork?.cancel()
         hideEdgeWork = nil
+        dragWatchdog?.cancel()
+        dragWatchdog = nil
         edgeShown = false
+        edgeCatcherArmed = false
+        edgeSnapshot = .empty
+        edgeView?.setOffered(false)
+        edgeView?.setHot(false)
         edge?.alphaValue = 1
+        edge?.level = .statusBar
         edge?.orderOut(nil)
     }
 
@@ -563,37 +788,59 @@ final class StatusDropView: NSView {
 
 @MainActor
 final class EdgeDropView: NSView {
-    let session: AppSession
-    var onAdmitted: (() -> Void)?
+    var onDrop: ((NSPasteboard) -> Void)?
     var onFinished: (() -> Void)?
-    private let label = NSTextField(labelWithString: "放到这里，加入架子")
+    private let paper = NSView()
+    private let label = NSTextField(labelWithString: Copy.t("放到这里，加入架子", "Drop here to add to the shelf"))
+    private var hot = false
 
-    init(session: AppSession) {
-        self.session = session
-        super.init(frame: NSRect(x: 0, y: 0, width: 640, height: 36))
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 640, height: EdgePlacement.barHeight))
         wantsLayer = true
-        layer?.backgroundColor = Palette.paperNS.cgColor
-        layer?.cornerRadius = 10
-        layer?.borderWidth = 1
-        layer?.borderColor = NSColor.black.withAlphaComponent(0.1).cgColor
-        layer?.shadowColor = NSColor.black.cgColor
-        layer?.shadowOpacity = 0.18
-        layer?.shadowOffset = CGSize(width: 0, height: -2)
-        layer?.shadowRadius = 10
-        registerForDraggedTypes(IncomingDrop.draggedTypes)
+        layer?.backgroundColor = NSColor.clear.cgColor
+        paper.wantsLayer = true
+        paper.layer?.cornerRadius = 10
+        paper.layer?.borderWidth = 1
+        paper.layer?.shadowColor = NSColor.black.cgColor
+        paper.layer?.shadowOpacity = 0.18
+        paper.layer?.shadowOffset = CGSize(width: 0, height: -2)
+        paper.layer?.shadowRadius = 10
+        addSubview(paper)
         label.font = .systemFont(ofSize: 12, weight: .semibold)
-        label.textColor = NSColor(calibratedWhite: 0.12, alpha: 1)
         label.alignment = .center
-        label.frame = bounds
-        label.autoresizingMask = [.width, .height]
-        addSubview(label)
+        paper.addSubview(label)
+        registerForDraggedTypes(IncomingDrop.draggedTypes)
+        paper.isHidden = true
+        applyChrome()
+        layout()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    override func layout() {
+        super.layout()
+        let height = min(EdgePlacement.barHeight, bounds.height)
+        paper.frame = NSRect(x: 0, y: 0, width: bounds.width, height: height)
+        label.frame = paper.bounds
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        bounds.contains(point) ? self : nil
+    }
+
+    func setOffered(_ offered: Bool) {
+        paper.isHidden = !offered
+        paper.alphaValue = offered ? 1 : 0
+    }
+
+    func setHot(_ hot: Bool) {
+        guard self.hot != hot else { return }
+        self.hot = hot
+        applyChrome()
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        layer?.backgroundColor = NSColor.black.cgColor
-        label.textColor = Palette.paperNS
+        setHot(true)
         return .copy
     }
 
@@ -601,45 +848,53 @@ final class EdgeDropView: NSView {
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool { true }
 
-    override func draggingExited(_ sender: NSDraggingInfo?) {
-        resetChrome()
-    }
-
     override func draggingEnded(_ sender: NSDraggingInfo) {
-        resetChrome()
         onFinished?()
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        resetChrome()
-        session.admitPasteboard(sender.draggingPasteboard)
+        onDrop?(sender.draggingPasteboard)
         onFinished?()
-        onAdmitted?()
         return true
     }
 
-    private func resetChrome() {
-        layer?.backgroundColor = Palette.paperNS.cgColor
-        label.textColor = NSColor(calibratedWhite: 0.12, alpha: 1)
+    private func applyChrome() {
+        paper.layer?.backgroundColor = (hot ? Palette.textNS : Palette.paperNS).cgColor
+        paper.layer?.borderColor = NSColor.black.withAlphaComponent(hot ? 0.28 : 0.1).cgColor
+        label.textColor = hot ? Palette.paperNS : Palette.textNS
     }
 }
 
 enum EdgePlacement {
+    static let barHeight: CGFloat = 48
+
+    static func screen(for mouse: NSPoint, screens: [NSScreen]) -> NSScreen? {
+        screens.first { screen in
+            mouse.x >= screen.frame.minX && mouse.x < screen.frame.maxX
+                && mouse.y >= screen.frame.minY && mouse.y <= screen.frame.maxY
+        }
+    }
+
+    static func strip(on screen: NSScreen) -> NSRect {
+        let visible = screen.visibleFrame
+        let width = max(160, visible.width - 16)
+        let menu = max(0, screen.frame.maxY - visible.maxY)
+        return NSRect(
+            x: visible.minX + 8,
+            y: visible.maxY - barHeight,
+            width: width,
+            height: barHeight + menu
+        )
+    }
+
     static func frame(mouse: NSPoint, screens: [NSScreen]) -> NSRect? {
         let hit = screens.first { screen in
             mouse.x >= screen.frame.minX && mouse.x < screen.frame.maxX
-                && mouse.y >= screen.visibleFrame.maxY - 28
+                && mouse.y >= screen.visibleFrame.maxY - barHeight
                 && mouse.y <= screen.frame.maxY
         }
         guard let screen = hit else { return nil }
-        let visible = screen.visibleFrame
-        let width = max(160, visible.width - 16)
-        return NSRect(
-            x: visible.minX + 8,
-            y: visible.maxY - 36,
-            width: width,
-            height: 36
-        )
+        return strip(on: screen)
     }
 
     static func dragPasteboardHasPayload() -> Bool {
@@ -669,16 +924,15 @@ enum StatusIcon {
                 bytesPerRow: 0,
                 bitsPerPixel: 0
             ) else { continue }
-            rep.size = point
             NSGraphicsContext.saveGraphicsState()
             if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
                 NSGraphicsContext.current = ctx
                 ctx.shouldAntialias = true
-                ctx.cgContext.translateBy(x: 0, y: CGFloat(pixels))
-                ctx.cgContext.scaleBy(x: CGFloat(scale), y: -CGFloat(scale))
+                ctx.cgContext.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
                 draw()
             }
             NSGraphicsContext.restoreGraphicsState()
+            rep.size = point
             image.addRepresentation(rep)
         }
         image.isTemplate = true
@@ -686,22 +940,24 @@ enum StatusIcon {
     }
 
     private static func draw() {
+        NSColor.black.setFill()
         NSColor.black.setStroke()
-        let chevron = NSBezierPath()
-        chevron.move(to: NSPoint(x: 3, y: 11.5))
-        chevron.line(to: NSPoint(x: 15, y: 11.5))
-        chevron.line(to: NSPoint(x: 9, y: 4.8))
-        chevron.close()
-        chevron.lineJoinStyle = .round
-        chevron.lineCapStyle = .round
-        chevron.lineWidth = 1.5
-        chevron.stroke()
 
-        let shelf = NSBezierPath()
-        shelf.move(to: NSPoint(x: 5.5, y: 3.2))
-        shelf.line(to: NSPoint(x: 12.5, y: 3.2))
-        shelf.lineCapStyle = .round
-        shelf.lineWidth = 1.5
-        shelf.stroke()
+        let hopper = NSBezierPath()
+        hopper.move(to: NSPoint(x: 3.55, y: 12.45))
+        hopper.line(to: NSPoint(x: 14.45, y: 12.45))
+        hopper.line(to: NSPoint(x: 9, y: 5.45))
+        hopper.close()
+        hopper.lineJoinStyle = .round
+        hopper.lineCapStyle = .round
+        hopper.lineWidth = 1.45
+        hopper.fill()
+        hopper.stroke()
+
+        NSBezierPath(
+            roundedRect: NSRect(x: 4.9, y: 1.95, width: 8.2, height: 1.65),
+            xRadius: 0.825,
+            yRadius: 0.825
+        ).fill()
     }
 }

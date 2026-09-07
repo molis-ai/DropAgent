@@ -2,12 +2,13 @@ import Foundation
 
 enum ResultMarkdown {
     enum Block: Equatable {
-        case heading(String)
+        case heading(Int, String)
         case item(String)
         case paragraph(String)
         case code(String)
         case quote(String)
         case image(alt: String, url: String)
+        case table(header: [String], rows: [[String]])
     }
 
     static func blocks(_ body: String) -> [Block] {
@@ -32,10 +33,10 @@ enum ResultMarkdown {
         }
 
         func flushTable() {
-            if table.isEmpty == false {
-                blocks.append(.code(table.joined(separator: "\n")))
-                table = []
+            if let block = tableBlock(table) {
+                blocks.append(block)
             }
+            table = []
         }
 
         func flushQuotes() {
@@ -87,8 +88,10 @@ enum ResultMarkdown {
             }
             if trimmed.hasPrefix("#") {
                 flushParagraph()
-                let title = trimmed.replacingOccurrences(of: "^#+\\s*", with: "", options: .regularExpression)
-                if title.isEmpty == false { blocks.append(.heading(title)) }
+                let parsed = heading(trimmed)
+                if parsed.text.isEmpty == false {
+                    blocks.append(.heading(parsed.level, parsed.text))
+                }
                 continue
             }
             if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
@@ -111,6 +114,44 @@ enum ResultMarkdown {
             flushParagraph()
         }
         return blocks
+    }
+
+    private static func heading(_ line: String) -> (level: Int, text: String) {
+        var level = 0
+        var rest = line
+        while rest.hasPrefix("#") {
+            level += 1
+            rest.removeFirst()
+        }
+        level = min(max(level, 1), 6)
+        let text = rest.trimmingCharacters(in: .whitespaces)
+        return (level, text)
+    }
+
+    private static func tableBlock(_ lines: [String]) -> Block? {
+        let rows = lines.map(splitCells).filter { $0.isEmpty == false }
+        guard let header = rows.first, header.contains(where: { $0.isEmpty == false }) else { return nil }
+        var body = Array(rows.dropFirst())
+        if let separator = body.first, separator.allSatisfy(isSeparatorCell) {
+            body.removeFirst()
+        }
+        return .table(header: header, rows: body)
+    }
+
+    private static func splitCells(_ line: String) -> [String] {
+        var inner = line
+        if inner.hasPrefix("|") { inner.removeFirst() }
+        if inner.hasSuffix("|") { inner.removeLast() }
+        return inner.split(separator: "|", omittingEmptySubsequences: false).map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+    }
+
+    private static func isSeparatorCell(_ cell: String) -> Bool {
+        var text = cell.replacingOccurrences(of: " ", with: "")
+        if text.hasPrefix(":") { text.removeFirst() }
+        if text.hasSuffix(":") { text.removeLast() }
+        return text.isEmpty == false && text.allSatisfy { $0 == "-" }
     }
 
     private static func isTableRow(_ line: String) -> Bool {
@@ -145,7 +186,13 @@ enum ResultMarkdown {
         let urlStart = line.index(after: after)
         let urlEnd = line.index(before: line.endIndex)
         guard urlStart <= urlEnd else { return nil }
-        let url = String(line[urlStart..<urlEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+        var url = String(line[urlStart..<urlEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if url.hasPrefix("<"), let close = url.firstIndex(of: ">") {
+            url = String(url[url.index(after: url.startIndex)..<close])
+        } else if let space = url.firstIndex(of: " ") {
+            url = String(url[..<space])
+        }
+        url = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard url.isEmpty == false else { return nil }
         return (alt, url)
     }

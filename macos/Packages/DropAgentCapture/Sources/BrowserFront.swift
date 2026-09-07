@@ -55,7 +55,7 @@ public struct BrowserFront: Equatable, Sendable {
         public var primaryBundleIdentifier: String {
             switch self {
             case .safari: return "com.apple.Safari"
-            case .chrome: return "com.google.chrome"
+            case .chrome: return "com.google.Chrome"
             case .edge: return "com.microsoft.edgemac"
             case .brave: return "com.brave.Browser"
             case .arc: return "company.thebrowser.Browser"
@@ -67,6 +67,30 @@ public struct BrowserFront: Equatable, Sendable {
             switch self {
             case .safari, .chrome, .edge, .brave: return true
             case .arc, .firefox: return false
+            }
+        }
+
+        public static var appleScriptCases: [Kind] { [.safari, .chrome, .edge, .brave] }
+
+        public var knownBundleIdentifiers: [String] {
+            switch self {
+            case .safari:
+                return ["com.apple.Safari"]
+            case .chrome:
+                return [
+                    "com.google.Chrome",
+                    "com.google.Chrome.canary",
+                    "com.google.Chrome.beta",
+                    "com.google.Chrome.dev",
+                ]
+            case .edge:
+                return ["com.microsoft.edgemac"]
+            case .brave:
+                return ["com.brave.Browser"]
+            case .arc:
+                return ["company.thebrowser.Browser"]
+            case .firefox:
+                return ["org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition"]
             }
         }
     }

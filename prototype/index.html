@@ -100,7 +100,7 @@
       transform: translateY(-10px);
       opacity: 0;
       pointer-events: none;
-      height: 36px;
+      height: 48px;
       border-radius: 10px;
       background: var(--panel);
       border: 1px solid rgba(0,0,0,.1);
@@ -125,7 +125,7 @@
       position: absolute;
       top: 34px;
       right: 16px;
-      width: 400px;
+      width: 680px;
       height: min(620px, calc(100dvh - 56px));
       display: none;
       flex-direction: column;
@@ -143,7 +143,7 @@
 
     .head {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr;
       align-items: center;
       position: relative;
       height: 44px;
@@ -161,7 +161,28 @@
       font-family: "New York", "Iowan Old Style", "Times New Roman", serif;
       pointer-events: none;
     }
-    .agent-wrap { position: relative; justify-self: end; }
+    .head-right {
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 2;
+    }
+    .head-icon {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--faint);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .head-icon:hover { color: var(--text); background: var(--panel-2); }
+    .head-icon .ico { width: 10px; height: 10px; stroke: currentColor; fill: none; }
+    .agent-wrap { position: relative; }
     .agent-pill {
       display: flex;
       align-items: center;
@@ -211,15 +232,174 @@
     }
     .agent-pill .status-ico .ico { width: 12px; height: 12px; }
 
-    .list-wrap {
+    .panel-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: row;
       position: relative;
-      flex-shrink: 0;
+    }
+    .cover-pane {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      background: var(--panel);
+      flex-direction: column;
+      overflow: auto;
+    }
+    .cover-pane.show { display: flex; }
+    .cover-pane .cover-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px 8px;
+    }
+    .cover-pane .cover-head h2 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .cover-pane .cover-head .spacer { flex: 1; }
+    .cover-pane .cover-head button {
+      height: 28px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--panel-2);
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .setup-list {
+      padding: 0 16px 20px;
       display: flex;
       flex-direction: column;
-      min-height: 56px;
+      gap: 12px;
     }
+    .setup-row {
+      padding: 12px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel-2) 65%, transparent);
+      border: 1px solid var(--line);
+    }
+    .setup-row .row-title {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .setup-row .mark { color: var(--faint); }
+    .setup-row.ok .mark { color: var(--text); }
+    .setup-row .cap {
+      margin: 6px 0 0 21px;
+      font-size: 11px;
+      color: var(--faint);
+    }
+    .setup-row .act {
+      margin: 8px 0 0 21px;
+      height: 30px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--panel-2);
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .settings-sec {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      padding-top: 8px;
+    }
+    .settings-lead {
+      font-size: 11px;
+      color: var(--faint);
+      line-height: 1.45;
+    }
+    .setup-row.pair {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .setup-row.pair .row-copy { flex: 1; min-width: 0; }
+    .setup-row.pair .row-title { display: block; }
+    .setup-row.pair .cap { margin: 2px 0 0; }
+    .settings-keys {
+      flex: none;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      height: 28px;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      background: var(--panel);
+      border-radius: 8px;
+      color: var(--text);
+    }
+    .settings-body {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--faint);
+      line-height: 1.45;
+    }
+    .head-icon { position: relative; }
+    .gear-dot {
+      display: none;
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 5px;
+      height: 5px;
+      border-radius: 99px;
+      background: var(--text);
+    }
+    .gear-dot.show { display: block; }
+    .list-wrap {
+      position: relative;
+      width: 240px;
+      flex: 0 0 240px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 200px;
+      max-width: 320px;
+    }
+    .list-toolbar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 8px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .list-toolbar.show { display: flex; }
+    .multi-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 24px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .multi-btn .ico { width: 12px; height: 12px; }
+    .multi-btn.on { background: var(--panel-2); font-weight: 600; }
+    .multi-count { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
     .list {
       flex: 1;
+      min-height: 0;
       overflow: auto;
     }
     .list.drop-hot { background: rgba(0,0,0,.06); }
@@ -241,7 +421,7 @@
 
     .empty {
       height: 100%;
-      min-height: 108px;
+      min-height: 160px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -250,7 +430,7 @@
       color: var(--muted);
       font-size: 13px;
       text-align: center;
-      padding: 12px 24px;
+      padding: 12px;
     }
     .empty .ico { width: 22px; height: 22px; color: var(--text); }
     .empty small { font-size: 11px; color: var(--faint); line-height: 1.4; }
@@ -265,6 +445,20 @@
       cursor: grab;
       height: 56px;
     }
+    .row.picking { grid-template-columns: 18px auto 1fr auto 18px; }
+    .row .pick {
+      grid-row: 1 / span 2;
+      align-self: start;
+      margin-top: 2px;
+      width: 18px;
+      height: 18px;
+      color: var(--faint);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .row.sel .pick { color: var(--text); }
+    .row .pick .ico { width: 14px; height: 14px; }
     .row:hover { background: var(--panel-2); }
     .row.sel { background: rgba(0,0,0,.08); box-shadow: inset 2px 0 0 var(--text); }
     .row.dragging-out { opacity: .45; }
@@ -317,11 +511,12 @@
     .row:hover .kill, .row.sel .kill { opacity: 1; }
     .row .kill:hover { background: var(--panel-2); color: var(--text); }
     .row .meta {
-      grid-column: 2 / span 3;
+      grid-column: 2 / -1;
       font-size: 11px;
       color: var(--faint);
       margin-top: 2px;
     }
+    .row.picking .meta { grid-column: 3 / -1; }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -338,28 +533,29 @@
     .pill.sent { background: rgba(0,0,0,.08); color: var(--text); }
 
     .splitbar {
-      height: 7px;
+      width: 7px;
       flex-shrink: 0;
-      cursor: ns-resize;
+      cursor: ew-resize;
       background: var(--line);
       position: relative;
+      align-self: stretch;
     }
     .splitbar::before {
       content: "";
       position: absolute;
-      left: 0;
-      right: 0;
-      top: -6px;
-      bottom: -6px;
+      top: 0;
+      bottom: 0;
+      left: -6px;
+      right: -6px;
     }
     .splitbar::after {
       content: "";
       position: absolute;
-      left: 50%;
-      top: 2px;
-      width: 28px;
-      height: 3px;
-      margin-left: -14px;
+      left: 2px;
+      top: 50%;
+      width: 3px;
+      height: 28px;
+      margin-top: -14px;
       border-radius: 99px;
       background: rgba(0,0,0,.22);
     }
@@ -368,6 +564,7 @@
     .ai {
       position: relative;
       flex: 1;
+      min-width: 0;
       min-height: 168px;
       display: flex;
       flex-direction: column;
@@ -418,6 +615,32 @@
       flex: 1;
       overflow: auto;
       padding: 8px 10px 6px;
+    }
+    .result-stack {
+      background: var(--panel-2);
+      border-top: 1px solid var(--line);
+      padding: 8px 10px 6px;
+      max-height: 108px;
+      overflow: auto;
+    }
+    .result-stack-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--faint);
+      margin-bottom: 4px;
+    }
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .result-row.sel {
+      background: var(--panel);
+      box-shadow: inset 2px 0 0 var(--text);
     }
     .recipes {
       display: grid;
@@ -715,10 +938,10 @@
 </head>
 <body>
   <!--
-    THESIS: One 400px menu extra. Files on top, talk below. Refuses a side-by-side terminal, a clipboard-manager home, and a colored HUD.
+    THESIS: One 680px menu extra. Files left, talk right. Refuses a workspace dashboard, a clipboard-manager home, and a colored HUD.
     OWN-WORLD: Paper sheet over a dark desk. Near-white ground, ink type, black for send/select/drop. SF Symbols for actions; file kinds stay letter tags.
-    STORY: Stage above, talk below, take the new file out by drag or clipboard.
-    FIRST VIEWPORT: Panel hung from the status item. Airy header, list, hairline splitter, AI pane on the same paper.
+    STORY: Stage beside talk, take the new file out by drag or clipboard.
+    FIRST VIEWPORT: Panel hung from the status item. Airy header, shelf column, hairline splitter, AI pane on the same paper.
     FORM: Nordic paper tray, seed 93ef9156, user-pinned black-and-white. Operate.
     FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
   -->
@@ -755,7 +978,7 @@
 
     <aside class="pile">
       <h1>拖进去</h1>
-      <p>拖的时候：上半是加入，下半 AI 区是发给当前终端。文件行也可以拖出来。</p>
+      <p>拖的时候：左边是加入，右边 AI 区是发给当前终端。文件行也可以拖出来。</p>
       <div class="chip" role="button" draggable="true" data-name="Q3-pricing.pdf" data-kind="pdf"><span class="kind">PDF</span>Q3-pricing.pdf</div>
       <div class="chip" role="button" draggable="true" data-name="截图 09-05.png" data-kind="image"><span class="kind">PNG</span>截图 09-05.png</div>
       <div class="chip" role="button" draggable="true" data-name="https://dropoverapp.com" data-kind="url"><span class="kind">URL</span>dropoverapp.com</div>
@@ -765,29 +988,54 @@
     <div class="panel" id="panel" role="dialog" aria-label="DropAgent 面板">
       <div class="head">
         <div class="brand">DropAgent</div>
-        <div class="agent-wrap">
-          <button type="button" class="agent-pill" id="agentPill" aria-haspopup="listbox" aria-expanded="false">
-            <span class="status-ico" id="agentIcon" aria-hidden="true"></span>
-            <span id="agentLabel">Grok</span>
-            <svg class="chev" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
-              <path d="M1.5 2.8 4 5.2 6.5 2.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <div class="engine-menu" id="engineMenu" hidden>
-            <button type="button" data-pick="Grok">Grok</button>
-            <button type="button" data-pick="Claude">Claude</button>
-            <button type="button" data-pick="Gemini" disabled>Gemini（未安装）</button>
-            <button type="button" data-pick="Codex">Codex</button>
-            <button type="button" data-pick="">未发现终端</button>
+        <div class="head-right">
+          <div class="agent-wrap">
+            <button type="button" class="agent-pill" id="agentPill" aria-haspopup="listbox" aria-expanded="false">
+              <span class="status-ico" id="agentIcon" aria-hidden="true"></span>
+              <span id="agentLabel">Grok</span>
+              <svg class="chev" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
+                <path d="M1.5 2.8 4 5.2 6.5 2.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <div class="engine-menu" id="engineMenu" hidden>
+              <button type="button" data-pick="Grok">Grok</button>
+              <button type="button" data-pick="Claude">Claude</button>
+              <button type="button" data-pick="Gemini" disabled>Gemini（未安装）</button>
+              <button type="button" data-pick="OpenCode">OpenCode</button>
+              <button type="button" data-pick="Cursor CLI">Cursor CLI</button>
+              <button type="button" data-pick="Codex">Codex</button>
+              <button type="button" data-pick="">未发现终端</button>
+            </div>
           </div>
+          <button type="button" class="head-icon" id="settingsBtn" aria-label="设置">
+            <svg class="ico" viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="2.2"/>
+              <path d="M8 2.4v1.6M8 12v1.6M2.4 8h1.6M12 8h1.6M4 4l1.1 1.1M10.9 10.9 12 12M12 4l-1.1 1.1M5.1 10.9 4 12"/>
+            </svg>
+            <span class="gear-dot" id="gearDot"></span>
+          </button>
+          <button type="button" class="head-icon" id="minBtn" aria-label="最小化">
+            <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8h8"/></svg>
+          </button>
+          <button type="button" class="head-icon" id="closeBtn" aria-label="关闭">
+            <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4 4 12"/></svg>
+          </button>
         </div>
       </div>
 
+      <div class="panel-body">
       <div class="list-wrap" id="listWrap">
+        <div class="list-toolbar" id="listToolbar">
+          <button type="button" class="multi-btn" id="multiBtn" aria-label="多选">
+            <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg>
+            <span id="multiLabel">多选</span>
+          </button>
+          <span class="multi-count" id="multiCount"></span>
+        </div>
         <div class="list" id="list" data-drop="stage"></div>
         <div class="list-hint"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 9.5V13h10V9.5"/><path d="M8 2.5v8"/><path d="M5 8.5 8 11.5 11 8.5"/></svg>加入架子</div>
       </div>
-      <div class="splitbar" id="splitbar" title="拖动改变列表高度"></div>
+      <div class="splitbar" id="splitbar" title="拖动改变列表宽度"></div>
 
       <div class="ai" id="ai" data-drop="tui">
         <div class="ai-hint"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h10M9 4.5 13.5 8 9 11.5"/></svg><span id="aiHintText">发给 Grok</span></div>
@@ -797,6 +1045,7 @@
           <button type="button" data-ai="result" id="tabResult"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h6l3 3V13.5H4z"/><path d="M10 2.5V6h3.5"/><path d="M6 9h4M6 11.5h3"/></svg>结果</button>
         </div>
         <div class="ai-body" id="aiView"></div>
+        <div class="result-stack" id="resultStack" hidden></div>
         <div class="composer">
           <span class="count" id="composeMeta"></span>
           <input id="prompt" type="text" placeholder="写给 Grok，回车发送" autocomplete="off" />
@@ -808,6 +1057,49 @@
           </button>
         </div>
         <div class="foot-hint" id="footHint">发送进 Grok 终端，不是副本沙箱。文件可拖出或复制。</div>
+      </div>
+      <div class="cover-pane" id="setupCard">
+        <div class="cover-head">
+          <h2>使用准备</h2>
+          <span class="spacer"></span>
+          <button type="button" id="setupLater">以后再说</button>
+        </div>
+        <div class="setup-list" id="setupList"></div>
+      </div>
+      <div class="cover-pane" id="settingsPane">
+        <div class="cover-head">
+          <h2>设置</h2>
+          <span class="spacer"></span>
+          <button type="button" id="settingsDone">完成</button>
+        </div>
+        <div class="setup-list">
+          <div class="settings-sec">使用准备</div>
+          <div class="setup-row ok"><div class="row-title"><span class="mark">✓</span>终端 Agent</div><div class="cap">已发现 Grok</div></div>
+          <div class="setup-row ok"><div class="row-title"><span class="mark">✓</span>打开面板 ⌃⌥D</div><div class="cap">可用</div></div>
+          <div class="setup-row ok"><div class="row-title"><span class="mark">✓</span>抓当前页 ⌃⌥W</div><div class="cap">可用</div></div>
+          <div class="setup-row"><div class="row-title"><span class="mark">○</span>辅助功能</div><div class="cap">当前这份还没被信任。列表里开着的可能是另一份。只留菜单栏里这份，把开关关再开，然后完全退出再打开。</div><button class="act" type="button">去授权</button></div>
+          <div class="setup-row"><div class="row-title"><span class="mark">○</span>Safari</div><div class="cap">抓页时要允许控制 Safari。</div><button class="act" type="button">去授权</button></div>
+          <div class="setup-row"><div class="row-title"><span class="mark">○</span>Google Chrome</div><div class="cap">打开 Google Chrome 后再授权。</div><button class="act" type="button">打开并授权</button></div>
+          <div class="settings-sec">快捷键</div>
+          <div class="settings-lead">点右边的键再按下新组合。全局快捷键必须带 ⌃ ⌥ ⇧ 或 ⌘。</div>
+          <div class="setup-row pair"><div class="row-copy"><div class="row-title">打开 / 收起面板</div><div class="cap">全局。被占用时点菜单栏图标。</div></div><div class="settings-keys">⌃⌥D</div></div>
+          <div class="setup-row pair"><div class="row-copy"><div class="row-title">抓取当前页</div><div class="cap">全局。Safari / Chrome / Edge 在最前时，把网址、正文和截图加入架子。</div></div><div class="settings-keys">⌃⌥W</div></div>
+          <div class="setup-row pair"><div class="row-copy"><div class="row-title">加入选中的文件</div><div class="cap">全局。Finder 读选中项；其他 App 先复制文件，没有文件再读当前打开的本地文件。浏览器请用抓页。</div></div><div class="settings-keys">⌃⌥A</div></div>
+          <div class="setup-row pair"><div class="row-copy"><div class="row-title">收起面板</div><div class="cap">面板开着时。输入时不触发。</div></div><div class="settings-keys">Esc</div></div>
+          <div class="setup-row pair"><div class="row-copy"><div class="row-title">从剪贴板加入</div><div class="cap">面板开着且没在输入时。</div></div><div class="settings-keys">⌘V</div></div>
+          <div class="setup-row pair"><div class="row-copy"><div class="row-title">复制选中项</div><div class="cap">把架子上选中的条目复制到系统剪贴板。</div></div><div class="settings-keys">⌘C</div></div>
+          <div class="setup-row pair"><div class="row-copy"><div class="row-title">从架子移除</div><div class="cap">默认 ⌫ 和 ⌦ 都可以。改过之后只认你设的那一个。</div></div><div class="settings-keys">⌫</div></div>
+          <div class="setup-row pair"><div class="row-copy"><div class="row-title">上一条 / 下一条</div><div class="cap">只在面板里，不能改。</div></div><div class="settings-keys">↑  ↓</div></div>
+          <div class="settings-sec">能做什么</div>
+          <div class="setup-row"><div class="row-title">拖进去</div><div class="settings-body">菜单栏图标、屏幕顶边黑条、左侧列表：加入架子（复制进写入区域，原件不动）。右侧 AI：发给当前终端。顶边进货不会自动打开或关掉面板。</div></div>
+          <div class="setup-row"><div class="row-title">选中的文件</div><div class="settings-body">「加入选中的文件」：Finder / 桌面读选中项（可多选）。VSCode 等先模拟 ⌘C，只收文件，剪贴板会还原；没有文件再读当前打开的本地文件。浏览器最前请用抓页。原件不动。</div></div>
+          <div class="setup-row"><div class="row-title">能接什么</div><div class="settings-body">文件、文件夹、PDF、图片（PNG / JPG / GIF / WebP / HEIC）、文本 / Markdown、链接。+ 选文件，或搜索桌面 / 文稿 / 下载。剪贴板可粘贴。</div></div>
+          <div class="setup-row"><div class="row-title">浏览器</div><div class="settings-body">拖到菜单栏图标、顶边条、左侧列表，或粘贴整段网址：架子上先出现网站条，后台抓正文和截图（按该地址取页，不截你眼前的窗口；登录墙往往只留下链接）。拖到右侧 AI 区只把链接送进终端，不抓页。当前窗口整页（含窗口截图）仍用「抓取当前页」快捷键，Safari / Chrome / Edge 要在最前。Safari 标签若系统不交 URL，仍进不来。</div></div>
+          <div class="setup-row"><div class="row-title">读什么</div><div class="settings-body">抓页会读前台浏览器的地址、标题、正文和窗口截图，需要辅助功能和自动化授权。Recipe 只读任务副本，Prompt 里不写原件路径，也不加载你的全局 MCP / Hooks。</div></div>
+          <div class="setup-row"><div class="row-title">写什么</div><div class="settings-body">拖入的副本写在「写入区域」（默认 Inbox）。Recipe 结果写在「输出结果」下的任务编号 / output。不覆盖原文件。终端发送走那个 Agent 自己的权限，不是副本沙箱。</div></div>
+          <div class="setup-row"><div class="row-title">拖出去</div><div class="settings-body">一次拖一条，复制不是挪走。Finder / 桌面、上传框、多数聊天和编辑器能接文件或文字。网站抓取拖出是文件夹：链接、正文 md、截图。接不住就弹回架子。</div></div>
+        </div>
+      </div>
       </div>
     </div>
 
@@ -821,6 +1113,8 @@
       <button type="button" data-scene="done">结果</button>
       <button type="button" data-scene="noagent">无终端</button>
       <button type="button" data-scene="onlytui">仅终端</button>
+      <button type="button" data-scene="setup">就绪</button>
+      <button type="button" data-scene="settings">设置</button>
     </nav>
     <div class="note">合成数据 · 终端是假的</div>
   </div>
@@ -860,11 +1154,14 @@
     };
 
     const state = {
-      open: true, hasTui: true, hasCodex: true, tui: "Grok",
+      open: true, hasTui: true, hasRecipe: true, tui: "Grok",
       selected: [], anchor: null, items: [],
-      copied: null, ttyLog: [], ai: "work", listH: 140, listTouched: false,
+      copied: null, ttyLog: [], ai: "work", listW: 240, multiSelect: false,
+      results: [], focus: "input", resultId: null,
       clip: "渠道折扣收到 9%，不要对外讲数字。",
-      desk: []
+      desk: [],
+      setup: false,
+      settings: false
     };
 
     const $ = (id) => document.getElementById(id);
@@ -877,27 +1174,20 @@
     }
     function itemById(id) { return state.items.find((x) => x.id === id); }
     function selectedItems() { return state.selected.map(itemById).filter(Boolean); }
-    function displayListH() {
-      if (state.listTouched) return state.listH;
-      if (!state.items.length) return 140;
-      return Math.min(320, Math.max(56, state.items.length * 56));
-    }
     function canSend() {
       if (!state.hasTui) return false;
-      return !selectedItems().some((x) => x.status === "confirm" || x.status === "running");
+      if (selectedItems().some((x) => x.status === "confirm" || x.status === "running")) return false;
+      if (state.focus === "result") {
+        const rec = focusedResult();
+        return !!(rec && rec.output);
+      }
+      return true;
     }
     function composerPlaceholder() {
       if (!state.hasTui) return "未发现终端 Agent";
       if (selectedItems().some((x) => x.status === "running")) return "等任务结束，或点取消";
       if (selectedItems().some((x) => x.status === "confirm")) return "先运行或取消这次动作";
       return `写给 ${state.tui}，回车发送`;
-    }
-    function giveTerminalRoom() {
-      const target = state.items.length ? Math.min(108, Math.max(56, state.items.length * 56)) : 108;
-      if (displayListH() > target) {
-        state.listH = target;
-        state.listTouched = true;
-      }
     }
     function kindOf(k) { return kinds[k] || { tag: "FILE", word: "文件" }; }
 
@@ -914,6 +1204,7 @@
       const item = createItem(name, kind);
       state.selected = [item.id];
       state.anchor = item.id;
+      state.focus = "input";
       state.open = true;
       state.ai = "work";
       render();
@@ -921,7 +1212,7 @@
     }
 
     function facts(count) {
-      if (!state.hasCodex) return [["读", "不能运行"], ["写", "—"], ["网络", "—"], ["隔离", "需要 Codex"]];
+      if (!state.hasRecipe) return [["读", "不能运行"], ["写", "—"], ["网络", "—"], ["隔离", "无执行入口"]];
       return [
         ["读", count > 1 ? `${count} 份材料的副本` : "这份材料的副本"],
         ["写", "仅任务目录"],
@@ -945,16 +1236,23 @@
       x: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4 4 12"/></svg>',
       tray: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 9.5V13h10V9.5"/><path d="M8 2.5v8"/><path d="M5 8.5 8 11.5 11 8.5"/></svg>',
       check: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg>',
-      slash: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M4 12 12 4"/></svg>'
+      slash: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M4 12 12 4"/></svg>',
+      circle: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/></svg>'
     };
     function recipeButtons() {
       const id = state.anchor || state.selected[0] || "";
       return recipes.map(([short, full]) =>
-        `<button type="button" data-act="recipe" data-id="${id}" data-recipe="${full}" ${state.hasCodex ? "" : "disabled"}>${recipeIcons[short] || ""}${short}</button>`
+        `<button type="button" data-act="recipe" data-id="${id}" data-recipe="${full}" ${state.hasRecipe ? "" : "disabled"}>${recipeIcons[short] || ""}${short}</button>`
       ).join("");
     }
 
+    function focusedResult() {
+      return state.results.find((x) => x.id === state.resultId) || null;
+    }
     function currentResult() {
+      if (state.focus === "result") {
+        return focusedResult() || state.results[0] || null;
+      }
       const it = selectedItems().find((x) => x.status === "done")
         || selectedItems().find((x) => x.status === "sent")
         || selectedItems()[0]
@@ -969,7 +1267,7 @@
       $("tabTty").classList.toggle("on", state.ai === "tty");
       $("tabResult").classList.toggle("on", state.ai === "result");
       const hasResult = !!currentResult();
-      $("tabResult").disabled = !hasResult;
+      $("tabResult").disabled = !hasResult && !state.results.length;
       $("tabTty").disabled = !state.ttyLog.length && state.ai !== "tty";
 
       if (state.ai === "tty") {
@@ -986,9 +1284,12 @@
       }
       if (state.ai === "result") {
         const it = currentResult();
-        if (!it) { view.innerHTML = `<div class="hint">点一条已完成的文件，或点架子上的材料查看。</div>`; return; }
+        if (!it) { view.innerHTML = `<div class="hint">点左边看输入，点右边结果看产出。</div>`; return; }
+        const fromStack = state.results.find((r) => r.id === it.id);
         let body = "";
-        if (it.kind === "web") {
+        if (fromStack) {
+          body = previews[fromStack.recipe] || "";
+        } else if (it.kind === "web") {
           body = `<div class="hint">${it.url || "https://example.com"}</div><div class="hint">正文和截图在这一页。</div>`;
           if (it.status === "sent") body += `<div class="hint">材料已送进终端。在「终端」里继续说。</div>`;
         } else if (it.kind === "image") {
@@ -997,7 +1298,7 @@
           body = `<div class="hint">正文在这一页，可复制或拖出。</div>`;
         } else if (it.kind === "url") {
           body = `<div class="hint">${it.url || it.name}</div><div class="hint">这是链接，不会自动抓正文。要网页材料请用 ⌃⌥W。</div>`;
-        } else if (it.status === "done") {
+        } else if (it.output || it.status === "done") {
           body = previews[it.recipe] || "";
         } else {
           body = state.ttyLog.filter((x) => x.k === "out").map((x) => x.t).join("\n") || "已送到终端，在「终端」里看过程。";
@@ -1018,29 +1319,29 @@
       if (!batch.length) {
         const empty = state.hasTui
           ? (state.items.length
-            ? `点列表里的文件，或拖到上方加入、拖到这一区发给 ${state.tui}。`
-            : `拖到上方加入架子，或拖到这一区发给 ${state.tui}。`)
-          : "未发现终端。仍可把文件放到上面。";
+            ? `点列表里的文件，或拖到左侧加入、拖到这一区发给 ${state.tui}。`
+            : `拖到左侧加入架子，或拖到这一区发给 ${state.tui}。`)
+          : "未发现终端。仍可把文件放到左边。";
         view.innerHTML = `<div class="hint">${empty}</div>`;
         return;
       }
       if (confirming) {
         view.innerHTML = `<div class="label">对 ${idle.length} 项 · ${idle[0].recipe}</div>
           <div class="facts">${facts(idle.length).map(([k, v]) => `<div>${k}<b>${v}</b></div>`).join("")}</div>
-          <button class="run" data-act="run" data-id="${idle[0].id}" ${state.hasCodex ? "" : "disabled"}>${ico.play}在副本中运行</button>
+          <button class="run" data-act="run" data-id="${idle[0].id}" ${state.hasRecipe ? "" : "disabled"}>${ico.play}在副本中运行</button>
           <button class="quiet" data-act="cancel" data-id="${idle[0].id}" style="margin-top:6px">${ico.x}取消</button>`;
         return;
       }
       const running = batch.find((x) => x.status === "running");
       if (running) {
         view.innerHTML = `<div class="label">运行中</div><div class="hint">${running.event}</div>
-          <div class="hint">${state.hasCodex ? `Codex 在副本里跑，不是 ${state.tui} 终端。` : "副本任务需要 Codex。"}</div>
+          <div class="hint">${state.hasRecipe ? `${state.tui} 在任务副本里跑。` : `${state.tui} 没有无界面执行入口，动作不能跑。`}</div>
           <button class="quiet" data-act="cancel" data-id="${running.id}" style="margin-top:8px">${ico.x}取消</button>`;
         return;
       }
       let extra = "安装终端后可发送。现在只能暂存。";
-      if (state.hasTui && state.hasCodex) extra = `或在下面写一句话，发送到 ${state.tui} 终端。`;
-      else if (state.hasTui) extra = `动作需要 Codex。下面可以发给 ${state.tui}。`;
+      if (state.hasTui && state.hasRecipe) extra = `或在下面写一句话，发送到 ${state.tui} 终端。`;
+      else if (state.hasTui) extra = `${state.tui} 没有无界面执行入口，动作不能跑。下面可以发给 ${state.tui}。`;
       const webPeek = batch.length === 1 && batch[0].kind === "web"
         ? `<div class="hint">${batch[0].url || ""}</div><div class="hint">点「结果」看正文和截图。</div>`
         : "";
@@ -1058,6 +1359,20 @@
         <div class="hint">${extra}</div>`;
     }
 
+    function renderResultStack() {
+      const el = $("resultStack");
+      if (!el) return;
+      if (!state.results.length) {
+        el.hidden = true;
+        el.innerHTML = "";
+        return;
+      }
+      el.hidden = false;
+      el.innerHTML = `<div class="result-stack-label">结果</div>` + state.results.map((r) =>
+        `<div class="result-row ${state.focus === "result" && state.resultId === r.id ? "sel" : ""}" draggable="true" data-act="pick-result" data-id="${r.id}"><span class="tag">MD</span><span>${r.name}</span></div>`
+      ).join("");
+    }
+
     function render() {
       $("status").classList.toggle("open", state.open);
       $("panel").classList.toggle("show", state.open);
@@ -1068,22 +1383,41 @@
       promptEl.disabled = !sendOK;
       $("send").disabled = !sendOK;
       promptEl.placeholder = composerPlaceholder();
-      $("listWrap").style.height = displayListH() + "px";
+      $("listWrap").style.width = state.listW + "px";
+      $("listWrap").style.flexBasis = state.listW + "px";
+      $("listToolbar").classList.toggle("show", state.items.length > 0);
+      $("multiBtn").classList.toggle("on", state.multiSelect);
+      $("multiLabel").textContent = state.multiSelect ? "完成" : "多选";
+      $("multiBtn").setAttribute("aria-label", state.multiSelect ? "完成多选" : "多选");
+      $("multiCount").textContent = state.multiSelect && state.selected.length ? `已选 ${state.selected.length}` : "";
       $("composeMeta").textContent = state.selected.length ? `${state.selected.length} 项` : "";
       const busy = selectedItems().some((x) => x.status === "confirm" || x.status === "running");
       $("footHint").textContent = busy
         ? "⌃⌥D 打开，⌃⌥W 抓当前页。"
         : state.hasTui
           ? `发送进 ${state.tui} 终端，不是副本沙箱。文件可拖出或复制。⌘V 从剪贴板加入。`
-          : "没有终端，只能先放架子。动作还需要 Codex。";
+          : "没有终端，只能先放架子。没有芯片，动作也不能跑。";
       document.querySelectorAll("#engineMenu [data-pick]").forEach((b) => {
         const pick = b.dataset.pick;
         b.classList.toggle("on", state.hasTui ? pick === state.tui : pick === "");
       });
       $("clipLabel").textContent = state.clip ? state.clip.slice(0, 18) + (state.clip.length > 18 ? "…" : "") : "剪贴板是空的";
+      renderResultStack();
+      $("setupCard").classList.toggle("show", state.setup && !state.settings);
+      $("settingsPane").classList.toggle("show", state.settings);
+      $("gearDot").classList.toggle("show", !state.settings && (!state.hasTui || state.setup));
+      $("setupList").innerHTML = `
+        <div class="setup-row ${state.hasTui ? "ok" : ""}"><div class="row-title"><span class="mark">${state.hasTui ? "✓" : "○"}</span>终端 Agent</div><div class="cap">${state.hasTui ? "已发现 " + state.tui : "未发现终端 Agent。可以先把文件放在架子上。"}</div>${state.hasTui ? "" : '<button class="act" type="button">如何安装</button>'}</div>
+        <div class="setup-row ok"><div class="row-title"><span class="mark">✓</span>打开面板 ⌃⌥D</div><div class="cap">可用</div></div>
+        <div class="setup-row ok"><div class="row-title"><span class="mark">✓</span>抓当前页 ⌃⌥W</div><div class="cap">可用</div></div>
+        <div class="setup-row"><div class="row-title"><span class="mark">○</span>辅助功能</div><div class="cap">当前这份还没被信任。列表里开着的可能是另一份。只留菜单栏里这份，把开关关再开，然后完全退出再打开。</div><button class="act" type="button">去授权</button></div>
+        <div class="setup-row"><div class="row-title"><span class="mark">○</span>Safari</div><div class="cap">抓页时要允许控制 Safari。</div><button class="act" type="button">去授权</button></div>
+        <div class="setup-row"><div class="row-title"><span class="mark">○</span>Google Chrome</div><div class="cap">打开 Google Chrome 后再授权。</div><button class="act" type="button">打开并授权</button></div>
+      `;
 
       if (!state.items.length) {
-        $("list").innerHTML = `<div class="empty">${ico.tray}<div>拖到这里、菜单栏图标或屏幕顶边</div><small>先放下，或拖到下方发给 ${state.hasTui ? state.tui : "终端"}</small></div>`;
+        state.multiSelect = false;
+        $("list").innerHTML = `<div class="empty">${ico.tray}<div>拖到这里、菜单栏图标或屏幕顶边</div><small>先放下，或拖到右侧发给 ${state.hasTui ? state.tui : "终端"}</small></div>`;
       } else {
         $("list").innerHTML = state.items.map((it) => {
           const k = kindOf(it.kind);
@@ -1094,7 +1428,8 @@
           if (it.status === "done") meta = `<span class="pill ok">可拖出</span>${k.word} · 来自 ${it.source}`;
           if (it.status === "sent") meta = `<span class="pill sent">已进终端</span>${k.word}`;
           const drag = it.status !== "running";
-          return `<div class="row ${sel ? "sel" : ""} ${it.status}" data-act="select" data-id="${it.id}" ${drag ? `draggable="true"` : ""}>
+          return `<div class="row ${sel ? "sel" : ""} ${it.status}${state.multiSelect ? " picking" : ""}" data-act="select" data-id="${it.id}" ${drag ? `draggable="true"` : ""}>
+            ${state.multiSelect ? `<span class="pick">${sel ? ico.check : ico.circle}</span>` : ""}
             <span class="tag">${k.tag}</span>
             <div class="name">${it.name}</div>
             <div class="time">${it.time}</div>
@@ -1117,22 +1452,75 @@
       state.ai = "work";
       render();
     }
-    function startRun(it) {
-      if (!state.hasCodex) return;
-      it.status = "running";
-      it.event = "复制到 input/ 与 work/";
+    function startRun(batch) {
+      if (!state.hasRecipe || !batch.length) return;
+      const job = { cancelled: false, timers: [] };
+      const recipeName = batch[0].recipe;
+      batch.forEach((it) => {
+        it.status = "running";
+        it.event = "复制到 input/ 与 work/";
+        it._job = job;
+      });
       render();
-      it._t1 = setTimeout(() => { it.event = "Codex 读取 work/ 中的材料"; render(); }, 700);
-      it._t2 = setTimeout(() => { it.event = "写入 output/" + (outputs[it.recipe] || "summary.md"); render(); }, 1400);
-      it._t3 = setTimeout(() => {
-        it.status = "done";
-        it.output = outputs[it.recipe] || "summary.md";
-        it.name = it.output;
-        it.kind = "md";
-        it.event = "";
+      job.timers.push(setTimeout(() => {
+        if (job.cancelled) return;
+        batch.forEach((it) => { it.event = `${state.tui} 读取 work/ 中的材料`; });
+        render();
+      }, 700));
+      job.timers.push(setTimeout(() => {
+        if (job.cancelled) return;
+        batch.forEach((it) => { it.event = "写入 output/" + (outputs[recipeName] || "summary.md"); });
+        render();
+      }, 1400));
+      job.timers.push(setTimeout(() => {
+        if (job.cancelled) return;
+        const output = outputs[recipeName] || "summary.md";
+        batch.forEach((it) => {
+          it.status = "idle";
+          it.event = "";
+          it.recipe = null;
+          it._job = null;
+        });
+        const rec = {
+          id: "r" + Date.now(),
+          name: output,
+          output,
+          recipe: recipeName || "总结文件",
+          kind: "md",
+          sourceItemIDs: batch.map((x) => x.id)
+        };
+        state.results.unshift(rec);
+        state.focus = "result";
+        state.resultId = rec.id;
         state.ai = "result";
         render();
-      }, 2200);
+      }, 2200));
+    }
+    function sendFromComposer() {
+      if (!canSend()) return;
+      if (state.focus === "result") {
+        const rec = focusedResult();
+        if (!rec || !rec.output) return;
+        sendResultToTui(rec, promptEl.value.trim());
+        return;
+      }
+      sendToTui(selectedItems(), promptEl.value.trim());
+    }
+    function sendResultToTui(rec, text) {
+      if (!state.hasTui) return;
+      state.open = true;
+      if (!state.ttyLog.length) state.ttyLog.push({ k: "sys", t: state.tui + "  ·  本机会话" });
+      state.ttyLog.push({ k: "file", t: "结果  " + rec.name });
+      if (text) {
+        state.ttyLog.push({ k: "in", t: "›  " + text });
+        state.ttyLog.push({ k: "out", t: previews["总结文件"] });
+      } else {
+        state.ttyLog.push({ k: "in", t: "›  （没有附带说明）" });
+        state.ttyLog.push({ k: "out", t: "已收到结果 " + rec.name + "。要做什么，直接打在上面。" });
+      }
+      promptEl.value = "";
+      state.ai = "tty";
+      render();
     }
     function sendToTui(items, text) {
       if (!canSend()) return;
@@ -1155,13 +1543,13 @@
       }
       promptEl.value = "";
       state.ai = "tty";
-      giveTerminalRoom();
       render();
     }
 
     function copyItem(it) {
       const text = it.output || it.name;
-      const body = it.status === "done" ? (previews[it.recipe] || text) : text;
+      const fromStack = state.results.some((r) => r.id === it.id);
+      const body = (it.status === "done" || fromStack) ? (previews[it.recipe] || text) : text;
       state.clip = body;
       state.copied = it.id;
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(body);
@@ -1176,18 +1564,34 @@
 
     $("status").addEventListener("click", () => { state.open = !state.open; render(); });
     $("send").addEventListener("click", () => {
-      if (!canSend()) return;
-      sendToTui(selectedItems(), promptEl.value.trim());
+      sendFromComposer();
     });
     $("pasteBtn").addEventListener("click", pasteClip);
     promptEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        if (!canSend()) return;
-        sendToTui(selectedItems(), promptEl.value.trim());
+        sendFromComposer();
       }
     });
 
+    $("minBtn").addEventListener("click", () => { state.open = false; render(); });
+    $("closeBtn").addEventListener("click", () => { state.open = false; render(); });
+    $("settingsBtn").addEventListener("click", () => {
+      state.settings = !state.settings;
+      render();
+    });
+    $("setupLater").addEventListener("click", () => {
+      state.setup = false;
+      render();
+    });
+    $("settingsDone").addEventListener("click", () => {
+      state.settings = false;
+      render();
+    });
+    $("multiBtn").addEventListener("click", () => {
+      state.multiSelect = !state.multiSelect;
+      render();
+    });
     const engineMenu = $("engineMenu");
     const agentPill = $("agentPill");
     agentPill.addEventListener("click", (e) => {
@@ -1204,7 +1608,10 @@
       state.hasTui = pick !== "";
       if (pick) {
         state.tui = pick;
+        state.hasRecipe = true;
         state.ttyLog = [];
+      } else {
+        state.hasRecipe = false;
       }
       engineMenu.hidden = true;
       agentPill.setAttribute("aria-expanded", "false");
@@ -1220,7 +1627,6 @@
       b.addEventListener("click", () => {
         if (b.disabled) return;
         state.ai = b.dataset.ai;
-        if (state.ai === "tty") giveTerminalRoom();
         render();
       });
     });
@@ -1238,35 +1644,59 @@
         render();
         return;
       }
+      if (act === "pick-result") {
+        state.focus = "result";
+        state.resultId = id;
+        state.ai = "result";
+        render();
+        return;
+      }
       if (act === "select") {
         if (e.target.closest("button")) return;
         if (!it) return;
-        if (e.metaKey || e.ctrlKey) {
+        state.focus = "input";
+        const additive = e.metaKey || e.ctrlKey || state.multiSelect;
+        if (additive) {
           state.selected = state.selected.includes(id) ? state.selected.filter((x) => x !== id) : [...state.selected, id];
           state.anchor = id;
         } else {
           state.selected = [id];
           state.anchor = id;
+          if (it.status === "done" || it.status === "failed") state.ai = "result";
+          else if (it.status === "sent") state.ai = "tty";
+          else state.ai = "work";
         }
-        if (it.status === "done" || it.status === "sent") state.ai = "result";
-        else if (it.status === "running") state.ai = "work";
-        else state.ai = "work";
         render();
       }
       if (act === "recipe") applyRecipe(btn.dataset.recipe);
-      if (act === "run" && state.hasCodex) {
-        selectedItems().filter((x) => x.status === "confirm").forEach((x, i) => setTimeout(() => startRun(x), i * 350));
+      if (act === "run" && state.hasRecipe) {
+        startRun(selectedItems().filter((x) => x.status === "confirm"));
       }
-      if (act === "cancel" && it) {
-        clearTimeout(it._t1); clearTimeout(it._t2); clearTimeout(it._t3);
-        it.status = "idle"; it.recipe = null; it.event = "";
+      if (act === "cancel") {
+        const target = it || selectedItems().find((x) => x.status === "running" || x.status === "confirm");
+        if (!target) return;
+        if (target._job) {
+          target._job.cancelled = true;
+          (target._job.timers || []).forEach(clearTimeout);
+          state.items.filter((x) => x._job === target._job).forEach((x) => {
+            x.status = "idle"; x.recipe = null; x.event = ""; x._job = null;
+          });
+        } else {
+          clearTimeout(target._t1); clearTimeout(target._t2); clearTimeout(target._t3);
+          target.status = "idle"; target.recipe = null; target.event = "";
+        }
         render();
       }
-      if (act === "copy" && it) copyItem(it);
+      if (act === "copy") {
+        const rec = state.results.find((x) => x.id === id);
+        if (rec) copyItem(rec);
+        else if (it) copyItem(it);
+      }
       if (act === "preview") { state.ai = "tty"; render(); }
     }
     $("list").addEventListener("click", onAction);
     $("aiView").addEventListener("click", onAction);
+    $("resultStack").addEventListener("click", onAction);
 
     $("list").addEventListener("dragstart", (e) => {
       const row = e.target.closest(".row[draggable]");
@@ -1287,9 +1717,21 @@
     $("aiView").addEventListener("dragstart", (e) => {
       const handle = e.target.closest("[data-act=dragout]");
       if (!handle) return;
-      const it = itemById(handle.dataset.id);
-      e.dataTransfer.setData("text/plain", it.output || it.name);
-      e.dataTransfer.setData("out", it.output || it.name);
+      const rec = state.results.find((x) => x.id === handle.dataset.id);
+      const it = rec || itemById(handle.dataset.id);
+      if (!it) return;
+      const name = it.output || it.name;
+      e.dataTransfer.setData("text/plain", name);
+      e.dataTransfer.setData("out", name);
+    });
+    $("resultStack").addEventListener("dragstart", (e) => {
+      const row = e.target.closest(".result-row");
+      if (!row) return;
+      const rec = state.results.find((x) => x.id === row.dataset.id);
+      if (!rec) return;
+      e.dataTransfer.setData("text/plain", rec.output || rec.name);
+      e.dataTransfer.setData("out", rec.output || rec.name);
+      e.dataTransfer.effectAllowed = "copy";
     });
 
     function readDrop(e) {
@@ -1367,12 +1809,12 @@
     const bar = $("splitbar");
     bar.addEventListener("mousedown", (e) => {
       e.preventDefault();
-      const startY = e.clientY;
-      const startH = displayListH();
+      const startX = e.clientX;
+      const startW = state.listW;
       const move = (ev) => {
-        state.listTouched = true;
-        state.listH = Math.max(56, Math.min(320, startH + (ev.clientY - startY)));
-        $("listWrap").style.height = displayListH() + "px";
+        state.listW = Math.max(200, Math.min(320, startW + (ev.clientX - startX)));
+        $("listWrap").style.width = state.listW + "px";
+        $("listWrap").style.flexBasis = state.listW + "px";
       };
       const up = () => {
         document.removeEventListener("mousemove", move);
@@ -1389,11 +1831,12 @@
         const scene = b.dataset.scene;
         state.open = true; state.copied = null; state.ttyLog = []; state.desk = [];
         promptEl.value = "";
-        state.listTouched = false;
-        state.listH = 140;
+        state.listW = 240;
+        state.multiSelect = scene === "multi";
+        state.results = []; state.focus = "input"; state.resultId = null;
         const idle = (id, name, kind, time) => ({ id, name, kind, source: name, time, status: "idle", recipe: null, event: "", output: null });
-        function connect(tui, hasCodex) {
-          state.hasTui = !!tui; state.tui = tui || "Grok"; state.hasCodex = hasCodex;
+        function connect(tui, hasRecipe) {
+          state.hasTui = !!tui; state.tui = tui || "Grok"; state.hasRecipe = hasRecipe;
         }
         if (scene === "empty") {
           connect("Grok", true); state.items = []; state.selected = []; state.anchor = null; state.ai = "work";
@@ -1422,7 +1865,6 @@
             { k: "in", t: "›  哪几条不能对外说" },
             { k: "out", t: "渠道折扣收紧不要对外讲具体数字。三档套餐可以讲。" }
           ];
-          giveTerminalRoom();
         }
         if (scene === "web") {
           connect("Grok", true);
@@ -1431,9 +1873,12 @@
         }
         if (scene === "done") {
           connect("Grok", true); state.ai = "result";
+          state.focus = "result";
+          state.resultId = "r1";
+          state.results = [{ id: "r1", name: "summary.md", output: "summary.md", recipe: "总结文件", kind: "md", sourceItemIDs: ["1"] }];
           state.items = [
-            { id: "1", name: "summary.md", source: "Q3-pricing.pdf", kind: "md", time: "2:14", status: "done", recipe: "总结文件", event: "", output: "summary.md" },
-            { id: "2", name: "截图 09-05.png", source: "截图 09-05.png", kind: "image", time: "2:08", status: "idle", recipe: null, event: "", output: null }
+            idle("1", "Q3-pricing.pdf", "pdf", "2:11"),
+            idle("2", "截图 09-05.png", "image", "2:08")
           ];
           state.selected = ["1"]; state.anchor = "1";
         }
@@ -1446,6 +1891,11 @@
           connect("Grok", false); state.ai = "work";
           state.items = [idle("1", "Q3-pricing.pdf", "pdf", "2:11")];
           state.selected = ["1"]; state.anchor = "1";
+        }
+        state.setup = scene === "setup";
+        state.settings = scene === "settings";
+        if (scene === "setup" || scene === "settings") {
+          connect("Grok", true); state.items = []; state.selected = []; state.anchor = null; state.ai = "work";
         }
         render();
       });

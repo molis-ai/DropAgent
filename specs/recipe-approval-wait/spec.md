@@ -6,11 +6,11 @@
 
 ## 当前行为与问题证据
 
-预览 `05b-waiting`：动作区是「等待授权」+「Codex 在副本里跑，不是 Grok 终端。」+「取消」。没有写这里点不了同意。`recipe-running-actor` 故意不把人指向当前 TUI，但等授权时仍缺恢复说明。禁止给 exec 加 `--always-approve` / `bypassPermissions`。
+预览 `05b-waiting`：动作区是「等待授权」+「Grok 在任务副本里跑。」+「取消」。没有写这里点不了同意。`recipe-running-actor` 写明执行者跟芯片，但等授权时仍缺恢复说明。禁止给 Job 加 `--always-approve` / `bypassPermissions`。
 
 ## 范围
 
-- 选中项 `running` 且事件含「等待授权」：动作区在执行者句下方加一句，写明这里点不了同意，等 Codex 自己过，或取消。
+- 选中项 `running` 且事件含「等待授权」：动作区在执行者句下方加一句，写明这里点不了同意，等当前芯片那家 CLI 自己过，或取消。
 - 不提「去终端点同意」。
 - 预览 `05b-waiting` 能读到这句。
 - 不改 `execArguments`、不改四条调用链、不加任何跳过授权的 flag。
@@ -18,8 +18,7 @@
 ## 非目标
 
 - Developer ID。
-- 不把 Recipe 接到 Grok。
-- 不做 Codex 授权 UI、不解析 TUI 画面去点同意。
+- 不做授权 UI、不解析 TUI 画面去点同意。
 
 ## 使用场景
 
@@ -27,7 +26,7 @@
 
 ## 方案与关键决策
 
-只补人话。授权策略仍是 Codex exec 自己的行为；面板不假装能代点。
+只补人话。授权策略仍是该 CLI 无界面入口自己的行为；面板不假装能代点。
 
 ## 输入输出与依赖
 

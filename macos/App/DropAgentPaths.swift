@@ -1,6 +1,9 @@
 import Foundation
 
 enum DropAgentPaths {
+    nonisolated(unsafe) static var inboxOverride: URL?
+    nonisolated(unsafe) static var jobsOverride: URL?
+
     static var root: URL {
         if let override = ProcessInfo.processInfo.environment["DROPAGENT_ROOT"], !override.isEmpty {
             return URL(fileURLWithPath: override, isDirectory: true)
@@ -10,11 +13,12 @@ enum DropAgentPaths {
         return base.appendingPathComponent("DropAgent", isDirectory: true)
     }
 
-    static var inbox: URL { root.appendingPathComponent("Inbox", isDirectory: true) }
-    static var jobs: URL { root.appendingPathComponent("Jobs", isDirectory: true) }
+    static var inbox: URL { inboxOverride ?? root.appendingPathComponent("Inbox", isDirectory: true) }
+    static var jobs: URL { jobsOverride ?? root.appendingPathComponent("Jobs", isDirectory: true) }
     static var tuiInbox: URL { root.appendingPathComponent("TUIInbox", isDirectory: true) }
     static var shelfFile: URL { root.appendingPathComponent("shelf.json") }
     static var settingsFile: URL { root.appendingPathComponent("settings.json") }
+    static var prefsFile: URL { root.appendingPathComponent("prefs.json") }
     static var panelFile: URL { root.appendingPathComponent("panel.json") }
     static var openedFile: URL { root.appendingPathComponent("opened") }
 

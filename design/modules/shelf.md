@@ -4,7 +4,7 @@
 
 ## 做什么
 
-架子上所有条目的唯一可变来源：增加、删掉、改状态、多选、按 id 查询、持久化 `shelf.json`。
+架子上所有条目的唯一可变来源：增加、删掉、改状态、多选、按 id 查询、持久化 `shelf.json`。Job 产出是 `ResultRecord`，存在同一文件的 `results`，不出现在左列 `items()`。
 
 ## 不做什么
 
@@ -14,27 +14,33 @@
 
 ```text
 add(_ item: Item) -> Item
+addResult(_ record: ResultRecord) -> ResultRecord
 remove(ids: [ItemID])
+removeResults(ids: [ResultID])
 patch(id: ItemID, mutate: (inout Item) -> Void)
 items() -> [Item]
+results() -> [ResultRecord]
 item(id:) -> Item?
+result(id:) -> ResultRecord?
 selection: Set<ItemID>
 toggleSelect(id:, command: Bool)   // Command 多选；单击单选
 persist() / load()
 ```
 
-`Item` 是值类型。对外只给 snapshot。Job / TUI / Pasteboard 改状态必须走 `patch`。
+`Item` 是值类型。对外只给 snapshot。Job / TUI 改条目走 `patch`；产出走 `addResult`。
 
 ## 状态机（条目）
 
 ```text
 idle → confirm（点了 Recipe，等确认）
 confirm → running | idle（取消）
-running → done | failed
+running → idle（成功或失败都回到 idle；产出进 results）
 idle → sent（TUI 投递成功）
 任意非 running → 可 remove
 running 时禁止 remove 原件条目（可另开需求；第一版直接禁）
 ```
+
+旧 `shelf.json` 里已经是 `done` 的行仍按旧状态机展示。新 Job 不再把输入写成 done。
 
 ## 不变量
 

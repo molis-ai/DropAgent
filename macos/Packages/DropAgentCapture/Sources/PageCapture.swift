@@ -70,15 +70,23 @@ public struct CaptureService: Sendable {
         } catch {
             throw CaptureError.noURL
         }
+        let pid = target?.pid ?? BrowserFront.current()?.pid ?? 0
+        return await fillPage(url: page.url, title: page.title, windowPID: pid)
+    }
 
+    public func captureURL(_ url: URL, title: String = "") async -> PageCapture {
+        await fillPage(url: url, title: title, windowPID: nil)
+    }
+
+    private func fillPage(url: URL, title: String, windowPID: pid_t?) async -> PageCapture {
         var failures: [CaptureFailure] = []
         var markdown: Data?
         var htmlText: String?
         do {
-            let html = try await fetcher.fetchHTML(url: page.url)
+            let html = try await fetcher.fetchHTML(url: url)
             let decoded = String(decoding: html, as: UTF8.self)
             htmlText = decoded
-            let text = HTMLMarkdown.convert(decoded, baseURL: page.url)
+            let text = HTMLMarkdown.convert(decoded, baseURL: url)
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 failures.append(.markdownMissing)
             } else {
@@ -89,22 +97,23 @@ public struct CaptureService: Sendable {
         }
 
         var png: Data?
-        do {
-            let pid = target?.pid ?? BrowserFront.current()?.pid ?? 0
-            png = try await snapshot.snapshotFrontWindow(of: pid)
-        } catch {
-            png = nil
+        if let windowPID {
+            do {
+                png = try await snapshot.snapshotFrontWindow(of: windowPID)
+            } catch {
+                png = nil
+            }
         }
         if png == nil {
-            png = await pageSnapshot.snapshotPage(url: page.url)
+            png = await pageSnapshot.snapshotPage(url: url)
         }
         if png == nil {
             failures.append(.snapshotMissing)
         }
 
         return PageCapture(
-            url: page.url,
-            title: PageTitle.resolved(browserTitle: page.title, url: page.url, html: htmlText),
+            url: url,
+            title: PageTitle.resolved(browserTitle: title, url: url, html: htmlText),
             markdown: markdown,
             snapshotPNG: png,
             failures: failures

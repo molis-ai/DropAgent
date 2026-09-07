@@ -37,14 +37,14 @@ enum AppE2E {
             session = AppSession(jobRunner: RecipeStubAgent())
 
             let window = NSWindow(
-                contentRect: NSRect(x: 40, y: 40, width: 400, height: 620),
+                contentRect: NSRect(x: 40, y: 40, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight),
                 styleMask: LivePanelChrome.styleMask,
                 backing: .buffered,
                 defer: false
             )
             window.hasShadow = true
-            let host = PaperHostView(rootView: PanelRootView(session: session, onClose: {}))
-            host.frame = NSRect(x: 0, y: 0, width: 400, height: 620)
+            let host = PaperHostView(rootView: PanelRootView(session: session, onClose: {}, onMinimize: {}))
+            host.frame = NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
             window.contentView = host
             Palette.applyPaperChrome(to: window, host: host)
             window.makeKeyAndOrderFront(nil)
@@ -72,8 +72,12 @@ enum AppE2E {
             verifyEdgePlacement()
             verifyLivePanelChrome()
             verifyFirstOpen()
-            verifyListHeightFit()
+            await verifySetupCard()
+            verifyShelfWidth()
             verifyStatusIcon()
+            await verifyPanelSettings()
+            verifyFrontFileHotKey()
+            await verifyShelfAddSearch()
             verifyStatusHover()
             verifyResultMarkdown()
             verifyIsolationFact()
@@ -180,7 +184,7 @@ enum AppE2E {
 
         private func verifyIsolationFact() {
             let path = URL(fileURLWithPath: "/usr/bin/true")
-            session.recipePresence = .codex(path: path, isolation: .unknown)
+            session.recipePresence = .grok(path: path, isolation: .unknown)
             let unknown = session.recipeIsolationFact
             guard unknown.contains("未确认工作区限制") else {
                 fail("unknown isolation fact \(unknown)")
@@ -188,7 +192,7 @@ enum AppE2E {
             guard unknown.contains("Safe Copy") == false else {
                 fail("unknown isolation claimed Safe Copy")
             }
-            session.recipePresence = .codex(path: path, isolation: .workspace)
+            session.recipePresence = .grok(path: path, isolation: .workspace)
             let workspace = session.recipeIsolationFact
             guard workspace.contains("Workspace Sandbox") else {
                 fail("workspace isolation fact \(workspace)")
@@ -197,7 +201,7 @@ enum AppE2E {
                 fail("workspace overclaim")
             }
             session.recipePresence = .none
-            guard session.recipeIsolationFact == "无 Codex" else {
+            guard session.recipeIsolationFact == "无执行入口" else {
                 fail("no recipe isolation fact \(session.recipeIsolationFact)")
             }
             session.refreshPresence()
@@ -212,25 +216,35 @@ enum AppE2E {
                 fail("no shown.md")
             }
             try? session.shelf.patch(id: id) { live in
-                live.status = .done
-                live.output = note
-                live.isolationShown = .unconfirmed
+                live.status = .idle
             }
+            let shown = session.shelf.addResult(
+                ResultRecord(
+                    sourceItemIDs: [id],
+                    recipe: RecipeID.summarize.fullTitle,
+                    title: "summary.md",
+                    kind: .markdown,
+                    output: note,
+                    isolationShown: .unconfirmed
+                )
+            )
             session.refresh()
-            session.aiTab = .result
+            session.selectResult(shown.id)
             guard session.resultIsolationLine == IsolationShown.unconfirmed.spokenFact else {
                 fail("unconfirmed result \(session.resultIsolationLine ?? "nil")")
             }
             guard session.resultIsolationLine?.contains("Safe Copy") == false else {
                 fail("unconfirmed claimed Safe Copy")
             }
-            try? session.shelf.patch(id: id) { live in
+            session.shelf.patchResult(id: shown.id) { live in
                 live.isolationShown = .workspace
             }
             session.refresh()
+            session.selectResult(shown.id)
             guard session.resultIsolationLine == IsolationShown.workspace.spokenFact else {
                 fail("workspace result \(session.resultIsolationLine ?? "nil")")
             }
+            session.removeResult(shown.id)
             session.remove(id: id)
             session.aiTab = .work
         }
@@ -241,7 +255,7 @@ enum AppE2E {
             try? Data("# facts\n".utf8).write(to: note)
             session.admit(urls: [note])
             let path = URL(fileURLWithPath: "/usr/bin/true")
-            session.recipePresence = .codex(path: path, isolation: .unknown)
+            session.recipePresence = .grok(path: path, isolation: .unknown)
             session.chooseRecipe(.summarize)
             guard session.recipeWriteFact == "未确认仅任务目录" else {
                 fail("unknown write fact \(session.recipeWriteFact)")
@@ -250,7 +264,7 @@ enum AppE2E {
                 fail("unknown network fact \(session.recipeNetworkFact)")
             }
             session.cancelConfirm()
-            session.recipePresence = .codex(path: path, isolation: .workspace)
+            session.recipePresence = .grok(path: path, isolation: .workspace)
             session.chooseRecipe(.summarize)
             guard session.recipeWriteFact == "仅任务目录" else {
                 fail("workspace write fact \(session.recipeWriteFact)")
@@ -265,7 +279,7 @@ enum AppE2E {
             }
             session.cancelConfirm()
             session.recipePresence = .none
-            guard session.recipeWriteFact == "无 Codex", session.recipeNetworkFact == "无 Codex" else {
+            guard session.recipeWriteFact == "无执行入口", session.recipeNetworkFact == "无执行入口" else {
                 fail("no recipe write/network \(session.recipeWriteFact) \(session.recipeNetworkFact)")
             }
             if let id = session.items.first(where: { $0.title == "facts.md" })?.id {
@@ -306,7 +320,7 @@ enum AppE2E {
         private func verifyRecipeChooserHint() {
             try? DropAgentPaths.ensure()
             let path = URL(fileURLWithPath: "/usr/bin/true")
-            session.recipePresence = .codex(path: path, isolation: .workspace)
+            session.recipePresence = .grok(path: path, isolation: .workspace)
             let zip = DropAgentPaths.inbox.appendingPathComponent("archive.zip")
             try? Data("PK".utf8).write(to: zip)
             session.admit(urls: [zip])
@@ -338,7 +352,7 @@ enum AppE2E {
         private func verifyImageRecipeGates() {
             try? DropAgentPaths.ensure()
             let path = URL(fileURLWithPath: "/usr/bin/true")
-            session.recipePresence = .codex(path: path, isolation: .workspace)
+            session.recipePresence = .grok(path: path, isolation: .workspace)
             let png = DropAgentPaths.inbox.appendingPathComponent("shot.png")
             try? tinyPNG().write(to: png)
             session.admit(urls: [png])
@@ -377,7 +391,7 @@ enum AppE2E {
             }
             session.refresh()
             let path = URL(fileURLWithPath: "/usr/bin/true")
-            session.recipePresence = .codex(path: path, isolation: .workspace)
+            session.recipePresence = .grok(path: path, isolation: .workspace)
             guard session.isFailedOutputTakeaway == false else {
                 fail("no-output failure marked takeaway")
             }
@@ -392,7 +406,7 @@ enum AppE2E {
                 fail("failed reason without recipe \(session.selectedFailureReason ?? "nil")")
             }
             guard session.failedRetryLine == nil else {
-                fail("retry promised without Codex \(session.failedRetryLine ?? "")")
+                fail("retry promised without job \(session.failedRetryLine ?? "")")
             }
             session.remove(id: id)
             session.refreshPresence()
@@ -417,7 +431,7 @@ enum AppE2E {
             }
             session.refresh()
             let path = URL(fileURLWithPath: "/usr/bin/true")
-            session.recipePresence = .codex(path: path, isolation: .workspace)
+            session.recipePresence = .grok(path: path, isolation: .workspace)
             guard session.isFailedOutputTakeaway else {
                 fail("failed output not takeaway")
             }
@@ -432,7 +446,7 @@ enum AppE2E {
             }
             session.recipePresence = .none
             guard session.failedOutputRetryRecipe == nil else {
-                fail("retry without Codex \(String(describing: session.failedOutputRetryRecipe))")
+                fail("retry without job \(String(describing: session.failedOutputRetryRecipe))")
             }
             session.remove(id: id)
             session.refreshPresence()
@@ -544,7 +558,7 @@ enum AppE2E {
                 fail("send enabled without TUI")
             }
             guard session.hasRecipe == false else {
-                fail("recipe enabled without Codex")
+                fail("recipe enabled without chip")
             }
             guard session.composerPlaceholder == "未发现终端 Agent" else {
                 fail("placeholder \(session.composerPlaceholder)")
@@ -561,6 +575,7 @@ enum AppE2E {
 
             session.dismissError()
             session.presence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)
+            session.recipePresence = .none
             await settle()
             guard session.canSendToTUI else {
                 fail("send disabled with TUI")
@@ -568,7 +583,7 @@ enum AppE2E {
             guard session.hasRecipe == false else {
                 fail("recipe enabled TUI-only")
             }
-            guard session.recipeChooserHint.contains("动作需要 Codex") else {
+            guard session.recipeChooserHint.contains("没有无界面执行入口") else {
                 fail("tui-only hint \(session.recipeChooserHint)")
             }
             guard session.recipeChooserHint.contains("Grok") else {
@@ -578,28 +593,25 @@ enum AppE2E {
             await session.confirmRun()
             await settle()
             guard session.items.first(where: { $0.id == item.id })?.status == .confirm else {
-                fail("confirmRun without Codex \(session.items.first(where: { $0.id == item.id })?.status.rawValue ?? "gone")")
+                fail("confirmRun without job \(session.items.first(where: { $0.id == item.id })?.status.rawValue ?? "gone")")
             }
             guard session.items.contains(where: { $0.title == "summary.md" }) == false else {
-                fail("stub job ran without Codex gate")
+                fail("stub job ran without job gate")
             }
-            guard session.errorText == "动作需要 Codex。终端仍可发送给 Grok。" else {
+            guard session.errorText == "Grok 没有无界面执行入口。终端仍可发送给 Grok。" else {
                 fail("tui-only confirm \(session.errorText ?? "nil")")
             }
             snapshot("e2e-tui-only")
             session.cancelConfirm()
             session.dismissError()
             session.presence = .none
-            session.recipePresence = .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
+            session.recipePresence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
             await settle()
-            guard session.hasRecipe else {
-                fail("recipe off without TUI")
+            guard session.hasRecipe == false else {
+                fail("recipe on without chip")
             }
             guard session.canSendToTUI == false else {
-                fail("send enabled without TUI but with Codex")
-            }
-            guard session.recipeFitsSelection(.summarize) else {
-                fail("summarize unfit with Codex-only")
+                fail("send enabled without TUI")
             }
             snapshot("e2e-recipe-only")
             session.dismissError()
@@ -616,27 +628,30 @@ enum AppE2E {
             session.admit(urls: [pdf])
             await settle()
             let path = URL(fileURLWithPath: "/usr/bin/true")
-            session.recipePresence = .codex(path: path, isolation: .workspace)
+            session.recipePresence = .grok(path: path, isolation: .workspace)
             session.chooseRecipe(.summarize)
             await session.confirmRun()
             await settle()
-            guard let item = session.items.first(where: { $0.title == "summary.md" }) else {
-                fail(session.errorText ?? "recipe did not finish")
+            guard let source = session.items.first(where: { $0.title == "recipe-source.pdf" }) else {
+                fail(session.errorText ?? "recipe source missing")
             }
-            guard item.status == .done else {
-                fail("recipe status \(item.status)")
+            guard source.status == .idle else {
+                fail("recipe status \(source.status)")
             }
-            guard item.output != nil else {
-                fail("recipe missing output")
+            guard session.isDoneTakeaway == false else {
+                fail("recipe input treated as takeaway")
+            }
+            guard let result = session.results.first(where: { $0.title == "summary.md" }), result.output != nil else {
+                fail("recipe missing result \(session.results.map(\.title))")
             }
             guard hash(pdf) == before else {
                 fail("recipe changed original")
             }
-            session.aiTab = .result
+            session.selectResult(result.id)
             await settle()
             snapshot("e2e-recipe-result")
             do {
-                let landed = try await land(item)
+                let landed = try await land(result.takeawayItem())
                 guard landed.lastPathComponent == "summary.md" else {
                     fail("recipe landed \(landed.lastPathComponent)")
                 }
@@ -647,7 +662,15 @@ enum AppE2E {
             } catch {
                 fail("recipe drag land \(error)")
             }
-            session.remove(id: item.id)
+            session.toggleSelect(id: source.id, command: false)
+            session.chooseRecipe(.summarize)
+            guard session.items.first(where: { $0.id == source.id })?.status == .confirm else {
+                let status = session.items.first(where: { $0.id == source.id }).map { String(describing: $0.status) } ?? "missing"
+                fail("could not run again on input status=\(status) selected=\(session.selectedItems.map(\.title)) error=\(session.errorText ?? "nil")")
+            }
+            session.cancelConfirm()
+            session.removeResult(result.id)
+            session.remove(id: source.id)
             session.aiTab = .work
             session.refreshPresence()
         }
@@ -659,24 +682,27 @@ enum AppE2E {
             let before = hash(pdf)
             session.admit(urls: [pdf])
             await settle()
-            session.recipePresence = .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
+            session.recipePresence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
             session.chooseRecipe(.extract)
             await session.confirmRun()
             await settle()
-            guard let item = session.items.first(where: { $0.title == "extracted.json" }) else {
-                fail(session.errorText ?? "extract did not finish")
+            guard let source = session.items.first(where: { $0.title == "extract-source.pdf" }) else {
+                fail(session.errorText ?? "extract source missing")
             }
-            guard item.status == .done else {
-                fail("extract status \(item.status)")
+            guard source.status == .idle else {
+                fail("extract status \(source.status)")
+            }
+            guard let result = session.results.first(where: { $0.title == "extracted.json" }) else {
+                fail("extract missing result")
             }
             guard hash(pdf) == before else {
                 fail("extract changed original")
             }
-            session.aiTab = .result
+            session.selectResult(result.id)
             await settle()
             snapshot("e2e-extract-result")
             do {
-                let landed = try await land(item)
+                let landed = try await land(result.takeawayItem())
                 guard landed.lastPathComponent == "extracted.json" else {
                     fail("extract landed \(landed.lastPathComponent)")
                 }
@@ -690,7 +716,8 @@ enum AppE2E {
             } catch {
                 fail("extract drag land \(error)")
             }
-            session.remove(id: item.id)
+            session.removeResult(result.id)
+            session.remove(id: source.id)
             session.aiTab = .work
             session.refreshPresence()
         }
@@ -705,7 +732,7 @@ enum AppE2E {
             let beforeB = hash(second)
             session.admit(urls: [first])
             await settle()
-            session.recipePresence = .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
+            session.recipePresence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
             guard session.recipeFitsSelection(.brief) == false else {
                 fail("brief accepted one item")
             }
@@ -721,18 +748,21 @@ enum AppE2E {
             session.chooseRecipe(.brief)
             await session.confirmRun()
             await settle()
-            let briefs = session.items.filter { $0.title == "brief.md" }
-            guard briefs.count == 2, briefs.allSatisfy({ $0.status == .done }) else {
-                fail(session.errorText ?? "brief did not finish \(session.items.map { "\($0.title):\($0.status.rawValue)" })")
+            let kept = session.items.filter { $0.title == "brief-a.md" || $0.title == "brief-b.md" }
+            guard kept.count == 2, kept.allSatisfy({ $0.status == .idle }) else {
+                fail(session.errorText ?? "brief did not keep inputs \(session.items.map { "\($0.title):\($0.status.rawValue)" })")
+            }
+            guard let result = session.results.first(where: { $0.title == "brief.md" }) else {
+                fail("brief missing result")
             }
             guard hash(first) == beforeA, hash(second) == beforeB else {
                 fail("brief changed originals")
             }
-            session.aiTab = .result
+            session.selectResult(result.id)
             await settle()
             snapshot("e2e-brief-result")
             do {
-                let landed = try await land(briefs[0])
+                let landed = try await land(result.takeawayItem())
                 guard landed.lastPathComponent == "brief.md" else {
                     fail("brief landed \(landed.lastPathComponent)")
                 }
@@ -743,7 +773,8 @@ enum AppE2E {
             } catch {
                 fail("brief drag land \(error)")
             }
-            for item in briefs {
+            session.removeResult(result.id)
+            for item in kept {
                 session.remove(id: item.id)
             }
             session.aiTab = .work
@@ -932,24 +963,31 @@ enum AppE2E {
             }
             session.pasteFromClipboard(PasteboardClipboard(urlBoard))
             await settle()
-            guard let link = session.items.first(where: { $0.kind == .url }) else {
+            guard var page = session.items.first(where: {
+                $0.kind == .web && $0.sourceURL.absoluteString.hasPrefix("https://example.com/e2e-url")
+            }) else {
                 fail("url admit missing")
+            }
+            for _ in 0..<80 {
+                if page.event != IngestService.pageCapturePendingEvent { break }
+                await settle()
+                page = session.items.first(where: { $0.id == page.id }) ?? page
             }
             session.aiTab = .result
             await settle()
             snapshot("e2e-url")
             let urlCopy = NSPasteboard.withUniqueName()
-            session.copyItem(link, to: urlCopy)
+            session.copyItem(page, to: urlCopy)
             let urlFiles = urlCopy.readObjects(forClasses: [NSURL.self], options: [
                 .urlReadingFileURLsOnly: true
             ]) as? [URL] ?? []
-            guard urlFiles.isEmpty else {
-                fail("url copy has file \(urlFiles)")
+            guard urlFiles.isEmpty == false else {
+                fail("web copy has no folder")
             }
-            guard urlCopy.string(forType: .string) == "https://example.com/e2e-url" else {
-                fail("url copy \(urlCopy.string(forType: .string) ?? "nil")")
+            guard page.parts.contains(where: { $0.name == "url.txt" }) else {
+                fail("web url.txt missing")
             }
-            session.remove(id: link.id)
+            session.remove(id: page.id)
             session.aiTab = .work
         }
 
@@ -1091,7 +1129,7 @@ enum AppE2E {
             guard blocks.count == 3 else {
                 fail("result markdown count \(blocks.count)")
             }
-            guard blocks[0] == .heading("Keep") else {
+            guard blocks[0] == .heading(1, "Keep") else {
                 fail("result markdown heading \(blocks[0])")
             }
             guard blocks[1] == .code("npm i") else {
@@ -1104,9 +1142,17 @@ enum AppE2E {
             guard language == [.code("let x = 1")] else {
                 fail("result markdown language \(language)")
             }
+            let sub = ResultMarkdown.blocks("## Sub")
+            guard sub == [.heading(2, "Sub")] else {
+                fail("result markdown h2 \(sub)")
+            }
             let table = ResultMarkdown.blocks("| A | B |\n| --- | --- |\n| 1 | 2 |")
-            guard table == [.code("| A | B |\n| --- | --- |\n| 1 | 2 |")] else {
+            guard table == [.table(header: ["A", "B"], rows: [["1", "2"]])] else {
                 fail("result markdown table \(table)")
+            }
+            let titled = ResultMarkdown.blocks("![示意图](<https://example.com/fig.png> \"og\")")
+            guard titled == [.image(alt: "示意图", url: "https://example.com/fig.png")] else {
+                fail("result markdown titled image \(titled)")
             }
             let quote = ResultMarkdown.blocks("> Note")
             guard quote == [.quote("Note")] else {
@@ -1115,6 +1161,31 @@ enum AppE2E {
             let image = ResultMarkdown.blocks("![示意图](https://example.com/fig.png)")
             guard image == [.image(alt: "示意图", url: "https://example.com/fig.png")] else {
                 fail("result markdown image \(image)")
+            }
+            verifyMarkdownImageBounds()
+        }
+
+        private func verifyMarkdownImageBounds() {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let inside = root.appendingPathComponent("fig.png")
+            try? Data([0x89, 0x50, 0x4E, 0x47]).write(to: inside)
+            let expected = inside.resolvingSymlinksInPath().standardizedFileURL
+            guard MarkdownImage.localFile(url: "fig.png", baseDirectory: root) == expected else {
+                fail("markdown image relative \(String(describing: MarkdownImage.localFile(url: "fig.png", baseDirectory: root)))")
+            }
+            guard MarkdownImage.localFile(url: "javascript:alert(1)", baseDirectory: root) == nil else {
+                fail("markdown image javascript")
+            }
+            guard MarkdownImage.localFile(url: "data:image/png,xx", baseDirectory: root) == nil else {
+                fail("markdown image data")
+            }
+            guard MarkdownImage.localFile(url: "https://example.com/fig.png", baseDirectory: root) == nil else {
+                fail("markdown image remote as local")
+            }
+            guard MarkdownImage.localFile(url: "../secret.png", baseDirectory: root) == nil else {
+                fail("markdown image escape")
             }
         }
 
@@ -1126,12 +1197,215 @@ enum AppE2E {
             guard image.isTemplate else {
                 fail("status icon not template")
             }
-            let scales = Set(image.representations.compactMap { rep -> Int? in
-                guard let bitmap = rep as? NSBitmapImageRep else { return nil }
-                return Int((CGFloat(bitmap.pixelsWide) / max(image.size.width, 1)).rounded())
-            })
+            let bitmaps = image.representations.compactMap { $0 as? NSBitmapImageRep }
+            let scales = Set(bitmaps.map { Int((CGFloat($0.pixelsWide) / max(image.size.width, 1)).rounded()) })
             guard scales.contains(1), scales.contains(2) else {
                 fail("status icon scales \(scales)")
+            }
+            guard let retina = bitmaps.first(where: { $0.pixelsWide == 36 }),
+                  let pixels = retina.bitmapData
+            else {
+                fail("status icon missing 2x bitmap")
+            }
+            let stride = retina.bytesPerRow
+            func alpha(x: Int, y: Int) -> CGFloat {
+                CGFloat(pixels[y * stride + x * 4 + 3]) / 255
+            }
+            guard alpha(x: 18, y: 4) < 0.1 else {
+                fail("status icon top should be empty, got \(alpha(x: 18, y: 4))")
+            }
+            guard alpha(x: 18, y: 16) > 0.8 else {
+                fail("status icon hopper should be filled, got \(alpha(x: 18, y: 16))")
+            }
+            guard alpha(x: 18, y: 30) > 0.8 else {
+                fail("status icon shelf should be filled, got \(alpha(x: 18, y: 30))")
+            }
+        }
+
+        private func verifyFrontFileHotKey() {
+            guard session.prefs.filesHotKey == .filesDefault else {
+                fail("files hotkey default")
+            }
+            session.setHotKey(.files, HotKeyChord(keyCode: 3, carbonModifiers: 4096 + 2048))
+            guard session.prefs.filesHotKey.keyCode == 3 else {
+                fail("set files hotkey")
+            }
+            session.resetHotKey(.files)
+            guard session.prefs.filesHotKey == .filesDefault else {
+                fail("reset files hotkey")
+            }
+        }
+
+        private func verifyPanelSettings() async {
+            session.setAppearance(.dark)
+            guard Palette.isDark else { fail("settings dark") }
+            session.setLanguage(.en)
+            guard Copy.t("设置", "Settings") == "Settings" else { fail("settings english") }
+            session.settingsOpen = true
+            await settle()
+            snapshot("e2e-settings")
+            guard settingsShows("Shortcuts") || settingsShows("快捷键") else {
+                fail("settings shortcuts missing \(settingsTree())")
+            }
+            guard settingsShows("What it can do") || settingsShows("能做什么") else {
+                fail("settings guide missing \(settingsTree())")
+            }
+            guard settingsShows("Open / hide panel") || settingsShows("打开 / 收起面板") else {
+                fail("settings shortcut rows missing \(settingsTree())")
+            }
+            guard settingsShows("Add selected files") || settingsShows("加入选中的文件") else {
+                fail("settings files shortcut missing \(settingsTree())")
+            }
+            guard SettingsGuideCopy.dropIn.contains("top edge"),
+                  SettingsGuideCopy.files.contains("Finder"),
+                  SettingsGuideCopy.accepts.contains("PDF"),
+                  SettingsGuideCopy.browser.contains("tabs"),
+                  SettingsGuideCopy.reads.contains("job copy"),
+                  SettingsGuideCopy.writes.contains("never overwritten"),
+                  SettingsGuideCopy.dropOut.contains("copy not move")
+            else {
+                fail("settings english guide \(SettingsGuideCopy.dropIn)")
+            }
+            session.setLanguage(.zh)
+            guard SettingsGuideCopy.dropIn.contains("顶边"),
+                  SettingsGuideCopy.dropIn.contains("不会自动打开"),
+                  SettingsGuideCopy.files.contains("Finder"),
+                  SettingsGuideCopy.files.contains("⌘C"),
+                  SettingsGuideCopy.accepts.contains("PDF"),
+                  SettingsGuideCopy.browser.contains("标签"),
+                  SettingsGuideCopy.reads.contains("任务副本"),
+                  SettingsGuideCopy.writes.contains("不覆盖"),
+                  SettingsGuideCopy.dropOut.contains("复制不是挪走")
+            else {
+                fail("settings chinese guide \(SettingsGuideCopy.dropIn)")
+            }
+            guard session.prefs.toggleHotKey == .toggleDefault else {
+                fail("default toggle hotkey")
+            }
+            var applied = false
+            session.onApplyHotKeys = { applied = true }
+            session.setHotKey(.toggle, HotKeyChord(keyCode: 14, carbonModifiers: 4096 + 2048))
+            guard applied else { fail("hotkeys not reapplied") }
+            guard session.prefs.toggleHotKey.keyCode == 14 else {
+                fail("set toggle hotkey")
+            }
+            session.setHotKey(.toggle, HotKeyChord(keyCode: 2, carbonModifiers: 0))
+            guard session.prefs.toggleHotKey.keyCode == 14 else {
+                fail("bare global hotkey accepted")
+            }
+            guard let bare = NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: "d",
+                charactersIgnoringModifiers: "d",
+                isARepeat: false,
+                keyCode: 2
+            ) else {
+                fail("bare key event")
+            }
+            session.beginRecording(.toggle)
+            session.applyRecordedHotKey(from: bare)
+            guard session.recordingHotKey == .toggle else {
+                fail("bare recording should stay")
+            }
+            guard session.prefs.toggleHotKey.keyCode == 14 else {
+                fail("bare recording applied")
+            }
+            guard let chordEvent = NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.control, .option],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: "e",
+                charactersIgnoringModifiers: "e",
+                isARepeat: false,
+                keyCode: 14
+            ) else {
+                fail("chord key event")
+            }
+            session.applyRecordedHotKey(from: chordEvent)
+            guard session.recordingHotKey == nil else {
+                fail("recording not cleared")
+            }
+            guard session.prefs.toggleHotKey.keyCode == 14 else {
+                fail("recorded toggle hotkey")
+            }
+            session.resetHotKey(.toggle)
+            guard session.prefs.toggleHotKey == .toggleDefault else {
+                fail("reset toggle hotkey")
+            }
+            session.setHotKey(.files, HotKeyChord(keyCode: 3, carbonModifiers: 4096 + 2048))
+            guard session.prefs.filesHotKey.keyCode == 3 else {
+                fail("set files hotkey")
+            }
+            session.resetHotKey(.files)
+            guard session.prefs.filesHotKey == .filesDefault else {
+                fail("reset files hotkey")
+            }
+            session.onApplyHotKeys = nil
+            let custom = DropAgentPaths.root.appendingPathComponent("CustomInbox", isDirectory: true)
+            session.setWorkspaceFolder(.inbox, url: custom)
+            guard DropAgentPaths.inbox.standardizedFileURL.path == custom.standardizedFileURL.path else {
+                fail("settings inbox \(DropAgentPaths.inbox.path)")
+            }
+            session.setWorkspaceFolder(.inbox, url: nil)
+            guard DropAgentPaths.inbox.lastPathComponent == "Inbox" else {
+                fail("settings inbox reset \(DropAgentPaths.inbox.path)")
+            }
+            let customJobs = DropAgentPaths.root.appendingPathComponent("CustomJobs", isDirectory: true)
+            session.setWorkspaceFolder(.jobs, url: customJobs)
+            guard DropAgentPaths.jobs.standardizedFileURL.path == customJobs.standardizedFileURL.path else {
+                fail("settings jobs \(DropAgentPaths.jobs.path)")
+            }
+            session.setWorkspaceFolder(.jobs, url: nil)
+            session.settingsOpen = false
+            session.setLanguage(.system)
+            let expected = AppLanguage.systemIsChinese ? "设置" : "Settings"
+            guard Copy.t("设置", "Settings") == expected else {
+                fail("settings system language \(Copy.t("设置", "Settings"))")
+            }
+            session.setLanguage(.zh)
+            session.setAppearance(.light)
+            await settle()
+            guard Palette.isDark == false else { fail("settings light restore") }
+            guard Copy.t("设置", "Settings") == "设置" else { fail("settings chinese restore") }
+        }
+
+        private func verifyShelfAddSearch() async {
+            let extra = DropAgentPaths.inbox.appendingPathComponent("plus-add.txt")
+            try? Data("plus".utf8).write(to: extra)
+            session.admit(urls: [extra])
+            await settle()
+            guard session.items.contains(where: { $0.title == "plus-add.txt" }) else {
+                fail("plus admit missing plus-add.txt")
+            }
+            snapshot("e2e-shelf-add")
+            let query = SpotlightSearch.spotlightQuery(for: "plus-add")
+            guard query.contains("plus-add") else {
+                fail("spotlight query \(query)")
+            }
+            let box = DropAgentPaths.root.appendingPathComponent("SearchBox", isDirectory: true)
+            try? FileManager.default.createDirectory(at: box, withIntermediateDirectories: true)
+            let needle = box.appendingPathComponent("unique-dropagent-search-xyz.md")
+            try? Data("search".utf8).write(to: needle)
+            let found = SpotlightSearch.collect(query: "dropagent-search-xyz", roots: [box])
+            guard found.contains(where: { $0.name.contains("dropagent-search-xyz") }) else {
+                fail("folder search missed \(found.map(\.name))")
+            }
+            session.spotlight.setText("ab")
+            guard session.spotlight.isActive else { fail("search not active") }
+            await settle()
+            snapshot("e2e-shelf-search")
+            session.spotlight.setText("")
+            guard session.spotlight.isActive == false else { fail("search stayed active") }
+            if let id = session.items.first(where: { $0.title == "plus-add.txt" })?.id {
+                session.remove(id: id)
             }
         }
 
@@ -1167,6 +1441,12 @@ enum AppE2E {
             guard LivePanelChrome.styleMask.contains(.titled) == false else {
                 fail("live panel still titled")
             }
+            guard LivePanelChrome.styleMask.contains(.miniaturizable) == false else {
+                fail("live panel still miniaturizable")
+            }
+            guard LivePanelChrome.panelWidth == 680 else {
+                fail("panel width \(LivePanelChrome.panelWidth)")
+            }
             guard let window, window.styleMask.contains(.borderless) else {
                 fail("e2e window not borderless")
             }
@@ -1185,6 +1465,87 @@ enum AppE2E {
             let host = PaperHostView(rootView: Color.clear.frame(width: 40, height: 40))
             guard host.acceptsFirstMouse(for: nil) else {
                 fail("paper host rejects first mouse")
+            }
+        }
+
+        private func verifySetupCard() async {
+            guard SetupCardPolicy.shouldShowCard(
+                dismissed: false,
+                captureReady: false,
+                isDiagnostic: false,
+                panelVisible: true
+            ) else {
+                fail("setup card hidden when incomplete")
+            }
+            guard SetupCardPolicy.shouldShowCard(
+                dismissed: true,
+                captureReady: false,
+                isDiagnostic: false,
+                panelVisible: true
+            ) == false else {
+                fail("dismissed setup card still shown")
+            }
+            guard SetupCardPolicy.shouldShowCard(
+                dismissed: false,
+                captureReady: false,
+                isDiagnostic: true,
+                panelVisible: true
+            ) == false else {
+                fail("diagnostic setup card shown")
+            }
+            guard SetupCardPolicy.shouldShowCard(
+                dismissed: false,
+                captureReady: true,
+                isDiagnostic: false,
+                panelVisible: true
+            ) == false else {
+                fail("ready setup card shown")
+            }
+            guard SetupCardPolicy.gearNeedsAttention(hasAgent: false, setup: SetupFixtures.incomplete) else {
+                fail("missing agent should mark gear")
+            }
+            guard SetupCardPolicy.gearNeedsAttention(hasAgent: true, setup: SetupFixtures.ready) == false else {
+                fail("ready setup still marks gear")
+            }
+            guard SetupCardPolicy.browserAction(allowed: false, running: true) == .authorize else {
+                fail("running chrome still needs a request even if probe said denied")
+            }
+            guard SetupCardPolicy.browserAction(allowed: false, running: false) == .openAndAuthorize else {
+                fail("closed chrome should open then authorize")
+            }
+            guard SetupCardPolicy.browserAction(allowed: true, running: true) == .ready else {
+                fail("allowed chrome should be ready")
+            }
+            do {
+                let decoded = try JSONDecoder().decode(AppPreferences.self, from: Data("{}".utf8))
+                guard decoded.setupCardDismissed == false else {
+                    fail("missing setupCardDismissed should be false")
+                }
+            } catch {
+                fail("prefs decode empty \(error)")
+            }
+            guard session.suppressSetupCard else {
+                fail("e2e should suppress setup card")
+            }
+            guard session.showsSetupCard == false else {
+                fail("e2e showed setup card")
+            }
+            guard session.prefs.setupCardDismissed == false else {
+                fail("e2e dismissed setup card")
+            }
+            session.setupPermissionsOverride = SetupFixtures.incomplete
+            session.suppressSetupCard = false
+            session.refreshSetup()
+            guard session.showsSetupCard else {
+                fail("forced setup card hidden")
+            }
+            await settle()
+            snapshot("e2e-setup")
+            session.suppressSetupCard = true
+            session.setupPermissionsOverride = nil
+            session.refreshSetup()
+            guard session.showsSetupCard == false else {
+                fail("setup card lingered after restore")
             }
         }
 
@@ -1219,42 +1580,68 @@ enum AppE2E {
             guard abs(frame.origin.x - (visible.minX + 8)) < 0.5 else {
                 fail("edge x \(frame.origin.x)")
             }
-            guard abs(frame.height - 36) < 0.5 else {
+            let menu = max(0, screen.frame.maxY - visible.maxY)
+            guard abs(frame.height - (EdgePlacement.barHeight + menu)) < 0.5 else {
                 fail("edge height \(frame.height)")
+            }
+            guard abs(frame.origin.y - (visible.maxY - EdgePlacement.barHeight)) < 0.5 else {
+                fail("edge y \(frame.origin.y)")
+            }
+            if menu > 1 {
+                let inMenu = NSPoint(x: visible.minX + 24, y: min(screen.frame.maxY - 1, visible.maxY + 2))
+                if EdgePlacement.frame(mouse: inMenu, screens: NSScreen.screens) == nil {
+                    fail("menu bar miss")
+                }
+            }
+            let below = NSPoint(x: visible.midX, y: visible.maxY - EdgePlacement.barHeight - 8)
+            if EdgePlacement.frame(mouse: below, screens: NSScreen.screens) != nil {
+                fail("edge lit below bar")
             }
             let middle = NSPoint(x: visible.midX, y: visible.midY)
             if EdgePlacement.frame(mouse: middle, screens: NSScreen.screens) != nil {
                 fail("edge lit in screen middle")
             }
+            session.systemDragActive = true
+            session.finishExternalDrag()
+            guard session.systemDragActive == false else {
+                fail("external drag stayed active")
+            }
+            let types = IncomingDrop.draggedTypes
+            if types.contains(NSPasteboard.PasteboardType("WebURLsWithTitlesPboardType")) == false {
+                fail("edge missing web titles type")
+            }
+            if types.contains(NSPasteboard.PasteboardType("public.item")) == false {
+                fail("edge missing public.item")
+            }
         }
 
-        private func verifyListHeightFit() {
-            for item in session.items {
-                session.remove(id: item.id)
+        private func verifyShelfWidth() {
+            guard abs(session.shelfWidth - LivePanelChrome.shelfDefault) < 0.5 else {
+                fail("default shelf width \(session.shelfWidth)")
             }
-            guard abs(session.displayListHeight - 140) < 0.5 else {
-                fail("empty list height \(session.displayListHeight)")
+            session.setShelfWidth(180)
+            guard abs(session.shelfWidth - LivePanelChrome.shelfMin) < 0.5 else {
+                fail("min shelf width \(session.shelfWidth)")
             }
-            try? DropAgentPaths.ensure()
-            let first = DropAgentPaths.inbox.appendingPathComponent("fit-a.pdf")
-            try? Data("%PDF-1.4 fit-a\n".utf8).write(to: first)
-            session.admit(urls: [first])
-            guard abs(session.displayListHeight - 56) < 0.5 else {
-                fail("one row height \(session.displayListHeight)")
+            session.setShelfWidth(400)
+            guard abs(session.shelfWidth - LivePanelChrome.shelfMax) < 0.5 else {
+                fail("max shelf width \(session.shelfWidth)")
             }
-            let second = DropAgentPaths.inbox.appendingPathComponent("fit-b.pdf")
-            try? Data("%PDF-1.4 fit-b\n".utf8).write(to: second)
-            session.admit(urls: [second])
-            guard abs(session.displayListHeight - 112) < 0.5 else {
-                fail("two row height \(session.displayListHeight)")
+            session.persistChrome()
+            guard let data = try? Data(contentsOf: DropAgentPaths.panelFile),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let stored = object["shelfWidth"] as? Double,
+                  abs(stored - Double(LivePanelChrome.shelfMax)) < 0.5
+            else {
+                fail("panel.json missing shelfWidth")
             }
-            for item in session.items {
-                session.remove(id: item.id)
+            session.setShelfWidth(LivePanelChrome.shelfDefault)
+            session.persistChrome()
+            session.setMultiSelect(true)
+            guard session.multiSelect else {
+                fail("multi-select did not turn on")
             }
-            session.refresh()
-            guard abs(session.displayListHeight - 140) < 0.5 else {
-                fail("cleared list height \(session.displayListHeight) items=\(session.items.count)")
-            }
+            session.setMultiSelect(false)
         }
 
         private func sourcePDF() -> URL {
@@ -1323,6 +1710,37 @@ enum AppE2E {
             hosting?.layoutSubtreeIfNeeded()
             try? await Task.sleep(nanoseconds: 250_000_000)
             window?.displayIfNeeded()
+        }
+
+        private func settingsShows(_ needle: String) -> Bool {
+            guard let hosting else { return false }
+            hosting.layoutSubtreeIfNeeded()
+            window?.displayIfNeeded()
+            return viewContains(hosting, needle: needle)
+        }
+
+        private func viewContains(_ view: NSView, needle: String) -> Bool {
+            if let field = view as? NSTextField, field.stringValue.contains(needle) { return true }
+            if let text = view as? NSTextView, text.string.contains(needle) { return true }
+            if (view.accessibilityLabel() ?? "").contains(needle) { return true }
+            if view.accessibilityIdentifier().contains(needle) { return true }
+            return view.subviews.contains { viewContains($0, needle: needle) }
+        }
+
+        private func settingsTree() -> String {
+            guard let hosting else { return "no-host" }
+            return viewDump(hosting)
+        }
+
+        private func viewDump(_ view: NSView, indent: String = "") -> String {
+            var line = "\(indent)\(type(of: view))"
+            let identifier = view.accessibilityIdentifier()
+            if identifier.isEmpty == false { line += " id=\(identifier)" }
+            if let field = view as? NSTextField { line += " tf=\(field.stringValue)" }
+            let label = view.accessibilityLabel() ?? ""
+            if label.isEmpty == false { line += " label=\(label)" }
+            let children = view.subviews.map { viewDump($0, indent: indent + "  ") }
+            return ([line] + children).joined(separator: "\n")
         }
 
         private func snapshot(_ name: String) {

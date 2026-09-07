@@ -13,7 +13,7 @@
 
 ## 范围
 
-- 状态栏图标：18pt 模板图，1x + 2x 位图；形状仍是朝下的三角描边 + 底下一根搁板，和 `make-icon.swift` 同一套语言。用黑描边，`isTemplate = true`。
+- 状态栏图标：18pt 模板图，1x + 2x 位图；`isTemplate = true`。形状见 `specs/status-icon-fill/spec.md`（朝下实心漏斗 + 搁板），不再用空心描边。
 - 面板出现：从图标下方约 8pt 落下并淡入（0.16s easeOut）；收起反向 0.12s。Reduce Motion / `--preview` / `--e2e` / `--capture` 仍立刻出现、不位移。
 - 头上状态点：7pt，外圈 13pt、同色 18% 透明度（对齐原型 `.dot`，不是装饰光晕）。
 - 没读到前台浏览器：文案改为「Safari、Chrome 或 Edge」。带热键的壳文案仍只在 App 里加 ⌃⌥W。内核常量不含快捷键。

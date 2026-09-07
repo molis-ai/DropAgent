@@ -45,7 +45,7 @@ public struct JobService: Sendable {
     public func start(itemIDs: [ItemID], recipe: RecipeID) async throws -> JobID {
         guard !itemIDs.isEmpty else { throw JobError.emptySelection }
         let presence = agent.discover(settings: agent.settings)
-        guard case .codex = presence else { throw JobError.noAgent }
+        guard presence.executable != nil else { throw JobError.noAgent }
         let spec = RecipeCatalog.spec(recipe)
         control.begin()
 
@@ -99,6 +99,7 @@ public struct JobService: Sendable {
             dir: dir,
             jobID: jobID,
             recipe: recipe,
+            agent: presence.engine?.rawValue ?? "none",
             isolation: presence.isolation,
             items: items
         )
@@ -130,42 +131,40 @@ public struct JobService: Sendable {
                 try result.lastMessage.write(to: outputFile, atomically: true, encoding: .utf8)
             }
             try RecipeOutput.finalizeFile(outputFile)
-            for item in items {
-                let mismatch = hashMismatch(item)
-                try shelf.patch(id: item.id) { live in
-                    live.output = outputFile
-                    live.title = spec.outputFileName
-                    live.kind = spec.outputKind
-                    if mismatch {
-                        live.status = .failed
-                        live.failureReason = "原件中途变了，结果按副本做的"
-                        live.event = live.failureReason ?? ""
-                    } else {
-                        live.status = .done
-                        live.event = ""
-                    }
-                }
-            }
+            let mismatch = items.contains(where: hashMismatch)
+            try restoreInputs(items)
+            _ = shelf.addResult(
+                ResultRecord(
+                    sourceItemIDs: items.map(\.id),
+                    recipe: spec.fullTitle,
+                    title: spec.outputFileName,
+                    kind: spec.outputKind,
+                    output: outputFile,
+                    isolationShown: Self.shown(for: presence.isolation),
+                    status: mismatch ? .failed : .done,
+                    failureReason: mismatch ? "原件中途变了，结果按副本做的" : nil
+                )
+            )
         } catch AgentError.cancelled {
-            for item in items {
-                try shelf.patch(id: item.id) { live in
-                    live.status = .idle
-                    live.recipe = nil
-                    live.event = ""
-                    live.failureReason = nil
-                }
-            }
+            try restoreInputs(items)
             control.end()
             throw AgentError.cancelled
         } catch {
-            for item in items {
-                try shelf.patch(id: item.id) { live in
-                    live.status = .failed
-                    let reason = Self.failureCopy(error, lastEvent: live.event)
-                    live.failureReason = reason
-                    live.event = reason
-                }
-            }
+            let reason = Self.failureCopy(error, lastEvent: items.first.flatMap { shelf.item(id: $0.id)?.event } ?? "")
+            try restoreInputs(items)
+            let existing = FileManager.default.fileExists(atPath: outputFile.path) ? outputFile : nil
+            _ = shelf.addResult(
+                ResultRecord(
+                    sourceItemIDs: items.map(\.id),
+                    recipe: spec.fullTitle,
+                    title: spec.outputFileName,
+                    kind: spec.outputKind,
+                    output: existing,
+                    isolationShown: Self.shown(for: presence.isolation),
+                    status: .failed,
+                    failureReason: reason
+                )
+            )
             control.end()
             throw error
         }
@@ -202,6 +201,19 @@ public struct JobService: Sendable {
         guard FileManager.default.fileExists(atPath: item.sourceURL.path) else { return true }
         let current = (try? FileDigest.sha256(of: item.sourceURL)) ?? ""
         return current != expected
+    }
+
+    private func restoreInputs(_ items: [Item]) throws {
+        for item in items {
+            try shelf.patch(id: item.id) { live in
+                live.status = .idle
+                live.recipe = nil
+                live.event = ""
+                live.failureReason = nil
+                live.output = nil
+                live.isolationShown = .none
+            }
+        }
     }
 
     private static func shown(for grade: IsolationGrade) -> IsolationShown {
@@ -274,6 +286,7 @@ public struct JobService: Sendable {
         dir: URL,
         jobID: JobID,
         recipe: RecipeID,
+        agent: String,
         isolation: IsolationGrade,
         items: [Item]
     ) throws {
@@ -290,7 +303,7 @@ public struct JobService: Sendable {
         let payload: [String: Any] = [
             "id": jobID.rawValue,
             "recipe": recipe.rawValue,
-            "agent": "codex",
+            "agent": agent,
             "isolation": isolation.rawValue,
             "items": listed,
         ]

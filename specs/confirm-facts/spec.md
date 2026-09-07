@@ -61,4 +61,4 @@ DROPAGENT_ROOT=/tmp/dropagent-e2e-live macos/.build/debug/DropAgent --e2e
 
 ## 假设与开放问题
 
-无 Codex 时确认条隔离已是「无 Codex」。写/网络同样写「无 Codex」。
+无执行入口时确认条隔离已是「无执行入口」。写/网络同样写「无执行入口」。

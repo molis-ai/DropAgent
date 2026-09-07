@@ -26,10 +26,12 @@ public struct AdmitFailure: Equatable, Sendable {
 public struct AdmitResult: Equatable, Sendable {
     public var admitted: [Item]
     public var failures: [AdmitFailure]
+    public var pageCaptureIDs: [ItemID]
 
-    public init(admitted: [Item], failures: [AdmitFailure]) {
+    public init(admitted: [Item], failures: [AdmitFailure], pageCaptureIDs: [ItemID] = []) {
         self.admitted = admitted
         self.failures = failures
+        self.pageCaptureIDs = pageCaptureIDs
     }
 }
 
@@ -60,40 +62,46 @@ public struct IngestService: Sendable {
         )
     }
 
-    public func admit(urls: [URL]) -> AdmitResult {
+    public static let pageCapturePendingEvent = "正在抓取"
+
+    public func admit(urls: [URL], capturePages: Bool = true) -> AdmitResult {
         var admitted: [Item] = []
         var failures: [AdmitFailure] = []
+        var pageCaptureIDs: [ItemID] = []
         for url in urls {
             do {
-                let item = try admitOne(url: url)
-                admitted.append(item)
+                let outcome = try admitOne(url: url, capturePages: capturePages)
+                admitted.append(outcome.item)
+                if outcome.needsPageCapture {
+                    pageCaptureIDs.append(outcome.item.id)
+                }
             } catch let error as IngestError {
                 failures.append(AdmitFailure(url: url, error: error))
             } catch {
                 failures.append(AdmitFailure(url: url, error: .unsupported))
             }
         }
-        return AdmitResult(admitted: admitted, failures: failures)
+        return AdmitResult(admitted: admitted, failures: failures, pageCaptureIDs: pageCaptureIDs)
     }
 
-    public func admitClipboard(_ clipboard: ClipboardReading) throws -> [Item] {
+    public func admitClipboard(_ clipboard: ClipboardReading, capturePages: Bool = true) throws -> [Item] {
         let payload = clipboard.read()
         if case .empty = payload { throw IngestError.emptyClipboard }
-        let result = admitPayload(payload)
+        let result = admitPayload(payload, capturePages: capturePages)
         if result.admitted.isEmpty { throw result.failures.first?.error ?? .unsupported }
         return result.admitted
     }
 
-    public func admitPasteboard(_ pasteboard: NSPasteboard) -> AdmitResult {
-        admitPayload(ClipboardPayload.from(pasteboard: pasteboard))
+    public func admitPasteboard(_ pasteboard: NSPasteboard, capturePages: Bool = true) -> AdmitResult {
+        admitPayload(ClipboardPayload.from(pasteboard: pasteboard), capturePages: capturePages)
     }
 
-    public func admitPayload(_ payload: ClipboardPayload) -> AdmitResult {
+    public func admitPayload(_ payload: ClipboardPayload, capturePages: Bool = true) -> AdmitResult {
         switch payload {
         case .empty:
             return AdmitResult(admitted: [], failures: [])
         case .files(let urls):
-            return admit(urls: urls)
+            return admit(urls: urls, capturePages: capturePages)
         case .image(let data):
             do {
                 return AdmitResult(admitted: [try admitImageData(data)], failures: [])
@@ -104,7 +112,12 @@ public struct IngestService: Sendable {
             }
         case .text(let text):
             do {
-                return AdmitResult(admitted: [try admitPlainText(text)], failures: [])
+                let outcome = try admitTextPayload(text, capturePages: capturePages)
+                return AdmitResult(
+                    admitted: [outcome.item],
+                    failures: [],
+                    pageCaptureIDs: outcome.needsPageCapture ? [outcome.item.id] : []
+                )
             } catch let error as IngestError {
                 return AdmitResult(admitted: [], failures: [AdmitFailure(url: URL(fileURLWithPath: "/clip.txt"), error: error)])
             } catch {
@@ -131,7 +144,13 @@ public struct IngestService: Sendable {
     }
 
     public func admitPlainText(_ text: String) throws -> Item {
-        try admitText(text)
+        try admitTextPayload(text, capturePages: true).item
+    }
+
+    public func captureDroppedPages(ids: [ItemID]) async {
+        for id in ids {
+            await fillDroppedPage(id: id)
+        }
     }
 
     public func admitCurrentPage(token: PageAdmitToken? = nil) async throws -> Item {
@@ -145,36 +164,35 @@ public struct IngestService: Sendable {
         }
         let id = ItemID()
         let folder = inboxRoot.appendingPathComponent(id.rawValue, isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        var parts: [ItemPart] = []
-        let urlFile = folder.appendingPathComponent("url.txt")
-        try writeTextFile(urlFile, captured.url.absoluteString)
-        parts.append(ItemPart(name: "url.txt", url: urlFile))
-        if let markdown = captured.markdown {
-            let file = folder.appendingPathComponent("page.md")
-            try writeTextFile(file, markdown)
-            parts.append(ItemPart(name: "page.md", url: file))
-        }
-        if let png = captured.snapshotPNG {
-            let file = folder.appendingPathComponent("snapshot.png")
-            try png.write(to: file)
-            parts.append(ItemPart(name: "snapshot.png", url: file))
-        }
-        let event = captured.failures.map(\.rawValue).joined(separator: " · ")
+        let parts = try writeCapturedPage(folder: folder, captured: captured)
         let item = Item(
             id: id,
             kind: .web,
             title: captured.title,
             sourceURL: captured.url,
             parts: parts,
-            event: event
+            event: captured.failures.map(\.rawValue).joined(separator: " · ")
         )
         return try shelf.add(item)
     }
 
-    private func admitOne(url: URL) throws -> Item {
-        if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
-            return try admitText(url.absoluteString, forcedKind: .url, title: url.host ?? url.absoluteString, source: url)
+    func admitTextPayload(_ text: String, capturePages: Bool) throws -> PageAdmitOutcome {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if capturePages, let url = Self.httpURL(from: trimmed) {
+            return PageAdmitOutcome(item: try admitPageStub(url: url), needsPageCapture: true)
+        }
+        return PageAdmitOutcome(item: try admitText(trimmed), needsPageCapture: false)
+    }
+
+    private func admitOne(url: URL, capturePages: Bool) throws -> PageAdmitOutcome {
+        if Self.isHTTP(url) {
+            if capturePages {
+                return PageAdmitOutcome(item: try admitPageStub(url: url), needsPageCapture: true)
+            }
+            return PageAdmitOutcome(
+                item: try admitText(url.absoluteString, forcedKind: .url, title: url.host ?? url.absoluteString, source: url),
+                needsPageCapture: false
+            )
         }
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else {
@@ -188,7 +206,13 @@ public struct IngestService: Sendable {
            url.pathExtension.lowercased() == "webloc",
            let link = WeblocURL.read(url)
         {
-            return try admitText(link.absoluteString, forcedKind: .url, title: link.host ?? link.absoluteString, source: link)
+            if capturePages {
+                return PageAdmitOutcome(item: try admitPageStub(url: link), needsPageCapture: true)
+            }
+            return PageAdmitOutcome(
+                item: try admitText(link.absoluteString, forcedKind: .url, title: link.host ?? link.absoluteString, source: link),
+                needsPageCapture: false
+            )
         }
         let id = ItemID()
         let folder = inboxRoot.appendingPathComponent(id.rawValue, isDirectory: true)
@@ -212,7 +236,7 @@ public struct IngestService: Sendable {
             parts: [ItemPart(name: name, url: dest)],
             sourceChecksum: checksum
         )
-        return try shelf.add(item)
+        return PageAdmitOutcome(item: try shelf.add(item), needsPageCapture: false)
     }
 
     private func admitText(_ text: String, forcedKind: ItemKind? = nil, title: String? = nil, source: URL? = nil) throws -> Item {
@@ -253,6 +277,77 @@ public struct IngestService: Sendable {
         return .file
     }
 
+    private func admitPageStub(url: URL) throws -> Item {
+        let id = ItemID()
+        let folder = inboxRoot.appendingPathComponent(id.rawValue, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let dest = folder.appendingPathComponent("url.txt")
+        try writeTextFile(dest, url.absoluteString)
+        let item = Item(
+            id: id,
+            kind: .web,
+            title: url.host ?? url.absoluteString,
+            sourceURL: url,
+            parts: [ItemPart(name: "url.txt", url: dest)],
+            event: Self.pageCapturePendingEvent
+        )
+        return try shelf.add(item)
+    }
+
+    private func fillDroppedPage(id: ItemID) async {
+        guard let item = shelf.item(id: id), item.kind == .web, Self.isHTTP(item.sourceURL) else { return }
+        let captured = await capture.captureURL(item.sourceURL)
+        guard shelf.item(id: id) != nil else { return }
+        let folder = item.parts.first?.url.deletingLastPathComponent()
+            ?? inboxRoot.appendingPathComponent(id.rawValue, isDirectory: true)
+        do {
+            let parts = try writeCapturedPage(folder: folder, captured: captured)
+            try shelf.patch(id: id) { live in
+                live.title = captured.title
+                live.sourceURL = captured.url
+                live.parts = parts
+                live.event = captured.failures.map(\.rawValue).joined(separator: " · ")
+            }
+        } catch {
+            try? shelf.patch(id: id) { live in
+                if live.event == Self.pageCapturePendingEvent {
+                    live.event = CaptureFailure.network.rawValue
+                }
+            }
+        }
+    }
+
+    private func writeCapturedPage(folder: URL, captured: PageCapture) throws -> [ItemPart] {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var parts: [ItemPart] = []
+        let urlFile = folder.appendingPathComponent("url.txt")
+        try writeTextFile(urlFile, captured.url.absoluteString)
+        parts.append(ItemPart(name: "url.txt", url: urlFile))
+        if let markdown = captured.markdown {
+            let file = folder.appendingPathComponent("page.md")
+            try writeTextFile(file, markdown)
+            parts.append(ItemPart(name: "page.md", url: file))
+        }
+        if let png = captured.snapshotPNG {
+            let file = folder.appendingPathComponent("snapshot.png")
+            try png.write(to: file)
+            parts.append(ItemPart(name: "snapshot.png", url: file))
+        }
+        return parts
+    }
+
+    private static func isHTTP(_ url: URL) -> Bool {
+        let scheme = url.scheme?.lowercased()
+        return scheme == "http" || scheme == "https"
+    }
+
+    private static func httpURL(from text: String) -> URL? {
+        guard text.hasPrefix("http://") || text.hasPrefix("https://"),
+              let url = URL(string: text)
+        else { return nil }
+        return isHTTP(url) ? url : nil
+    }
+
     private func writeTextFile(_ url: URL, _ text: String) throws {
         try writeTextFile(url, Data(text.utf8))
     }
@@ -264,6 +359,11 @@ public struct IngestService: Sendable {
         }
         try data.write(to: url)
     }
+}
+
+struct PageAdmitOutcome {
+    var item: Item
+    var needsPageCapture: Bool
 }
 
 enum WeblocURL {

@@ -38,6 +38,74 @@ public enum PageAdmitCopy {
     public static let needAccessibilityRetry = CaptureRecovery.needAccessibilityRetry
 }
 
+public enum PageAdmitAutomation: Equatable, Sendable {
+    case allowed
+    case denied
+    case notDetermined
+    case unavailable
+
+    init(_ state: AutomationState) {
+        switch state {
+        case .allowed: self = .allowed
+        case .denied: self = .denied
+        case .notDetermined: self = .notDetermined
+        case .unavailable: self = .unavailable
+        }
+    }
+}
+
+public struct PageAdmitBrowserRow: Equatable, Sendable, Identifiable {
+    public var id: String { bundleIdentifier }
+    public var displayName: String
+    public var bundleIdentifier: String
+    public var running: Bool
+    public var state: PageAdmitAutomation
+
+    public var allowed: Bool { state == .allowed }
+
+    public init(
+        displayName: String,
+        bundleIdentifier: String,
+        running: Bool,
+        state: PageAdmitAutomation
+    ) {
+        self.displayName = displayName
+        self.bundleIdentifier = bundleIdentifier
+        self.running = running
+        self.state = state
+    }
+}
+
+public struct PageAdmitSetup: Equatable, Sendable {
+    public var accessibilityTrusted: Bool
+    public var accessibilityForeignCopy: Bool
+    public var browsers: [PageAdmitBrowserRow]
+    public var finder: PageAdmitBrowserRow
+
+    public init(
+        accessibilityTrusted: Bool,
+        accessibilityForeignCopy: Bool = false,
+        browsers: [PageAdmitBrowserRow],
+        finder: PageAdmitBrowserRow = PageAdmitBrowserRow(
+            displayName: "Finder",
+            bundleIdentifier: "com.apple.finder",
+            running: true,
+            state: .notDetermined
+        )
+    ) {
+        self.accessibilityTrusted = accessibilityTrusted
+        self.accessibilityForeignCopy = accessibilityForeignCopy
+        self.browsers = browsers
+        self.finder = finder
+    }
+
+    public var captureReady: Bool {
+        accessibilityTrusted && browsers.allSatisfy(\.allowed)
+    }
+
+    public static let empty = PageAdmitSetup(accessibilityTrusted: false, browsers: [])
+}
+
 public enum PageAdmit {
     public static func freezeFrontBrowser() {
         CaptureLaunch.freeze()
@@ -49,6 +117,54 @@ public enum PageAdmit {
 
     public static func requestTrustIfNeeded() {
         AccessibilityPage.requestTrustIfNeeded()
+    }
+
+    public static func setupStatus() -> PageAdmitSetup {
+        wrap(
+            CapturePermissions.liveStatus(),
+            foreignCopy: AccessibilityPage.isTrusted() == false && AccessibilityPage.hasSiblingDropAgent()
+        )
+    }
+
+    public static func setupStatus(_ status: CapturePermissionStatus) -> PageAdmitSetup {
+        wrap(status, foreignCopy: false)
+    }
+
+    public static func requestAutomation(bundleIdentifier: String) -> PageAdmitAutomation {
+        PageAdmitAutomation(AutomationAccess.requestIfNeeded(bundleIdentifier: bundleIdentifier))
+    }
+
+    public static func requestAutomationOffMain(bundleIdentifier: String) async -> PageAdmitAutomation {
+        PageAdmitAutomation(await AutomationAccess.requestIfNeededOffMain(bundleIdentifier: bundleIdentifier))
+    }
+
+    public static func privacyTarget(token: PageAdmitToken) -> PageAdmitBrowserRow? {
+        guard let browser = token.browser, browser.kind.usesAppleScript else { return nil }
+        let bundle = NSRunningApplication(processIdentifier: browser.pid)?.bundleIdentifier
+            ?? browser.kind.primaryBundleIdentifier
+        let running = NSRunningApplication(processIdentifier: browser.pid) != nil
+        return PageAdmitBrowserRow(
+            displayName: browser.kind.appleScriptName,
+            bundleIdentifier: bundle,
+            running: running,
+            state: PageAdmitAutomation(AutomationAccess.probe(bundleIdentifier: bundle))
+        )
+    }
+
+    private static func wrap(_ status: CapturePermissionStatus, foreignCopy: Bool) -> PageAdmitSetup {
+        PageAdmitSetup(
+            accessibilityTrusted: status.accessibilityTrusted,
+            accessibilityForeignCopy: foreignCopy,
+            browsers: status.browsers.map {
+                PageAdmitBrowserRow(
+                    displayName: $0.kind.appleScriptName,
+                    bundleIdentifier: $0.bundleIdentifier,
+                    running: $0.running,
+                    state: PageAdmitAutomation($0.state)
+                )
+            },
+            finder: FrontAdmit.finderRow()
+        )
     }
 
     public static func decide(token: PageAdmitToken) -> PageAdmitDecision {

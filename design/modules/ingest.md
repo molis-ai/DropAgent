@@ -4,7 +4,7 @@
 
 ## 做什么
 
-把外面来的东西变成合法 `Item`，交给 `Shelf.add`。来源：文件 URL、剪贴板、当前页（转 Capture）。
+把外面来的东西变成合法 `Item`，交给 `Shelf.add`。来源：文件 URL、剪贴板、拖入/粘贴的网址、当前页（转 Capture）。
 
 ## 不做什么
 
@@ -13,12 +13,15 @@
 ## Public
 
 ```text
-admit(urls: [URL]) -> AdmitResult
+admit(urls: [URL], capturePages: Bool = true) -> AdmitResult
 admitClipboard() throws -> [Item]
 admitPasteboard(_:) -> AdmitResult
 admitProviders(_:) async -> AdmitResult
+captureDroppedPages(ids:) async
 admitCurrentPage(token:) async throws -> Item
+FrontAdmit.classify / decide / collect
 PageAdmit.freezeFrontBrowser / snapshot / decide / failure
+PageAdmit.setupStatus / requestTrustIfNeeded / requestAutomation / privacyTarget
 ```
 
 失败：抛明确错误（空剪贴板、不支持的类型、抓页失败）。App 负责热键文案变体和系统设置跳转。部分成功：能进的进，失败的单独报，不整批回滚（用户连拖十个文件，九个进一个坏链，九个该留下）。空剪贴板粘贴抛错；空拖入板返回空结果、不报失败。
@@ -31,11 +34,12 @@ PageAdmit.freezeFrontBrowser / snapshot / decide / failure
 | png/jpg/webp/gif | image | 该文件 |
 | `.md` / `.txt` | markdown | 该文件 |
 | `.rtf` / `.rtfd` | file | 该文件（不做阅读器；剪贴板 RTF 仍是 CLIP） |
-| `.html` / `.htm` | file | 该文件（不做阅读器） |
+| `.html` / `.htm` | file | 该文件（kind 仍是 file；结果区抽正文，不嵌网页） |
 | 其他本地文件 | file | 该文件 |
 | 文件夹 | folder | 目录本身（第一版按一个条目） |
-| `http(s)` | url | 只有链接，不自动抓正文 |
-| 剪贴板纯文本 | clip 或 url（若整段是 URL） | 写入 Application Support 下的 clip 文件 |
+| `http(s)` / 可读 webloc / 整段网址（架子进货） | web | 立刻 `url.txt`，后台补 `page.md?` + `snapshot.png?` |
+| 同上，但拖到 AI 区（`capturePages: false`） | url | 只有链接，送给终端 |
+| 剪贴板纯文本（非整段 URL） | clip | 写入 Application Support 下的 clip 文件 |
 | 剪贴板图 | image | 写成 png |
 | 当前页 | web | Capture 产出的 url.txt + page.md? + snapshot.png? |
 
@@ -45,4 +49,4 @@ PageAdmit.freezeFrontBrowser / snapshot / decide / failure
 
 ## 调用
 
-`Shelf.add`；仅 `admitCurrentPage` → `Capture.captureFrontBrowser()`。授权门禁与前台冻结走 `PageAdmit`，不让 App 直接 import Capture。
+`Shelf.add`；架子上的 http(s) 先 `add` 一条 WEB stub，再 `captureDroppedPages` → `Capture.captureURL`。热键抓页仍 `admitCurrentPage` → `Capture.captureFrontBrowser()`。授权门禁与前台冻结走 `PageAdmit`，不让 App 直接 import Capture。就绪清单的 AX / 自动化状态也走 `PageAdmit`。AI 区进货传 `capturePages: false`。

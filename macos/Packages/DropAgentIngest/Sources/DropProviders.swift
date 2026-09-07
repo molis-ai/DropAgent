@@ -4,10 +4,11 @@ import Foundation
 import UniformTypeIdentifiers
 
 extension IngestService {
-    public func admitProviders(_ providers: [NSItemProvider]) async -> AdmitResult {
+    public func admitProviders(_ providers: [NSItemProvider], capturePages: Bool = true) async -> AdmitResult {
         var urls: [URL] = []
         var admitted: [Item] = []
         var failures: [AdmitFailure] = []
+        var pageCaptureIDs: [ItemID] = []
         for provider in providers {
             if let url = await DropProviders.fileOrHTTPURL(provider) {
                 urls.append(url)
@@ -25,7 +26,11 @@ extension IngestService {
             }
             if let text = await DropProviders.string(provider) {
                 do {
-                    admitted.append(try admitPlainText(text))
+                    let outcome = try admitTextPayload(text, capturePages: capturePages)
+                    admitted.append(outcome.item)
+                    if outcome.needsPageCapture {
+                        pageCaptureIDs.append(outcome.item.id)
+                    }
                 } catch let error as IngestError {
                     failures.append(AdmitFailure(url: URL(fileURLWithPath: "/dropped-text"), error: error))
                 } catch {
@@ -33,8 +38,12 @@ extension IngestService {
                 }
             }
         }
-        let fromURLs = admit(urls: urls)
-        return AdmitResult(admitted: admitted + fromURLs.admitted, failures: failures + fromURLs.failures)
+        let fromURLs = admit(urls: urls, capturePages: capturePages)
+        return AdmitResult(
+            admitted: admitted + fromURLs.admitted,
+            failures: failures + fromURLs.failures,
+            pageCaptureIDs: pageCaptureIDs + fromURLs.pageCaptureIDs
+        )
     }
 }
 

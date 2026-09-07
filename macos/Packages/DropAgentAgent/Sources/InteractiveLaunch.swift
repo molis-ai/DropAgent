@@ -49,6 +49,12 @@ public enum InteractiveLaunch {
             ]
         case .gemini:
             return ["--prompt", injection]
+        case .opencode:
+            return [cwd.path, "--prompt", injection]
+        case .cursor:
+            return [injection]
+        case .llm, .aichat, .sgpt:
+            return []
         }
     }
 
@@ -66,6 +72,9 @@ public enum InteractiveLaunch {
                 || $0.hasPrefix("GROK_HOME=")
                 || $0.hasPrefix("CLAUDE_CONFIG_DIR=")
                 || $0.hasPrefix("GEMINI_CONFIG_DIR=")
+                || $0.hasPrefix("OPENCODE_CONFIG_DIR=")
+                || $0.hasPrefix("OPENCODE_DISABLE_DEFAULT_PLUGINS=")
+                || $0.hasPrefix("OPENCODE_DISABLE_CLAUDE_CODE=")
         }
         switch engine {
         case .codex:
@@ -77,6 +86,12 @@ public enum InteractiveLaunch {
             env.append("CLAUDE_CONFIG_DIR=\(isolatedHome.path)")
         case .gemini:
             env.append("GEMINI_CONFIG_DIR=\(isolatedHome.path)")
+        case .opencode:
+            env.append("OPENCODE_CONFIG_DIR=\(isolatedHome.path)")
+            env.append("OPENCODE_DISABLE_DEFAULT_PLUGINS=1")
+            env.append("OPENCODE_DISABLE_CLAUDE_CODE=1")
+        case .cursor, .llm, .aichat, .sgpt:
+            break
         }
         return env
     }
@@ -89,6 +104,8 @@ public enum InteractiveLaunch {
             bin,
             "\(home)/.grok/bin",
             "\(home)/.local/bin",
+            "\(home)/.opencode/bin",
+            "\(home)/.cursor/bin",
             "/opt/homebrew/bin",
             "/usr/local/bin",
             "/usr/bin",

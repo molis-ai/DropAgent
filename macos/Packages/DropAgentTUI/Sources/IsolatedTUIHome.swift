@@ -2,8 +2,20 @@ import DropAgentAgent
 import Foundation
 
 public enum IsolatedTUIHome {
+    public static func directory(in inboxRoot: URL, presence: AgentPresence) -> URL {
+        inboxRoot.appendingPathComponent("\(presence.homeKey)-home", isDirectory: true)
+    }
+
     public static func directory(in inboxRoot: URL, engine: AgentEngine) -> URL {
         inboxRoot.appendingPathComponent("\(engine.rawValue)-home", isDirectory: true)
+    }
+
+    public static func prepare(presence: AgentPresence, at home: URL, cwd: URL) throws {
+        if let engine = presence.engine {
+            try prepare(engine: engine, at: home, cwd: cwd)
+            return
+        }
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     }
 
     public static func prepare(engine: AgentEngine, at home: URL, cwd: URL) throws {
@@ -18,6 +30,10 @@ public enum IsolatedTUIHome {
             try IsolatedClaudeHome.prepare(at: home)
         case .gemini:
             try IsolatedGeminiHome.prepare(at: home)
+        case .opencode:
+            try IsolatedOpenCodeHome.prepare(at: home)
+        case .cursor, .llm, .aichat, .sgpt:
+            try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         }
     }
 
@@ -27,7 +43,7 @@ public enum IsolatedTUIHome {
             try IsolatedCodexHome.copyLogin(into: home)
         case .grok:
             try IsolatedGrokHome.copyLogin(into: home)
-        case .claude, .gemini:
+        case .claude, .gemini, .opencode, .cursor, .llm, .aichat, .sgpt:
             break
         }
     }
@@ -97,6 +113,16 @@ enum IsolatedClaudeHome {
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         try Data("{}\n".utf8).write(to: home.appendingPathComponent("settings.json"), options: .atomic)
         try Data("{\"mcpServers\":{}}\n".utf8).write(to: home.appendingPathComponent("mcp.json"), options: .atomic)
+    }
+}
+
+enum IsolatedOpenCodeHome {
+    static func prepare(at home: URL) throws {
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        let config = home.appendingPathComponent("opencode.json")
+        if FileManager.default.fileExists(atPath: config.path) == false {
+            try Data("{}\n".utf8).write(to: config, options: .atomic)
+        }
     }
 }
 

@@ -10,7 +10,7 @@
 
 ## 范围
 
-- 确认权限条「隔离」一行：有 Codex 时用 `Agent.isolationCopy(for: recipePresence)`；没有 Codex 仍写「无 Codex」。
+- 确认权限条「隔离」一行：有执行入口时用 `Agent.isolationCopy(for: recipePresence)`；没有仍写「无执行入口」。
 - 行高随文案换行，不裁成 26pt 把后半句切掉。
 - 预览 `04b-unconfirmed`：把 `recipePresence` 设成 Codex + `.unknown`，画面上是未确认那句，不是 Safe Copy。
 - `--e2e` 断言 unknown / workspace 两档文案。
@@ -19,8 +19,8 @@
 ## 非目标
 
 - Developer ID。
-- 不改 Recipe 只跑 Codex。
 - 不把 TUI 说成 Workspace Sandbox。
+- 只有能证明工作区限制的 CLI 才写 Workspace。
 
 ## 使用场景
 

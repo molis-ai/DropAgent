@@ -97,10 +97,17 @@ struct TerminalHostView: NSViewRepresentable {
                 scheduleReveal()
                 view.window?.makeKeyAndOrderFront(nil)
                 view.window?.makeFirstResponder(view)
+                if prepared.feedOnLaunch {
+                    feedInjection(prepared.injection, to: view, delay: 0.4)
+                }
                 return
             }
-            let injection = prepared.injection.hasSuffix("\r") ? prepared.injection : prepared.injection + "\r"
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak view] in
+            feedInjection(prepared.injection, to: view, delay: 0.2)
+        }
+
+        private func feedInjection(_ text: String, to view: LocalProcessTerminalView, delay: TimeInterval) {
+            let injection = text.hasSuffix("\r") ? text : text + "\r"
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak view] in
                 view?.send(txt: injection)
             }
         }

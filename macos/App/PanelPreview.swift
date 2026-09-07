@@ -31,14 +31,14 @@ enum PanelPreview {
             try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 
             let window = NSWindow(
-                contentRect: NSRect(x: 80, y: 80, width: 400, height: 620),
+                contentRect: NSRect(x: 80, y: 80, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight),
                 styleMask: LivePanelChrome.styleMask,
                 backing: .buffered,
                 defer: false
             )
             window.hasShadow = true
-            let host = PaperHostView(rootView: PanelRootView(session: session, onClose: {}))
-            host.frame = NSRect(x: 0, y: 0, width: 400, height: 620)
+            let host = PaperHostView(rootView: PanelRootView(session: session, onClose: {}, onMinimize: {}))
+            host.frame = NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
             window.contentView = host
             Palette.applyPaperChrome(to: window, host: host)
             window.makeKeyAndOrderFront(nil)
@@ -98,14 +98,14 @@ enum PanelPreview {
             snapshot(host, name: "04-confirm")
 
             let confirmedPresence = session.recipePresence
-            session.recipePresence = .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .unknown)
+            session.recipePresence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .unknown)
             await settle()
             snapshot(host, name: "04b-unconfirmed")
             session.recipePresence = confirmedPresence
             await settle()
 
             session.cancelConfirm()
-            session.recipePresence = .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
+            session.recipePresence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
             session.chooseRecipe(.translate)
             await settle()
             snapshot(host, name: "04c-translate")
@@ -136,48 +136,71 @@ enum PanelPreview {
 
                 渠道折扣 9%。
 
+                ## 要点
+
+                | 项 | 值 |
+                | --- | --- |
+                | 折扣 | 9% |
+                | 原件 | 不变 |
+
                 - 只放在副本里做成的总结
                 - 原件 Hash 不变
                 """.utf8).write(to: output)
                 try? session.shelf.patch(id: id) { live in
-                    live.status = .done
-                    live.title = "summary.md"
-                    live.output = output
+                    live.status = .idle
                     live.event = ""
-                    live.kind = .markdown
-                    live.isolationShown = .workspace
+                    live.recipe = nil
+                    live.failureReason = nil
+                    live.output = nil
+                    live.isolationShown = .none
                 }
-                session.toggleSelect(id: id, command: false)
-                session.aiTab = .result
+                let summary = session.shelf.addResult(
+                    ResultRecord(
+                        sourceItemIDs: [id],
+                        recipe: RecipeID.summarize.fullTitle,
+                        title: "summary.md",
+                        kind: .markdown,
+                        output: output,
+                        isolationShown: .workspace
+                    )
+                )
+                session.refresh()
+                session.selectResult(summary.id)
                 await settle()
                 snapshot(host, name: "06-result")
-                try? session.shelf.patch(id: id) { live in
+                session.shelf.patchResult(id: summary.id) { live in
                     live.isolationShown = .unconfirmed
                 }
+                session.refresh()
                 await settle()
                 snapshot(host, name: "06c-unconfirmed-result")
-                try? session.shelf.patch(id: id) { live in
+                session.shelf.patchResult(id: summary.id) { live in
                     live.isolationShown = .workspace
                 }
+                session.refresh()
+                session.toggleSelect(id: id, command: false)
                 session.aiTab = .work
                 await settle()
                 snapshot(host, name: "06b-done-work")
-                session.aiTab = .result
+                session.selectResult(summary.id)
 
                 let jsonOut = DropAgentPaths.jobs.appendingPathComponent("preview/output/extracted.json")
                 try? Data("{\"discount\":\"9%\",\"note\":\"副本\"}".utf8).write(to: jsonOut)
-                try? session.shelf.patch(id: id) { live in
-                    live.title = "extracted.json"
-                    live.output = jsonOut
-                    live.kind = .markdown
-                }
+                let extracted = session.shelf.addResult(
+                    ResultRecord(
+                        sourceItemIDs: [id],
+                        recipe: RecipeID.extract.fullTitle,
+                        title: "extracted.json",
+                        kind: .markdown,
+                        output: jsonOut,
+                        isolationShown: .workspace
+                    )
+                )
+                session.refresh()
+                session.selectResult(extracted.id)
                 await settle()
                 snapshot(host, name: "06-json")
-                try? session.shelf.patch(id: id) { live in
-                    live.title = "summary.md"
-                    live.output = output
-                    live.kind = .markdown
-                }
+                session.selectResult(summary.id)
             }
 
             let webFolder = DropAgentPaths.inbox.appendingPathComponent("preview-web", isDirectory: true)
@@ -358,6 +381,7 @@ enum PanelPreview {
             {
                 session.toggleSelect(id: webID, command: false)
                 session.toggleSelect(id: noteID, command: true)
+                session.setMultiSelect(true)
                 session.aiTab = .work
                 await settle()
                 snapshot(host, name: "13-multi")
@@ -371,6 +395,7 @@ enum PanelPreview {
                 snapshot(host, name: "13b-brief")
                 session.cancelConfirm()
                 session.remove(id: noteID)
+                session.setMultiSelect(false)
             }
 
             if let sentID = session.items.first(where: { $0.kind == .web })?.id {
@@ -411,22 +436,17 @@ enum PanelPreview {
             snapshot(host, name: "10-capturing")
 
             session.isCapturing = false
-            if let failedID = session.items.first(where: { $0.title == "summary.md" })?.id {
-                try? session.shelf.patch(id: failedID) { live in
+            if let failed = session.results.first(where: { $0.title == "summary.md" }) {
+                session.shelf.patchResult(id: failed.id) { live in
                     live.status = .failed
                     live.failureReason = "原件中途变了，结果按副本做的"
-                    live.event = "原件中途变了，结果按副本做的"
-                    live.recipe = RecipeID.summarize.fullTitle
-                    if live.output == nil {
-                        live.output = DropAgentPaths.jobs.appendingPathComponent("preview/output/summary.md")
-                    }
                 }
-                session.toggleSelect(id: failedID, command: false)
-                session.aiTab = .result
+                session.refresh()
+                session.selectResult(failed.id)
                 await settle()
                 snapshot(host, name: "11-hash")
                 session.presence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)
-                session.recipePresence = .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
+                session.recipePresence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
                 session.aiTab = .work
                 await settle()
                 snapshot(host, name: "11b-failed-work")
@@ -444,7 +464,7 @@ enum PanelPreview {
                 }
                 session.toggleSelect(id: retryID, command: false)
                 session.presence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)
-                session.recipePresence = .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
+                session.recipePresence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
                 session.aiTab = .work
                 await settle()
                 snapshot(host, name: "11c-failed-retry")
@@ -459,6 +479,25 @@ enum PanelPreview {
             session.aiTab = .work
             await settle()
             snapshot(host, name: "12-hotkeys")
+
+            session.hotKeyToggleOK = true
+            session.hotKeyCaptureOK = true
+            session.presence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)
+            session.recipePresence = .grok(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)
+            session.prefs.setupCardDismissed = false
+            session.suppressSetupCard = false
+            session.setupPermissionsOverride = SetupFixtures.incomplete
+            session.settingsOpen = false
+            session.refreshSetup()
+            await settle()
+            snapshot(host, name: "13-setup")
+            session.settingsOpen = true
+            await settle()
+            snapshot(host, name: "13-settings-setup")
+            session.settingsOpen = false
+            session.suppressSetupCard = true
+            session.setupPermissionsOverride = nil
+            session.refreshSetup()
 
             fputs("preview written to \(out.path)\n", stdout)
         }

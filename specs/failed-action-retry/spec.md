@@ -12,7 +12,7 @@
 
 - 选中项含 `failed` 且有 `failureReason`：动作区 Recipe 网格上方用警告色写出原因。
 - 有 Codex：再加一句「再点一个动作可以重试。」
-- 无 Codex：只写原因，不承诺能点动作。
+- 无执行入口：只写原因，不承诺能点动作。
 - 预览 `11c-failed-retry`：Grok 仍在、动作 Tab、无产出的失败，能读到原因和重试句。Hash 失败且已有 output 的动作区见 `failed-output-takeaway`。
 - `--e2e` 验这两句。
 - 不改 Job 失败映射、不改四条调用链。`12-hotkeys` 页脚仍是快捷键被占用。
