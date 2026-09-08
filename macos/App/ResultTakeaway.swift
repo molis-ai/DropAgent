@@ -5,12 +5,12 @@ struct ResultTakeaway: View {
 
     @ViewBuilder
     var body: some View {
-        if let item = session.currentResult() {
+        if session.selectedResult?.output != nil, let item = session.currentResult() {
             VStack(alignment: .leading, spacing: 6) {
                 if session.copiedID == item.id {
                     Text(Copy.t("已复制到剪贴板", "Copied to the clipboard"))
                         .font(.system(size: 11))
-                        .foregroundStyle(Palette.mint)
+                        .foregroundStyle(Palette.accent)
                 }
                 VStack(spacing: 4) {
                     DragOutButton(item: item)

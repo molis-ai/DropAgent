@@ -2,21 +2,19 @@ import Foundation
 import os
 
 final class JobControl: @unchecked Sendable {
-    private let cancelled = OSAllocatedUnfairLock(initialState: false)
+    private struct State { var running = false; var cancelled = false }
+    private let state = OSAllocatedUnfairLock(initialState: State())
 
-    func begin() {
-        cancelled.withLock { $0 = false }
+    func begin() -> Bool {
+        state.withLock {
+            guard !$0.running else { return false }
+            $0.running = true
+            $0.cancelled = false
+            return true
+        }
     }
 
-    func markCancelled() {
-        cancelled.withLock { $0 = true }
-    }
-
-    func end() {
-        cancelled.withLock { $0 = false }
-    }
-
-    var isCancelled: Bool {
-        cancelled.withLock { $0 }
-    }
+    func markCancelled() { state.withLock { $0.cancelled = true } }
+    func end() { state.withLock { $0 = State() } }
+    var isCancelled: Bool { state.withLock { $0.cancelled } }
 }

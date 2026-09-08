@@ -7,11 +7,11 @@ extension AppSession {
     var hasAgent: Bool { presence.executable != nil }
     var canSendToTUI: Bool {
         guard hasAgent, isCapturing == false else { return false }
-        if selectedItems.contains(where: { $0.status == .running || $0.status == .confirm }) {
-            return false
-        }
         if paneFocus == .result {
             return selectedResult?.output != nil
+        }
+        if selectedItems.contains(where: { $0.status == .running || $0.status == .confirm }) {
+            return false
         }
         return true
     }
@@ -92,6 +92,9 @@ extension AppSession {
             return hasAgent ? HotKeyCopy.missingJobLine(tuiTitle: tuiTitle) : "未发现终端 Agent"
         }
         if recipeFitsSelection(recipe) { return Copy.recipeFull(recipe) }
+        if recipeBatch.isEmpty {
+            return Copy.t("先选择一份材料", "Select a material first")
+        }
         if recipeBatch.count < recipe.minimumCount {
             return Copy.t(
                 "「\(Copy.recipeShort(recipe))」至少要两份材料",
@@ -109,10 +112,10 @@ extension AppSession {
             return "安装终端 Agent 后可发送。现在只能暂存，或点右上角选择已装的 TUI。"
         }
         if hasRecipe == false {
-            return "\(tuiTitle) 没有无界面执行入口，动作不能跑。下面可以发给 \(tuiTitle)。"
+            return "\(tuiTitle) 没有无界面执行入口，动作不能跑。点「其他」可发给 \(tuiTitle)。"
         }
         if RecipeID.allCases.contains(where: recipeFitsSelection) {
-            return "或在下面写一句话，发送到 \(tuiTitle) 终端。"
+            return "点「其他」写一句话，发给 \(tuiTitle) 终端。"
         }
         if recipeBatch.contains(where: { $0.kind == .file }) && recipeBatch.count < RecipeID.brief.minimumCount {
             return "这类文件不能总结或翻译。发给 \(tuiTitle)，或再选一份做「新交付」。"

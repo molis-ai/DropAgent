@@ -24,7 +24,7 @@ enum ResultBodyView {
     }
 
     static func markdown(_ body: String, baseDirectory: URL? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(ResultMarkdown.blocks(body).enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .heading(let level, let text):
@@ -32,23 +32,19 @@ enum ResultBodyView {
                         .font(headingFont(level))
                         .foregroundStyle(Palette.text)
                 case .item(let text):
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("·")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Palette.faint)
-                        Text(inlineMarkdown(text))
-                            .font(.system(size: 12))
-                            .foregroundStyle(Palette.muted)
-                    }
+                    listItem(marker: "•", text: text)
+                case .orderedItem(let marker, let text):
+                    listItem(marker: marker, text: text)
                 case .paragraph(let text):
                     Text(inlineMarkdown(text))
-                        .font(.system(size: 12))
-                        .foregroundStyle(Palette.muted)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.text)
+                        .lineSpacing(4)
                 case .code(let text):
                     code(text)
                 case .quote(let text):
                     Text(inlineMarkdown(text))
-                        .font(.system(size: 12).italic())
+                        .font(.system(size: 13).italic())
                         .foregroundStyle(Palette.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 12)
@@ -76,6 +72,20 @@ enum ResultBodyView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private static func listItem(marker: String, text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(marker)
+                .font(.system(size: 12, weight: .medium).monospacedDigit())
+                .foregroundStyle(Palette.muted)
+                .frame(minWidth: 14, alignment: .trailing)
+            Text(inlineMarkdown(text))
+                .font(.system(size: 13))
+                .foregroundStyle(Palette.text)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private static func inlineMarkdown(_ text: String) -> AttributedString {
         var options = AttributedString.MarkdownParsingOptions()
         options.interpretedSyntax = .inlineOnlyPreservingWhitespace
@@ -87,9 +97,9 @@ enum ResultBodyView {
 
     private static func headingFont(_ level: Int) -> Font {
         switch level {
-        case 1: return .system(size: 16, weight: .semibold, design: .serif)
-        case 2: return .system(size: 14, weight: .semibold)
-        case 3: return .system(size: 13, weight: .semibold)
+        case 1: return .system(size: 21, weight: .semibold)
+        case 2: return .system(size: 16, weight: .semibold)
+        case 3: return .system(size: 14, weight: .semibold)
         default: return .system(size: 12, weight: .medium)
         }
     }

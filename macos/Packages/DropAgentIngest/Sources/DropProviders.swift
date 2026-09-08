@@ -4,6 +4,7 @@ import Foundation
 import UniformTypeIdentifiers
 
 extension IngestService {
+    @MainActor
     public func admitProviders(_ providers: [NSItemProvider], capturePages: Bool = true) async -> AdmitResult {
         var urls: [URL] = []
         var admitted: [Item] = []
@@ -12,7 +13,7 @@ extension IngestService {
         var seenPaths = Set<String>()
         for provider in providers {
             if let url = await DropProviders.fileOrHTTPURL(provider) {
-                let key = url.standardizedFileURL.path
+                let key = url.isFileURL ? url.standardizedFileURL.path : url.absoluteString
                 if seenPaths.insert(key).inserted {
                     urls.append(url)
                 }
@@ -51,6 +52,7 @@ extension IngestService {
     }
 }
 
+@MainActor
 enum DropProviders {
     static func fileOrHTTPURL(_ provider: NSItemProvider) async -> URL? {
         if provider.canLoadObject(ofClass: URL.self), let url = try? await loadURL(provider), url.isFileURL || url.scheme == "http" || url.scheme == "https" {

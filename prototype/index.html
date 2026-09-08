@@ -9,20 +9,20 @@
       --desk: #050607;
       --field-one: rgba(82, 100, 109, .38);
       --field-two: rgba(40, 52, 58, .42);
-      --panel: #f1f3f2;
-      --panel-2: #ecefee;
-      --panel-hover: #e9eceb;
-      --panel-press: #e2e5e4;
-      --line: #d4dad9;
-      --rule: #cbd3d3;
+      --panel: #fcfcfd;
+      --panel-2: #f2f3f6;
+      --panel-hover: #e9edf6;
+      --panel-press: #dfe7fb;
+      --line: #dadde5;
+      --rule: #cdd2dd;
       --text: #1f272b;
       --brand: #263036;
-      --muted: #59656b;
-      --faint: #5d696f;
-      --icon: #718086;
-      --field: #e6eae9;
-      --field-focus: #fbfcfb;
-      --solid: #222b30;
+      --muted: #5c6270;
+      --faint: #69707f;
+      --icon: #707a8f;
+      --field: #eff1f5;
+      --field-focus: #fcfcfd;
+      --solid: #365cda;
       --solid-ink: #f7f8f7;
       --tty: #17191c;
       --tty-ink: #e8e8e3;
@@ -578,6 +578,30 @@
       line-height: 1.65;
     }
 
+    .onboard { display: flex; flex-direction: column; gap: 10px; }
+    .onboard-step {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      column-gap: 8px;
+      align-items: start;
+    }
+    .onboard-step b {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .onboard-step small {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--faint);
+      line-height: 1.4;
+      margin-top: 2px;
+    }
+    .onboard .run { width: 100%; }
+    .onboard .quiet { width: 100%; height: 30px; }
+
     .row {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
@@ -625,12 +649,12 @@
       min-width: 0;
     }
     .tag-pdf { background: #ead6c2; color: #5a3824; }
-    .tag-image { background: #d5e6db; color: #2f5340; }
+    .tag-image { background: #dfe8f9; color: #334a79; }
     .tag-url { background: #d9e0ec; color: #33445c; }
-    .tag-web { background: #d4e4e6; color: #2f4d52; }
-    .tag-md { background: #dde3dc; color: #334038; }
+    .tag-web { background: #dfe8f4; color: #364d6f; }
+    .tag-md { background: #e2e5ed; color: #424c63; }
     .tag-clip { background: #ece0c8; color: #5a4320; }
-    .tag-dir { background: #e1e4e2; color: #3e4844; }
+    .tag-dir { background: #e3e6ed; color: #414a5d; }
     .tag-file { background: #e4e4e0; color: #3f3f3c; }
     .row .name {
       grid-column: 2;
@@ -1324,10 +1348,10 @@
     .chip:hover, .clip-chip:hover { background: rgba(237, 237, 232, .08); transform: translateY(-1px); }
     .chip:active, .clip-chip:active { cursor: grabbing; }
     .chip[data-kind="pdf"] .kind { color: #d4a574; }
-    .chip[data-kind="image"] .kind { color: #8fbfa0; }
+    .chip[data-kind="image"] .kind { color: #a6bbff; }
     .chip[data-kind="url"] .kind { color: #9aadc8; }
-    .chip[data-kind="web"] .kind { color: #8fb8bc; }
-    .chip[data-kind="md"] .kind { color: #a3b5a8; }
+    .chip[data-kind="web"] .kind { color: #abc1e2; }
+    .chip[data-kind="md"] .kind { color: #b9c4db; }
     .clip-chip .kind, .chip[data-kind="clip"] .kind { color: #d4b37a; }
 
     .chip .kind, .clip-chip .kind {
@@ -1405,12 +1429,31 @@
       font-size: 11px;
       color: rgba(237, 237, 232, .42);
     }
-    </style>
+        /* Native-panel polish: whole action rows, legible filenames, restrained motion. */
+    .recipes { gap: 6px; }
+    .recipe-row button { width: 100%; flex: 1; min-height: 50px; padding: 8px 10px; justify-content: flex-start; gap: 12px; text-align: left; }
+    .recipe-row button .ico { width: 18px; height: 18px; color: #365cda; margin: 0 6px; }
+    .recipe-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; }
+    .recipe-copy strong { font-size: 13px; }
+    .recipe-blurb { font-size: 11px; display: block; }
+    .onboard { gap: 22px; padding: 18px 0; }
+    .onboard h3 { margin: 0 0 12px; font-size: 20px; }
+    .row, .row.picking { grid-template-columns: 1fr; gap: 7px; padding: 10px; border: 1px solid transparent; border-radius: 9px; }
+    .row .tag { grid-row: auto; justify-self: start; }
+    .row .name, .row.picking .name { grid-column: 1; white-space: normal; overflow-wrap: anywhere; }
+    .row.sel { background: var(--panel); border-color: #a8b9ee; }
+    .row .meta { grid-column: 1; }
+    .row.picking .pick { position: absolute; top: 12px; right: 50px; }
+    .recipe-row button { background: transparent; border-color: transparent; box-shadow: none; }
+    .recipe-row button:hover { background: var(--panel-hover); }
+    button:focus-visible { outline: 2px solid #365cda; outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  </style>
 </head>
 <body>
   <!--
     THESIS: A quiet three-lane shelf. The middle is a vertical list of actions, not a questionnaire and not a popup.
-    OWN-WORLD: Cool sage paper over a night desk. File kinds carry a dusty tag color. Tracked wordmark, stroke icons. Composer stays put until 其他.
+    OWN-WORLD: Cool white and graphite over a night desk. File kinds carry a dusty tag color. Tracked wordmark, stroke icons. Composer stays put until 其他.
     STORY: Stage a file, pick a recipe, or tap 其他 in the last row to reveal the input. Results land on the right.
     FIRST VIEWPORT: 800px panel. Left input with colored type tags, middle column of paper buttons plus blurbs, no input until 其他 is on.
     FORM: 其他 is the seventh row. The bottom field expands in place. No modal.
@@ -1587,6 +1630,7 @@
 
     <nav class="scenes" aria-label="评审场景">
       <span>评审</span>
+      <button type="button" data-scene="onboard">第一次</button>
       <button type="button" data-scene="empty">空</button>
       <button type="button" data-scene="staged">暂存</button>
       <button type="button" data-scene="multi">多选</button>
@@ -1652,7 +1696,7 @@
       copied: null, ttyLog: [], ai: "work", listW: 196, multiSelect: false,
       results: [], focus: "input", resultId: null, opt: {}, otherOpen: false,
       clip: "渠道折扣收到 9%，不要对外讲数字。",
-      desk: [],
+      desk: [], onboarded: false,
       setup: false,
       settings: false
     };
@@ -1701,6 +1745,7 @@
       state.focus = "input";
       state.open = true;
       state.ai = "work";
+      state.onboarded = true;
       render();
       return item;
     }
@@ -1750,9 +1795,9 @@
       const id = state.anchor || state.selected[0] || "";
       const recipeOff = !state.hasRecipe || !state.selected.length;
       const cmds = recipes.map(([short, full, blurb]) =>
-        `<div class="recipe-row"><button type="button" data-act="recipe" data-id="${id}" data-recipe="${full}" ${recipeOff ? "disabled" : ""}>${recipeIcons[short] || ""}<strong>${short}</strong></button><p class="recipe-blurb">${blurb}</p></div>`
+        `<div class="recipe-row"><button type="button" data-act="recipe" data-id="${id}" data-recipe="${full}" ${recipeOff ? "disabled" : ""}>${recipeIcons[short] || ""}<span class="recipe-copy"><strong>${short}</strong><span class="recipe-blurb">${blurb}</span></span><span aria-hidden="true">›</span></button></div>`
       );
-      cmds.push(`<div class="recipe-row"><button type="button" class="${state.otherOpen ? "on" : ""}" data-act="other" ${state.hasTui ? "" : "disabled"}>${recipeIcons["其他"]}<strong>其他</strong></button><p class="recipe-blurb">写一句话，连同选中材料发给终端</p></div>`);
+      cmds.push(`<div class="recipe-row"><button type="button" class="${state.otherOpen ? "on" : ""}" data-act="other" ${state.hasTui ? "" : "disabled"}>${recipeIcons["其他"]}<span class="recipe-copy"><strong>其他</strong><span class="recipe-blurb">写一句话，连同选中材料发给终端</span></span><span aria-hidden="true">›</span></button></div>`);
       return cmds.join("");
     }
 
@@ -1821,6 +1866,20 @@
       const idle = batch.filter((x) => x.status === "idle" || x.status === "confirm");
       const confirming = idle.some((x) => x.status === "confirm");
       if (!batch.length) {
+        if (!state.items.length && !state.onboarded) {
+          const step2 = state.hasRecipe
+            ? `总结、翻译，或发给 ${state.tui}`
+            : (state.hasTui ? `发给 ${state.tui}。当前终端暂不支持快捷动作。` : "先放着。装好终端后再发给它。");
+          view.innerHTML = `<div class="onboard">
+            <h3>材料放下，轻松处理。</h3>
+            <div class="onboard-step"><span class="tag">1</span><div><b>放上来</b><small>拖到架子、⌘V，或 ⌃⌥W 抓当前页</small></div></div>
+            <div class="onboard-step"><span class="tag">2</span><div><b>选动作</b><small>${step2}</small></div></div>
+            <div class="onboard-step"><span class="tag">3</span><div><b>拖走</b><small>新文件可拖出。原件不动。</small></div></div>
+            <button class="run" data-act="onboard-try">放入示例文稿</button>
+            <button class="quiet" data-act="onboard-skip">我自己添加</button>
+          </div>`;
+          return;
+        }
         const title = state.hasTui
           ? (state.items.length ? "点左边的一份材料" : "先把材料放在左边")
           : "还没有终端";
@@ -2226,6 +2285,16 @@
         else if (it) copyItem(it);
       }
       if (act === "preview") { state.ai = "tty"; render(); }
+      if (act === "onboard-try") {
+        state.onboarded = true;
+        addItem("先读我.md", "md");
+        return;
+      }
+      if (act === "onboard-skip") {
+        state.onboarded = true;
+        render();
+        return;
+      }
     }
     $("list").addEventListener("click", onAction);
     $("aiView").addEventListener("click", onAction);
@@ -2500,8 +2569,11 @@
         function connect(tui, hasRecipe) {
           state.hasTui = !!tui; state.tui = tui || "Grok"; state.hasRecipe = hasRecipe;
         }
+        if (scene === "onboard") {
+          connect("Grok", true); state.items = []; state.selected = []; state.anchor = null; state.ai = "work"; state.onboarded = false;
+        }
         if (scene === "empty") {
-          connect("Grok", true); state.items = []; state.selected = []; state.anchor = null; state.ai = "work";
+          connect("Grok", true); state.items = []; state.selected = []; state.anchor = null; state.ai = "work"; state.onboarded = true;
         }
         if (scene === "staged") {
           connect("Grok", true);

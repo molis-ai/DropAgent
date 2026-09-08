@@ -103,7 +103,8 @@ public enum HeadlessCLI {
             arguments.append(contentsOf: ["--single", prompt])
         }
         if containsFlag(help, "--output-format") {
-            arguments.append(contentsOf: ["--output-format", "plain"])
+            let format = help.contains("streaming-messages-json") ? "streaming-messages-json" : "json"
+            arguments.append(contentsOf: ["--output-format", format])
         }
         return arguments
     }

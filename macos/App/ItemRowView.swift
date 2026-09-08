@@ -10,7 +10,6 @@ struct ItemRowView: View {
     var onSelect: (Bool) -> Void
     var onHide: () -> Void
     var onDelete: () -> Void
-    @State private var runningPulse: Double = 1
     @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -33,13 +32,14 @@ struct ItemRowView: View {
             onHide: onHide,
             onDelete: onDelete
         )
+        .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityLabel("\(item.displayTag) \(item.title)")
         .accessibilityValue(selected ? Copy.t("已选，\(rowStatusSpoken(item))", "Selected, \(rowStatusSpoken(item))") : rowStatusSpoken(item))
-        .accessibilityAction(.default) { onSelect(false) }
+        .accessibilityAction(.default) { select(command: false) }
         .onHover { hovering = $0 }
-        .onTapGesture { onSelect(ClickModifiers.command || multiSelect) }
+        .onTapGesture { select(command: ClickModifiers.command || multiSelect) }
         .contextMenu {
             if item.status != .running {
                 Button(Copy.t("隐藏", "Hide")) { onHide() }
@@ -47,25 +47,11 @@ struct ItemRowView: View {
             }
         }
         .modifier(RowDrag(item: item))
-        .opacity(shouldPulse ? runningPulse : 1)
-        .onAppear {
-            if shouldPulse { runningPulse = 0.62 }
-        }
-        .onChange(of: item.status) { _, status in
-            runningPulse = status == .running && shouldPulse ? 0.62 : 1
-        }
-        .animation(
-            shouldPulse
-                ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
-                : Palette.motion,
-            value: runningPulse
-        )
     }
 
-    private var shouldPulse: Bool {
-        item.status == .running
-            && !reduceMotion
-            && !ProcessInfo.processInfo.arguments.contains("--preview")
+    private func select(command: Bool) {
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        onSelect(command)
     }
 
     private func rowStatusSpoken(_ item: Item) -> String {
@@ -86,6 +72,7 @@ struct ItemRowView: View {
 }
 
 struct ListStackRow: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let tag: String
     let kind: ItemKind
     let title: String
@@ -104,59 +91,64 @@ struct ListStackRow: View {
     var onDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            if let checkbox {
-                Image(systemName: checkbox ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(checkbox ? Palette.text : Palette.faint)
-                    .frame(width: 18, height: 18)
-                    .accessibilityHidden(true)
-            }
-            Text(tag)
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .tracking(0.4)
-                .foregroundStyle(Palette.tagInk(kind: kind, tag: tag))
-                .padding(.horizontal, 5)
-                .frame(height: 18)
-                .background(Palette.tagFill(kind: kind, tag: tag))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Palette.text)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(subtitle)
-                    .font(.system(size: 10))
-                    .foregroundStyle(warning ? Palette.warning : Palette.faint)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            ZStack(alignment: .trailing) {
-                Text(time)
-                    .font(.system(size: 10).monospacedDigit())
-                    .foregroundStyle(Palette.faint)
-                    .opacity(showEdit && (hovering || selected) ? 0 : 1)
-                if showEdit {
-                    RowEditButtons(
-                        visible: hovering || selected,
-                        compact: true,
-                        onHide: onHide,
-                        onDelete: onDelete,
-                        hideHint: hideHint,
-                        deleteHint: deleteHint,
-                        hideID: hideID,
-                        deleteID: deleteID
-                    )
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                if let checkbox {
+                    Image(systemName: checkbox ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(checkbox ? Palette.accent : Palette.faint)
+                        .accessibilityHidden(true)
                 }
+                Text(tag)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .tracking(0.3)
+                    .accessibilityHidden(true)
+                    .foregroundStyle(Palette.tagInk(kind: kind, tag: tag))
+                    .padding(.horizontal, 5)
+                    .frame(height: 18)
+                    .background(Palette.tagFill(kind: kind, tag: tag))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                Spacer(minLength: 0)
+                ZStack(alignment: .trailing) {
+                    Text(time)
+                        .font(.system(size: 10).monospacedDigit())
+                        .accessibilityHidden(true)
+                        .foregroundStyle(Palette.faint)
+                        .opacity(showEdit && (hovering || selected) ? 0 : 1)
+                    if showEdit {
+                        RowEditButtons(
+                            visible: hovering || selected, compact: true,
+                            onHide: onHide, onDelete: onDelete,
+                            hideHint: hideHint, deleteHint: deleteHint,
+                            hideID: hideID, deleteID: deleteID
+                        )
+                    }
+                }
+                .frame(width: 48, height: 22, alignment: .trailing)
             }
-            .frame(minWidth: 40, alignment: .trailing)
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .accessibilityHidden(true)
+                .foregroundStyle(Palette.text)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(subtitle)
+                .font(.system(size: 10.5))
+                .accessibilityHidden(true)
+                .foregroundStyle(warning ? Palette.warning : Palette.faint)
+                .lineLimit(1)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(selected ? Palette.panelPress : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(10)
+        .background(selected ? Palette.panel : hovering ? Palette.panelHover : Color.clear)
+        .overlay {
+            RoundedRectangle(cornerRadius: 9)
+                .stroke(selected ? Palette.accent.opacity(0.35) : Color.clear, lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 9))
         .contentShape(Rectangle())
+        .animation(reduceMotion ? nil : Palette.motion, value: selected)
+        .animation(reduceMotion ? nil : Palette.motion, value: hovering)
+
     }
 }
 
@@ -171,7 +163,7 @@ struct RowEditButtons: View {
     var deleteID: String
 
     var body: some View {
-        let size: CGFloat = compact ? 20 : 24
+        let size: CGFloat = 24
         let height: CGFloat = compact ? 24 : 28
         HStack(spacing: 0) {
             Button(action: onHide) {
@@ -184,6 +176,7 @@ struct RowEditButtons: View {
             .buttonStyle(.plain)
             .accessibilityLabel(Copy.t("隐藏", "Hide"))
             .accessibilityHint(hideHint)
+            .help(hideHint)
             .accessibilityIdentifier(hideID)
             Button(action: onDelete) {
                 Image(systemName: "trash")
@@ -195,11 +188,14 @@ struct RowEditButtons: View {
             .buttonStyle(.plain)
             .accessibilityLabel(Copy.t("删除", "Delete"))
             .accessibilityHint(deleteHint)
+            .help(deleteHint)
             .accessibilityIdentifier(deleteID)
         }
         .background(visible ? Palette.panel2 : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .opacity(visible ? 1 : 0)
+        .allowsHitTesting(visible)
+        .accessibilityHidden(!visible)
     }
 }
 

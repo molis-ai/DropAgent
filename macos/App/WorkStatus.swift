@@ -9,7 +9,7 @@ enum WorkTone {
         case .wait: return Palette.warning
         case .fail: return Palette.danger
         case .sent: return Palette.ice
-        case .ready: return Palette.mint
+        case .ready: return Palette.accent
         case .confirm: return Palette.text
         case .capture: return Palette.run
         }
@@ -104,7 +104,7 @@ struct WorkRunningView: View {
             .accessibilityLabel(Copy.t("取消这次副本任务", "Cancel this copy job"))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(waiting ? Copy.t("等待授权", "Waiting for approval") : Copy.t("正在运行", "Running"))
         .accessibilityValue(event)
     }

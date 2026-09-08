@@ -1,43 +1,62 @@
+import AppKit
 import DropAgentPasteboard
 import DropAgentShelf
 import SwiftUI
 
 struct ResultStack: View {
     @ObservedObject var session: AppSession
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
             ColumnHead(title: Copy.t("结果", "Results")) {
-                EmptyView()
+                if !session.results.isEmpty {
+                    Text("\(session.results.count)")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(Palette.faint)
+                }
             }
             if session.results.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(Copy.t("结果会出现在这里", "Results land here"))
-                        .font(.system(size: 15, weight: .semibold))
+                VStack(alignment: .center, spacing: 12) {
+                    Image(systemName: "tray.and.arrow.up")
+                        .font(.system(size: 23, weight: .light))
+                        .foregroundStyle(Palette.accent)
+                        .accessibilityHidden(true)
+                    Text(Copy.t("处理好的文件", "Your finished files"))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Palette.text)
-                    Text(Copy.t("跑完可以拖到桌面，或拖回左边当新材料。", "Drag out when a job finishes, or back onto the left as new material."))
+                    Text(Copy.t("结果会留在这里，随时预览、复制或拖走。", "Results stay here. Preview, copy, or drag them out."))
                         .font(.system(size: 11.5))
                         .foregroundStyle(Palette.muted)
                         .fixedSize(horizontal: false, vertical: true)
-                    Spacer()
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 20)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             } else {
-                ScrollView {
-                    VStack(spacing: 2) {
-                        ForEach(session.results) { record in
-                            ResultRowView(
-                                record: record,
-                                selected: session.paneFocus == .result && session.selectedResultID == record.id,
-                                onSelect: { session.selectResult(record.id) },
-                                onHide: { session.hideResult(record.id) },
-                                onDelete: { session.deleteResult(record.id) }
-                            )
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 2) {
+                            ForEach(session.results) { record in
+                                ResultRowView(
+                                    record: record,
+                                    selected: session.paneFocus == .result && session.selectedResultID == record.id,
+                                    onSelect: { session.selectResult(record.id) },
+                                    onHide: { session.hideResult(record.id) },
+                                    onDelete: { session.deleteResult(record.id) }
+                                )
+                                .id(record.id)
+                                .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 6)))
+                            }
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 8)
+                        .animation(reduceMotion ? nil : Palette.motion, value: session.results.map(\.id))
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
+                    .onChange(of: session.selectedResultID) { _, id in
+                        guard let id else { return }
+                        withAnimation(reduceMotion ? nil : Palette.motion) { proxy.scrollTo(id) }
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if session.paneFocus == .result, session.selectedResultID != nil {
@@ -82,12 +101,10 @@ private struct ResultRowView: View {
             onDelete: onDelete
         )
         .onHover { hovering = $0 }
-        .onTapGesture { onSelect() }
-        .onDrag {
-            PasteboardService.itemProvider(for: record.takeawayItem())
-        } preview: {
-            DragLiftChip(item: record.takeawayItem())
-        }
+        .onTapGesture { select() }
+        .accessibilityAction(.default) { select() }
+        .modifier(ResultRowExport(record: record))
+        .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityLabel(record.title)
@@ -95,6 +112,28 @@ private struct ResultRowView: View {
         .contextMenu {
             Button(Copy.t("隐藏", "Hide")) { onHide() }
             Button(Copy.t("删除", "Delete"), role: .destructive) { onDelete() }
+        }
+    }
+    private func select() {
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        onSelect()
+    }
+
+}
+
+private struct ResultRowExport: ViewModifier {
+    let record: ResultRecord
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if record.output != nil {
+            content.onDrag {
+                PasteboardService.itemProvider(for: record.takeawayItem())
+            } preview: {
+                DragLiftChip(item: record.takeawayItem())
+            }
+        } else {
+            content
         }
     }
 }

@@ -129,6 +129,10 @@ extension AppSession {
     }
 
     func follow(_ result: AdmitResult) {
+        if result.admitted.isEmpty == false {
+            paneFocus = .input
+            errorText = nil
+        }
         note(result)
         refresh()
         followPageCaptures(result)

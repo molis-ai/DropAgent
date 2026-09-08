@@ -5,11 +5,12 @@ struct RecipeChooser: View {
     @ObservedObject var session: AppSession
 
     var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
+        VStack(spacing: 2) {
             ForEach(RecipeID.allCases, id: \.self) { recipe in
                 recipeRow(
                     title: Copy.recipeShort(recipe),
-                    blurb: Copy.recipeBlurb(recipe),
+                    blurb: session.recipeFitsSelection(recipe) || session.selectedItems.isEmpty
+                        ? Copy.recipeBlurb(recipe) : session.recipeHelp(recipe),
                     symbol: RecipeGlyph.symbol(recipe),
                     enabled: session.hasRecipe && session.recipeFitsSelection(recipe),
                     selected: false,
@@ -22,6 +23,7 @@ struct RecipeChooser: View {
                     session.chooseRecipe(recipe)
                 }
             }
+            Divider().overlay(Palette.line).padding(.vertical, 8)
             recipeRow(
                 title: Copy.otherShort,
                 blurb: Copy.otherBlurb,
@@ -48,69 +50,76 @@ struct RecipeChooser: View {
         hint: String,
         action: @escaping () -> Void
     ) -> some View {
-        GridRow(alignment: .center) {
-            Button(action: action) {
-                HStack(spacing: 6) {
-                    Image(systemName: symbol)
-                        .font(.system(size: 12, weight: .regular))
-                        .imageScale(.small)
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(enabled ? Palette.accent : Palette.faint)
+                    .frame(width: 34, height: 34)
+                    .background(enabled ? Palette.accent.opacity(0.07) : Palette.panel2)
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .lineLimit(1)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.text)
+                    Text(blurb)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Palette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            }
-            .buttonStyle(TagButtonStyle(selected: selected))
-            .disabled(!enabled)
-            .help(help)
-            .accessibilityIdentifier(identifier)
-            .accessibilityLabel(title)
-            .accessibilityHint(hint)
-            .gridColumnAlignment(.leading)
-
-            Text(blurb)
-                .font(.system(size: 12))
-                .foregroundStyle(enabled ? Palette.muted : Palette.faint)
-                .lineSpacing(1)
-                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityHidden(true)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Palette.faint)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(RecipeButtonStyle(selected: selected))
+        .disabled(!enabled)
+        .help(help)
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(title)
+        .accessibilityHint(hint)
     }
+
 }
 
 struct RecipeOptionChips: View {
     @ObservedObject var session: AppSession
     let recipe: RecipeID
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let group = RecipeCatalog.choices(for: recipe)
         let current = session.choiceID(for: recipe)
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                Text(group.label)
-                if group.hint.isEmpty == false {
-                    Text("· \(group.hint)")
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(group.label).font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.text)
+                Text(group.hint).font(.system(size: 11))
+                    .foregroundStyle(Palette.muted)
             }
-            .font(.system(size: 10))
-            .foregroundStyle(Palette.muted)
-            VStack(spacing: 1) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
                 ForEach(group.choices) { choice in
                     let on = current == choice.id
-                    Button {
-                        session.setChoice(choice.id, for: recipe)
-                    } label: {
-                        HStack {
+                    Button { session.setChoice(choice.id, for: recipe) } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(on ? Palette.accent : Palette.faint)
+                                .accessibilityHidden(true)
                             Text(choice.title)
-                                .font(.system(size: 12, weight: .medium))
-                            Spacer()
-                            Circle()
-                                .fill(on ? Palette.text : Color.clear)
-                                .frame(width: 5, height: 5)
+                                .font(.system(size: 12, weight: on ? .semibold : .regular))
+                                .foregroundStyle(Palette.text)
+                            Spacer(minLength: 0)
                         }
-                        .padding(.horizontal, 8)
-                        .frame(height: 34)
-                        .background(on ? Palette.panelPress : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 40)
+                        .background(on ? Palette.accent.opacity(0.08) : Palette.panel2.opacity(0.6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(on ? Palette.accent.opacity(0.5) : Palette.line, lineWidth: 1))
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -118,6 +127,7 @@ struct RecipeOptionChips: View {
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
+            .animation(reduceMotion ? nil : Palette.motion, value: current)
         }
     }
 }
@@ -142,30 +152,27 @@ struct RecipeFacts: View {
     let isolation: String
 
     var body: some View {
-        VStack(spacing: 0) {
-            row("读", count > 1 ? "\(count) 份材料的副本" : "这份材料的副本")
-            Divider().background(Palette.line)
-            row("写", write)
-            Divider().background(Palette.line)
-            row("网络", network)
-            Divider().background(Palette.line)
-            row("隔离", isolation)
+        VStack(spacing: 12) {
+            row("doc.on.doc", Copy.t("读取", "Read"), Copy.t("\(count) 份材料的副本", "Copies of \(count) materials"))
+            row("square.and.pencil", Copy.t("写入", "Write"), write)
+            row("network", Copy.t("网络", "Network"), network)
+            row("shield.lefthalf.filled", Copy.t("隔离", "Isolation"), isolation)
         }
-        .padding(.bottom, 4)
+        .padding(14)
+        .background(Palette.panel2.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private func row(_ key: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(key)
-                .foregroundStyle(Palette.muted)
-                .frame(width: 56, alignment: .leading)
+    private func row(_ symbol: String, _ key: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol).frame(width: 16).accessibilityHidden(true)
+            Text(key).frame(width: 40, alignment: .leading)
             Text(value)
                 .foregroundStyle(Palette.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .font(.system(size: 12, weight: .medium))
-        .padding(.vertical, 5)
-        .frame(minHeight: 28)
+        .font(.system(size: 11.5))
+        .foregroundStyle(Palette.muted)
     }
 }

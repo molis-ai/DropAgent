@@ -4,6 +4,7 @@ enum ResultMarkdown {
     enum Block: Equatable {
         case heading(Int, String)
         case item(String)
+        case orderedItem(String, String)
         case paragraph(String)
         case code(String)
         case quote(String)
@@ -86,7 +87,7 @@ enum ResultMarkdown {
                 blocks.append(.image(alt: image.0, url: image.1))
                 continue
             }
-            if trimmed.hasPrefix("#") {
+            if isHeading(trimmed) {
                 flushParagraph()
                 let parsed = heading(trimmed)
                 if parsed.text.isEmpty == false {
@@ -101,7 +102,7 @@ enum ResultMarkdown {
             }
             if let numbered = numberedListItem(trimmed) {
                 flushParagraph()
-                blocks.append(.item(numbered))
+                blocks.append(.orderedItem(numbered.marker, numbered.text))
                 continue
             }
             paragraph.append(trimmed)
@@ -114,6 +115,13 @@ enum ResultMarkdown {
             flushParagraph()
         }
         return blocks
+    }
+
+    private static func isHeading(_ line: String) -> Bool {
+        let marks = line.prefix(while: { $0 == "#" })
+        guard (1...6).contains(marks.count) else { return false }
+        let rest = line.dropFirst(marks.count)
+        return rest.isEmpty || rest.first?.isWhitespace == true
     }
 
     private static func heading(_ line: String) -> (level: Int, text: String) {
@@ -168,11 +176,11 @@ enum ResultMarkdown {
         return line
     }
 
-    private static func numberedListItem(_ line: String) -> String? {
+    private static func numberedListItem(_ line: String) -> (marker: String, text: String)? {
         guard let dot = line.firstIndex(of: "."), dot > line.startIndex else { return nil }
         let index = line[line.startIndex..<dot]
         guard index.allSatisfy(\.isNumber), line[dot...].hasPrefix(". ") else { return nil }
-        return String(line[line.index(dot, offsetBy: 2)...])
+        return (String(index) + ".", String(line[line.index(dot, offsetBy: 2)...]))
     }
 
     private static func imageLine(_ line: String) -> (String, String)? {

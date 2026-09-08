@@ -36,6 +36,7 @@ final class AppSession: ObservableObject {
     let jobRunner: (any AgentRunning)?
     var applyChrome: (() -> Void)?
     var applyLayout: (() -> Void)?
+    var onPanelInteraction: (() -> Void)?
     var onFinishExternalDrag: (() -> Void)?
     var onApplyHotKeys: (() -> Void)?
     @Published var recordingHotKey: HotKeySlot?
@@ -85,6 +86,7 @@ final class AppSession: ObservableObject {
     @Published var hotKeyCaptureOK = true
     @Published var hotKeyFilesOK = true
     @Published var tuiEpoch = UUID()
+    @Published private var onboarded = false
     var lastCaptureToken: PageAdmitToken?
     var setupLoaded = false
     var setupWatchCount = 0
@@ -118,6 +120,7 @@ final class AppSession: ObservableObject {
         Palette.isDark = prefs.appearance.resolvedIsDark
         let args = ProcessInfo.processInfo.arguments
         suppressSetupCard = args.contains("--e2e") || args.contains("--preview") || args.contains("--capture")
+        onboarded = FileManager.default.fileExists(atPath: DropAgentPaths.onboardedFile.path)
         shelf.load()
         refreshPresence()
         refresh()
@@ -138,12 +141,44 @@ final class AppSession: ObservableObject {
 
     func refresh() {
         items = shelf.items()
+        if items.isEmpty == false { markOnboarded() }
         results = shelf.results()
         if items.isEmpty { multiSelect = false }
         if let id = selectedResultID, shelf.result(id: id) == nil {
             selectedResultID = nil
             if paneFocus == .result { paneFocus = .input }
         }
+    }
+
+    var showsOnboarding: Bool {
+        Onboarding.shouldShow(markerExists: onboarded, isEmpty: items.isEmpty && results.isEmpty)
+    }
+
+    func dismissOnboarding() { markOnboarded() }
+
+    func tryOnboardingSample() {
+        do {
+            let folder = DropAgentPaths.root.appendingPathComponent("Samples/\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let url = folder.appendingPathComponent(Onboarding.sampleFileName)
+            try Data(Onboarding.sampleMarkdown.utf8).write(to: url, options: .atomic)
+            let result = ingest.admit(urls: [url])
+            follow(result)
+            if let item = result.admitted.first {
+                shelf.setSelection([item.id])
+                aiTab = .work
+                paneFocus = .input
+            }
+        } catch {
+            errorText = Copy.t("没能加入示例文稿，请重试或添加自己的文件。", "Could not add the sample. Try again or add your own file.")
+        }
+    }
+
+    private func markOnboarded() {
+        guard onboarded == false else { return }
+        onboarded = true
+        try? DropAgentPaths.ensure()
+        try? Data("1".utf8).write(to: DropAgentPaths.onboardedFile, options: .atomic)
     }
 
     func refreshPresence() {
@@ -217,10 +252,12 @@ final class AppSession: ObservableObject {
     }
 
     func setChoice(_ id: String, for recipe: RecipeID) {
+        onPanelInteraction?()
         recipeOptions[recipe] = id
     }
 
     func toggleOther() {
+        onPanelInteraction?()
         otherOpen.toggle()
         if otherOpen { aiTab = .work }
     }

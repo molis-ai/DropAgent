@@ -40,7 +40,6 @@ public struct JobService: Sendable {
         let presence = agent.discover(settings: agent.settings)
         guard presence.executable != nil else { throw JobError.noAgent }
         let spec = RecipeCatalog.spec(recipe)
-        control.begin()
 
         var items: [Item] = []
         for id in itemIDs {
@@ -54,59 +53,61 @@ public struct JobService: Sendable {
             items.append(item)
         }
         guard items.count >= recipe.minimumCount else { throw JobError.notStartable }
+        guard control.begin() else { throw JobError.notStartable }
+        defer { control.end() }
         let jobID = JobID()
         let dir = jobsRoot.appendingPathComponent(jobID.rawValue, isDirectory: true)
         let input = dir.appendingPathComponent("input", isDirectory: true)
         let work = dir.appendingPathComponent("work", isDirectory: true)
         let output = dir.appendingPathComponent("output", isDirectory: true)
-        try FileManager.default.createDirectory(at: input, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-
-        var relativeNames: [String] = []
-        for item in items {
-            for part in item.parts {
-                let destInput = JobWorkspace.uniqueURL(in: input, preferredName: part.name)
-                let destWork = JobWorkspace.uniqueURL(in: work, preferredName: part.name)
-                try JobWorkspace.copyRegular(from: part.url, to: destInput)
-                try JobWorkspace.copyRegular(from: part.url, to: destWork)
-                relativeNames.append(destWork.lastPathComponent)
-            }
-            try shelf.patch(id: item.id) { live in
-                live.status = .running
-                live.recipe = spec.fullTitle
-                live.event = "复制到 input/ 与 work/"
-                live.isolationShown = Self.shown(for: presence.isolation)
-                live.failureReason = nil
-            }
-        }
-        try JobWorkspace.freezeReadOnly(at: input)
-
-        let promptFile = dir.appendingPathComponent("prompt.txt")
-        let listed = relativeNames.map { "- \($0)" }.joined(separator: "\n")
-        let prompt = RecipeCatalog.prompt(for: recipe, choiceID: optionID) + "\n材料：\n" + listed + "\n"
-        try Data(prompt.utf8).write(to: promptFile)
         let outputFile = output.appendingPathComponent(spec.outputFileName)
-        try JobWorkspace.appendEvent(dir: dir, message: "复制到 input/ 与 work/")
-        try JobWorkspace.writeManifest(
-            dir: dir,
-            jobID: jobID,
-            recipe: recipe,
-            agent: presence.engine?.rawValue ?? "none",
-            isolation: presence.isolation,
-            items: items
-        )
-
-        let request = AgentRunRequest(
-            workdir: work,
-            promptFile: promptFile,
-            outputFile: outputFile,
-            isolation: presence.isolation,
-            network: spec.needsNetwork
-        )
-        let runningIDs = items.map(\.id)
-
         do {
+            try FileManager.default.createDirectory(at: input, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+
+            var relativeNames: [String] = []
+            for item in items {
+                for part in item.parts {
+                    let destInput = JobWorkspace.uniqueURL(in: input, preferredName: part.name)
+                    let destWork = JobWorkspace.uniqueURL(in: work, preferredName: part.name)
+                    try JobWorkspace.copyRegular(from: part.url, to: destInput)
+                    try JobWorkspace.copyRegular(from: part.url, to: destWork)
+                    relativeNames.append(destWork.lastPathComponent)
+                }
+                try shelf.patch(id: item.id) { live in
+                    live.status = .running
+                    live.recipe = spec.fullTitle
+                    live.event = "复制到 input/ 与 work/"
+                    live.isolationShown = Self.shown(for: presence.isolation)
+                    live.failureReason = nil
+                }
+            }
+            try JobWorkspace.freezeReadOnly(at: input)
+
+            let promptFile = dir.appendingPathComponent("prompt.txt")
+            let listed = relativeNames.map { "- \($0)" }.joined(separator: "\n")
+            let prompt = RecipeCatalog.prompt(for: recipe, choiceID: optionID) + "\n材料：\n" + listed + "\n"
+            try Data(prompt.utf8).write(to: promptFile)
+            try JobWorkspace.appendEvent(dir: dir, message: "复制到 input/ 与 work/")
+            try JobWorkspace.writeManifest(
+                dir: dir,
+                jobID: jobID,
+                recipe: recipe,
+                agent: presence.engine?.rawValue ?? "none",
+                isolation: presence.isolation,
+                items: items
+            )
+
+            let request = AgentRunRequest(
+                workdir: work,
+                promptFile: promptFile,
+                outputFile: outputFile,
+                isolation: presence.isolation,
+                network: spec.needsNetwork
+            )
+            let runningIDs = items.map(\.id)
+
             if control.isCancelled {
                 throw AgentError.cancelled
             }
@@ -120,6 +121,7 @@ public struct JobService: Sendable {
                     }
                 }
             }
+            if control.isCancelled { throw AgentError.cancelled }
             if result.lastMessage.isEmpty == false, FileManager.default.fileExists(atPath: outputFile.path) == false {
                 try result.lastMessage.write(to: outputFile, atomically: true, encoding: .utf8)
             }
@@ -140,7 +142,6 @@ public struct JobService: Sendable {
             )
         } catch AgentError.cancelled {
             try restoreInputs(items)
-            control.end()
             throw AgentError.cancelled
         } catch {
             let reason = Self.failureCopy(error, lastEvent: items.first.flatMap { shelf.item(id: $0.id)?.event } ?? "")
@@ -158,11 +159,9 @@ public struct JobService: Sendable {
                     failureReason: reason
                 )
             )
-            control.end()
             throw error
         }
 
-        control.end()
         return jobID
     }
 

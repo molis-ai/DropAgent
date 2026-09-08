@@ -10,7 +10,8 @@ enum DropAgentPaths {
         }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        return base.appendingPathComponent("DropAgent", isDirectory: true)
+        let profile = Bundle.main.bundleIdentifier == "local.dropagent.review" ? "DropAgent Review" : "DropAgent"
+        return base.appendingPathComponent(profile, isDirectory: true)
     }
 
     static var inbox: URL { inboxOverride ?? root.appendingPathComponent("Inbox", isDirectory: true) }
@@ -21,6 +22,7 @@ enum DropAgentPaths {
     static var prefsFile: URL { root.appendingPathComponent("prefs.json") }
     static var panelFile: URL { root.appendingPathComponent("panel.json") }
     static var openedFile: URL { root.appendingPathComponent("opened") }
+    static var onboardedFile: URL { root.appendingPathComponent("onboarded") }
 
     static func ensure() throws {
         try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)

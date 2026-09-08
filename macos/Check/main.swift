@@ -35,6 +35,7 @@ enum DropAgentCheck {
             try appDoesNotImportCapture()
             try agent()
             try await job()
+            try await printCLIOutput()
             try await hideAndDelete()
             try tui()
             try pasteboard()
@@ -61,6 +62,14 @@ private final class FailureCounter: @unchecked Sendable {
 }
 
 private let failures = FailureCounter()
+
+// Discovery fixtures must not accidentally find the developer's installed CLI binaries.
+private final class FixtureFileManager: FileManager, @unchecked Sendable {
+    override func isExecutableFile(atPath path: String) -> Bool {
+        guard !path.hasPrefix("/opt/homebrew/"), !path.hasPrefix("/usr/local/") else { return false }
+        return super.isExecutableFile(atPath: path)
+    }
+}
 
 private func raster(_ format: NSBitmapImageRep.FileType) -> Data {
     let image = NSImage(size: NSSize(width: 4, height: 4), flipped: false) { rect in
@@ -1205,6 +1214,13 @@ private func ingestDropProvider() async throws {
     }
     let heicDrop = await ingest.admitProviders([heicProvider])
     expectEqual(heicDrop.admitted.first?.kind, .image)
+    let linkRoot = try tempDir()
+    let linkShelf = ShelfStore(fileURL: linkRoot.appendingPathComponent("shelf.json"))
+    let links = IngestService(shelf: linkShelf, inboxRoot: linkRoot.appendingPathComponent("Inbox"))
+    let urls = [URL(string: "https://one.example/report?id=1")!, URL(string: "https://two.example/report?id=2")!]
+    let multiple = await links.admitProviders(urls.map { NSItemProvider(object: $0 as NSURL) }, capturePages: false)
+    expectEqual(multiple.admitted.count, 2, "URLs sharing a path must not be deduplicated across hosts")
+
 }
 
 private func architectureAcceptance() async throws {
@@ -1312,12 +1328,13 @@ private func agent() throws {
     let found = AgentService(
         runner: StubExecutor(sandbox: true),
         settings: AgentSettings(executableOverride: binary.path),
+        fileManager: FixtureFileManager(),
         pathEnvironment: "/does/not/exist",
         home: root
     )
     expectEqual(found.discover(settings: AgentSettings(executableOverride: binary.path)), .codex(path: binary, isolation: .workspace))
 
-    let missing = AgentService(runner: StubExecutor(), pathEnvironment: "/empty", home: URL(fileURLWithPath: "/tmp/no-home-\(UUID().uuidString)"))
+    let missing = AgentService(runner: StubExecutor(), fileManager: FixtureFileManager(), pathEnvironment: "/empty", home: URL(fileURLWithPath: "/tmp/no-home-\(UUID().uuidString)"))
     expectEqual(missing.discover(settings: AgentSettings()), AgentPresence.none)
 
     let args = CodexCLI.execArguments(request: request, prompt: "hello")
@@ -1373,6 +1390,7 @@ private func agent() throws {
     let mixed = AgentService(
         runner: StubExecutor(sandbox: true),
         settings: AgentSettings(),
+        fileManager: FixtureFileManager(),
         pathEnvironment: bothRoot.path,
         home: bothRoot
     )
@@ -1397,6 +1415,7 @@ private func agent() throws {
     let grokOnly = AgentService(
         runner: StubExecutor(sandbox: true),
         settings: AgentSettings(),
+        fileManager: FixtureFileManager(),
         pathEnvironment: grokOnlyRoot.path,
         home: grokOnlyRoot
     )
@@ -1412,6 +1431,7 @@ private func agent() throws {
     let grokJobAgent = AgentService(
         runner: StubExecutor(sandbox: true),
         settings: AgentSettings(),
+        fileManager: FixtureFileManager(),
         pathEnvironment: grokJobRoot.path,
         home: grokJobRoot
     )
@@ -1459,6 +1479,7 @@ private func agent() throws {
     let extra = AgentService(
         runner: StubExecutor(sandbox: true),
         settings: AgentSettings(),
+        fileManager: FixtureFileManager(),
         pathEnvironment: extraRoot.path,
         home: extraHome
     )
@@ -1556,6 +1577,47 @@ final class FakeAgent: AgentRunning, @unchecked Sendable {
     func cancelCurrent() {}
 }
 
+private func printCLIOutput() async throws {
+    let root = try tempDir()
+    let prompt = root.appendingPathComponent("prompt.txt")
+    try Data("test".utf8).write(to: prompt)
+    let output = root.appendingPathComponent("answer.md")
+    let request = AgentRunRequest(workdir: root, promptFile: prompt, outputFile: output, isolation: .unknown, network: false)
+    func script(_ name: String, _ body: String) throws -> URL {
+        let file = root.appendingPathComponent(name)
+        try Data(("#!/bin/sh\n" + body).utf8).write(to: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+        return file
+    }
+    let cli = PrintCLI()
+    do {
+        _ = try await cli.run(executable: root.appendingPathComponent("missing-cli"), arguments: ["test"], request: request, onEvent: nil)
+        fail("missing CLI must fail launch")
+    } catch {
+        expect(!FileManager.default.fileExists(atPath: output.path), "launch failure creates no artifact")
+    }
+    let large = try script("large-output", "head -c 262144 /dev/zero | tr '\\000' x\nhead -c 262144 /dev/zero | tr '\\000' e >&2\n")
+    let largeResult = try await cli.run(executable: large, arguments: ["test"], request: request, onEvent: nil)
+    expectEqual(largeResult.lastMessage.count, 262144, "stdout and stderr drain without deadlock")
+    try FileManager.default.removeItem(at: output)
+    let json = try script("json-output", ##"printf '%s' '{"text":"# Finished\nOnly the deliverable.","thought":"private reasoning","usage":{}}'"##)
+    let final = try await cli.run(executable: json, arguments: ["--output-format", "json"], request: request, onEvent: nil)
+    expectEqual(final.lastMessage, "# Finished\nOnly the deliverable.", "only final text becomes the artifact")
+    try FileManager.default.removeItem(at: output)
+    let stream = try script("stream-output", ##"printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"Let me read the file."}]}}' '{"type":"result","subtype":"success","is_error":false,"result":"# Final\nThe finished translation."}'"##)
+    let streamed = try await cli.run(executable: stream, arguments: ["--output-format", "streaming-messages-json"], request: request, onEvent: nil)
+    expectEqual(streamed.lastMessage, "# Final\nThe finished translation.", "stream extracts final result without tool preambles")
+    try FileManager.default.removeItem(at: output)
+    let failed = try script("failed-output", "printf 'partial output'\nexit 7\n")
+    do {
+        _ = try await cli.run(executable: failed, arguments: ["test"], request: request, onEvent: nil)
+        fail("nonzero CLI exit with stdout must not succeed")
+    } catch AgentError.failed(let code) {
+        expectEqual(code, 7)
+    }
+    expect(!FileManager.default.fileExists(atPath: output.path), "failed stdout is not a finished artifact")
+}
+
 private func job() async throws {
     func setup() throws -> (ShelfStore, URL, URL, Item) {
         let root = try tempDir()
@@ -1575,6 +1637,26 @@ private func job() async throws {
         ))
         return (shelf, root.appendingPathComponent("Jobs"), original, item)
     }
+
+    // A failure halfway through preparing a batch must restore every input and permit a retry.
+    let preparation = try setup()
+    let absent = try preparation.0.add(Item(
+        kind: .pdf, title: "missing.pdf", sourceURL: preparation.2,
+        parts: [ItemPart(name: "missing.pdf", url: preparation.1.appendingPathComponent("absent.pdf"))]
+    ))
+    let preparingJob = JobService(shelf: preparation.0, agent: FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace)), jobsRoot: preparation.1)
+    do {
+        _ = try await preparingJob.start(itemIDs: [preparation.3.id, absent.id], recipe: .summarize)
+        fail("missing second material should fail preparation")
+    } catch {
+        expectEqual(preparation.0.item(id: preparation.3.id)?.status, .idle, "first input restored after preparation failure")
+        expectEqual(preparation.0.item(id: absent.id)?.status, .idle, "second input restored after preparation failure")
+        expectEqual(preparation.0.results().first?.status, .failed)
+        expect(preparation.0.results().first?.output == nil, "preparation failure must not invent output")
+    }
+    _ = try await preparingJob.start(itemIDs: [preparation.3.id], recipe: .summarize)
+    expectEqual(preparation.0.results().first?.status, .done, "retry works after preparation failure")
+    expectEqual(try Data(contentsOf: preparation.2), Data("original-bytes".utf8), "preparation failure preserves original")
 
     let noneEnv = try setup()
     let noneJob = JobService(shelf: noneEnv.0, agent: FakeAgent(presence: .none), jobsRoot: noneEnv.1)

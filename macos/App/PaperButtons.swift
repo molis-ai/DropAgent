@@ -1,29 +1,30 @@
 import SwiftUI
 
-struct RecipeButtonStyle: PrimitiveButtonStyle {
+struct RecipeButtonStyle: ButtonStyle {
     var selected = false
 
     func makeBody(configuration: Configuration) -> some View {
         PaperButtonChrome(
-            trigger: configuration.trigger,
+            pressed: configuration.isPressed,
             height: nil,
             labelStyle: false,
             semibold: false,
             inkOnPaper: true,
-            selected: selected
+            selected: selected,
+            stroked: false
         ) {
             configuration.label
         }
     }
 }
 
-struct QuietButtonStyle: PrimitiveButtonStyle {
+struct QuietButtonStyle: ButtonStyle {
     var selected = false
 
     func makeBody(configuration: Configuration) -> some View {
         PaperButtonChrome(
-            trigger: configuration.trigger,
-            height: 30,
+            pressed: configuration.isPressed,
+            height: 34,
             labelStyle: true,
             semibold: false,
             inkOnPaper: true,
@@ -35,13 +36,13 @@ struct QuietButtonStyle: PrimitiveButtonStyle {
     }
 }
 
-struct TagButtonStyle: PrimitiveButtonStyle {
+struct TagButtonStyle: ButtonStyle {
     var selected = false
 
     func makeBody(configuration: Configuration) -> some View {
         PaperButtonChrome(
-            trigger: configuration.trigger,
-            height: 26,
+            pressed: configuration.isPressed,
+            height: 28,
             labelStyle: false,
             semibold: selected,
             inkOnPaper: true,
@@ -54,11 +55,11 @@ struct TagButtonStyle: PrimitiveButtonStyle {
     }
 }
 
-struct PrimaryButtonStyle: PrimitiveButtonStyle {
+struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         PaperButtonChrome(
-            trigger: configuration.trigger,
-            height: 30,
+            pressed: configuration.isPressed,
+            height: 38,
             labelStyle: true,
             semibold: true,
             inkOnPaper: false,
@@ -70,7 +71,7 @@ struct PrimaryButtonStyle: PrimitiveButtonStyle {
 }
 
 private struct PaperButtonChrome<Label: View>: View {
-    let trigger: () -> Void
+    var pressed: Bool
     var height: CGFloat?
     var labelStyle: Bool
     var semibold: Bool
@@ -82,7 +83,6 @@ private struct PaperButtonChrome<Label: View>: View {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovering = false
-    @GestureState private var pressed = false
 
     var body: some View {
         let down = pressed && isEnabled
@@ -100,20 +100,14 @@ private struct PaperButtonChrome<Label: View>: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .shadow(color: inkOnPaper ? .clear : Palette.blue.opacity(down ? 0 : 0.15), radius: 4, x: 0, y: 2)
             .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : (inkOnPaper ? 0.45 : 0.55))
             .offset(y: down ? 1 : 0)
             .animation(reduceMotion ? nil : Palette.motion, value: down)
+            .animation(reduceMotion ? nil : Palette.motion, value: hovering)
             .onHover { hovering = $0 }
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .updating($pressed) { _, state, _ in
-                        if isEnabled { state = true }
-                    }
-                    .onEnded { _ in
-                        if isEnabled { trigger() }
-                    }
-            )
+
     }
 
     @ViewBuilder

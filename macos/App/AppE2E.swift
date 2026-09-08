@@ -65,6 +65,7 @@ enum AppE2E {
         private func go() async {
             session.setTUIPreference(.grok)
             await settle()
+            verifyOnboarding()
             session.systemDragActive = true
             await settle()
             snapshot("e2e-drag-empty")
@@ -102,6 +103,7 @@ enum AppE2E {
             await verifyFolderLoop()
             await verifyZipLoop()
             await verifyClipboardLoop()
+            verifyPolishPaths()
             await verifyCaptureLoop()
             if let deferredCaptureFailure {
                 fputs("e2e: capture deferred \(deferredCaptureFailure)\n", stdout)
@@ -193,6 +195,90 @@ enum AppE2E {
             } catch {
                 fail("drag land \(error)")
             }
+        }
+
+        private func verifyPolishPaths() {
+            let folder = DropAgentPaths.root.appendingPathComponent("polish-check", isDirectory: true)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let a = folder.appendingPathComponent("第一份材料.md")
+            let b = folder.appendingPathComponent("新加入材料.md")
+            try? Data("# 新材料\n发送这一份，而不是旧结果。".utf8).write(to: a)
+            try? Data("# 第二份材料".utf8).write(to: b)
+            session.admit(urls: [a])
+            guard let first = session.selectedItems.first else { fail("polish first input missing") }
+            let r1 = session.shelf.addResult(ResultRecord(sourceItemIDs: [first.id], recipe: "总结文件", title: "旧结果.md", kind: .markdown, output: a))
+            let r2 = session.shelf.addResult(ResultRecord(sourceItemIDs: [first.id], recipe: "总结文件", title: "另一结果.md", kind: .markdown, output: b))
+            session.refresh()
+            session.selectResult(r2.id)
+            session.moveSelection(offset: 1)
+            guard session.selectedResultID == r1.id, session.paneFocus == .result else { fail("result arrows switched to input") }
+            try? session.shelf.patch(id: first.id) { $0.status = .running }
+            guard session.canSendToTUI else { fail("unrelated running input blocked result send") }
+            try? session.shelf.patch(id: first.id) { $0.status = .idle }
+            session.errorText = "previous failure"
+            session.admit(urls: [b])
+            guard let second = session.selectedItems.first, second.id != first.id,
+                  session.paneFocus == .input, session.currentResult()?.id == second.id,
+                  session.errorText == nil else { fail("new material retained stale result focus or error") }
+            let failed = session.shelf.addResult(ResultRecord(sourceItemIDs: [first.id], recipe: "总结文件", title: "没有产出.md", kind: .markdown, status: .failed, failureReason: "准备材料失败"))
+            session.refresh()
+            session.selectResult(failed.id)
+            guard !session.canSendToTUI else { fail("failed result without file was sendable") }
+            session.reselectResultSources(failed)
+            guard session.paneFocus == .input, session.aiTab == .work, session.selectedItems.first?.id == first.id else { fail("failed result did not return to source") }
+            try? session.shelf.patch(id: first.id) { $0.status = .sent }
+            session.resetTUISession()
+            session.toggleSelect(id: first.id, command: false)
+            guard session.aiTab == .work else { fail("old sent input opened nonexistent terminal") }
+            session.chooseRecipe(.summarize)
+            session.toggleSelect(id: second.id, command: false)
+            session.chooseRecipe(.translate)
+            guard session.shelf.item(id: first.id)?.status == .idle,
+                  session.shelf.item(id: second.id)?.recipe == RecipeID.translate.fullTitle else {
+                fail("new confirmation retained a conflicting draft")
+            }
+            session.cancelConfirm()
+            guard session.items.first(where: { $0.id == second.id })?.status == .idle else {
+                fail("cancel confirmation did not refresh immediately")
+            }
+            session.otherOpen = true
+            session.promptText = "Keep this draft"
+            session.presentJobResult(sourceIDs: [first.id])
+            guard session.aiTab == .work, session.paneFocus == .input,
+                  session.selectedItems.first?.id == second.id, session.promptText == "Keep this draft" else {
+                fail("completed job interrupted another material or draft")
+            }
+            session.otherOpen = false
+            session.promptText = ""
+            session.toggleSelect(id: first.id, command: false)
+            session.openTab(.work)
+            session.presentJobResult(sourceIDs: [first.id])
+            guard session.aiTab == .result, session.paneFocus == .result else {
+                fail("completion did not reveal a result while following the job")
+            }
+            session.selectResult(r2.id)
+            session.openTab(.work)
+            guard session.paneFocus == .input else { fail("actions retained result focus") }
+            session.shelf.setSelection([])
+            session.openTab(.result)
+            guard session.paneFocus == .result, session.selectedResultID != nil else {
+                fail("preview with no input did not open a result")
+            }
+            session.selectResult(r2.id)
+            session.hideResult(r2.id)
+            guard session.selectedResultID != nil, session.paneFocus == .result else {
+                fail("hiding current result abandoned remaining results")
+            }
+            try? session.shelf.patch(id: first.id) { $0.status = .running }
+            session.toggleSelect(id: second.id, command: false)
+            session.showRunningJob()
+            guard session.selectedItems.map(\.id) == [first.id], session.aiTab == .work,
+                  session.paneFocus == .input else { fail("running job shortcut lost its inputs") }
+            try? session.shelf.patch(id: first.id) { $0.status = .idle }
+            session.hideItem(first.id)
+            session.hideItem(second.id)
+            for id in [r1.id, r2.id, failed.id] { session.hideResult(id) }
+            session.refreshPresence()
         }
 
         private func verifyIsolationFact() {
@@ -351,7 +437,7 @@ enum AppE2E {
             try? Data("%PDF-1.4 hint\n".utf8).write(to: pdf)
             session.admit(urls: [pdf])
             let pdfHint = session.recipeChooserHint
-            guard pdfHint.contains("或在下面写一句话") else {
+            guard pdfHint.contains("点「其他」写一句话") else {
                 fail("pdf recipe hint \(pdfHint)")
             }
             for title in ["archive.zip", "hint.pdf"] {
@@ -1130,6 +1216,12 @@ enum AppE2E {
         }
 
         private func verifyResultMarkdown() {
+            guard ResultMarkdown.blocks("3. Read\n4. Review") == [.orderedItem("3.", "Read"), .orderedItem("4.", "Review")] else {
+                fail("ordered list lost its sequence in preview")
+            }
+            guard ResultMarkdown.blocks("#hashtag") == [.paragraph("#hashtag")] else {
+                fail("hashtag became a heading")
+            }
             let blocks = ResultMarkdown.blocks("""
             # Keep
 
@@ -1692,6 +1784,42 @@ enum AppE2E {
             session.refreshSetup()
             guard session.showsSetupCard == false else {
                 fail("setup card lingered after restore")
+            }
+        }
+
+        private func verifyOnboarding() {
+            guard Onboarding.shouldShow(markerExists: false, isEmpty: true) else {
+                fail("onboarding hidden when empty")
+            }
+            guard Onboarding.shouldShow(markerExists: true, isEmpty: true) == false else {
+                fail("onboarding after marker")
+            }
+            guard Onboarding.shouldShow(markerExists: false, isEmpty: false) == false else {
+                fail("onboarding with items")
+            }
+            guard session.showsOnboarding else {
+                fail("session missing onboarding")
+            }
+            snapshot("e2e-onboard")
+            session.tryOnboardingSample()
+            guard session.items.contains(where: { $0.title == Onboarding.sampleFileName && $0.kind == .markdown }) else {
+                fail("try once did not admit sample")
+            }
+            guard session.showsOnboarding == false else {
+                fail("onboarding still showing after try")
+            }
+            guard FileManager.default.fileExists(atPath: DropAgentPaths.onboardedFile.path) else {
+                fail("missing onboarded marker")
+            }
+            for item in session.items {
+                session.remove(id: item.id)
+            }
+            session.refresh()
+            guard session.showsOnboarding == false else {
+                fail("onboarding returned after clear")
+            }
+            guard FileManager.default.fileExists(atPath: DropAgentPaths.openedFile.path) == false else {
+                fail("onboarding wrote opened")
             }
         }
 

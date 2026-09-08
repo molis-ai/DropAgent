@@ -6,9 +6,19 @@ cd "$ROOT"
 swift build --product DropAgent
 
 APP="$ROOT/dist/DropAgent.app"
+BUNDLE_ID="local.dropagent"
+if [[ "${DROPAGENT_VARIANT:-}" == "review" ]]; then
+  APP="$ROOT/dist/DropAgent Review.app"
+  BUNDLE_ID="local.dropagent.review"
+fi
 BIN="$ROOT/.build/debug/DropAgent"
 mkdir -p "$APP/Contents/MacOS"
 cp "$ROOT/App/Info.plist" "$APP/Contents/Info.plist"
+if [[ "$BUNDLE_ID" == "local.dropagent.review" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$APP/Contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleName DropAgent Review" "$APP/Contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName DropAgent Review" "$APP/Contents/Info.plist"
+fi
 cp "$BIN" "$APP/Contents/MacOS/DropAgent"
 chmod +x "$APP/Contents/MacOS/DropAgent"
 
@@ -36,11 +46,11 @@ IDENTITY="$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer 
 
 if [[ -n "${IDENTITY:-}" ]]; then
   codesign --force --sign "$IDENTITY" --options runtime --timestamp \
-    --entitlements "$ENT" --identifier local.dropagent "$APP"
+    --entitlements "$ENT" --identifier "$BUNDLE_ID" "$APP"
   echo "signed Developer ID: $IDENTITY"
 else
-  codesign --force --sign - --entitlements "$ENT" --identifier local.dropagent "$APP"
-  echo "signed adhoc local.dropagent (no Developer ID Application identity)"
+  codesign --force --sign - --entitlements "$ENT" --identifier "$BUNDLE_ID" "$APP"
+  echo "signed adhoc $BUNDLE_ID (no Developer ID Application identity)"
 fi
 
 echo "$APP"

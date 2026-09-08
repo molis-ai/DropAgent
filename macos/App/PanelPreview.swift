@@ -55,6 +55,9 @@ enum PanelPreview {
         @MainActor
         private func captureSequence(host: PaperHostView<PanelRootView>) async {
             await settle()
+            snapshot(host, name: "00-onboard")
+            session.dismissOnboarding()
+            await settle()
             snapshot(host, name: "01-empty")
             session.systemDragActive = true
             await settle()
@@ -73,6 +76,11 @@ enum PanelPreview {
             session.admit(urls: [pdf])
             await settle()
             snapshot(host, name: "03-idle")
+            session.setAppearance(.dark)
+            await settle()
+            snapshot(host, name: "03-idle-dark")
+            session.setAppearance(.light)
+            await settle()
             session.systemDragActive = true
             await settle()
             snapshot(host, name: "03-drag")

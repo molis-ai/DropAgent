@@ -14,7 +14,9 @@ struct WorkPane: View {
             EmptyView()
         } else {
             let batch = session.selectedItems
-            if batch.isEmpty {
+            if batch.isEmpty && session.showsOnboarding {
+                OnboardingView(session: session)
+            } else if batch.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     RecipeChooser(session: session)
                     Text(HotKeyCopy.workIdleHint(
@@ -40,47 +42,7 @@ struct WorkPane: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else if batch.contains(where: { $0.status == .confirm }) {
-                let idle = batch.filter { $0.status == .confirm }
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(
-                        Copy.t(
-                            "\(idle.count) 项 · \(Copy.recipeStored(idle.first?.recipe))",
-                            "\(idle.count) items · \(Copy.recipeStored(idle.first?.recipe))"
-                        )
-                    )
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.muted)
-                    if let recipe = RecipeID.allCases.first(where: { $0.fullTitle == idle.first?.recipe }) {
-                        RecipeOptionChips(session: session, recipe: recipe)
-                    }
-                    RecipeFacts(
-                        count: idle.count,
-                        write: session.recipeWriteFact,
-                        network: session.recipeNetworkFact,
-                        isolation: session.recipeIsolationFact
-                    )
-                    Text(session.recipeActorLine)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.faint)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Spacer(minLength: 12)
-                    Button {
-                        Task { await session.confirmRun() }
-                    } label: {
-                        Label(Copy.t("在副本中运行", "Run on a copy"), systemImage: "arrow.right")
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!session.hasRecipe)
-                    .accessibilityIdentifier("confirm-run")
-                    Button {
-                        session.cancelConfirm()
-                    } label: {
-                        Label(Copy.t("取消", "Cancel"), systemImage: "xmark")
-                    }
-                        .buttonStyle(QuietButtonStyle())
-                        .frame(maxWidth: .infinity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                RecipeConfirmationView(session: session)
             } else if let running = batch.first(where: { $0.status == .running }) {
                 WorkRunningView(
                     event: running.event,
@@ -108,7 +70,7 @@ struct WorkPane: View {
                         }
                         Text(Copy.t("可拖出", "Ready"))
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(session.selectedFailureReason == nil ? Palette.mint : Palette.text)
+                            .foregroundStyle(session.selectedFailureReason == nil ? Palette.accent : Palette.text)
                         Text(session.doneActionHint)
                             .font(.system(size: 12))
                             .foregroundStyle(Palette.muted)
@@ -149,22 +111,33 @@ struct WorkPane: View {
                                 .foregroundStyle(Palette.faint)
                         }
                     }
-                    if batch.count == 1, let item = batch.first {
-                        StagedPeek(item: item)
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(Copy.t("选择一个动作", "Choose an action"))
+                                .font(.system(size: 21, weight: .semibold))
+                                .foregroundStyle(Palette.text)
+                            Text(Copy.t("已选 \(batch.count) 份材料 · 原件保留", "\(batch.count) selected · Originals stay"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(Palette.muted)
+                        }
+                        Spacer(minLength: 4)
+                        Button { session.aiTab = .result } label: {
+                            Image(systemName: "doc.text.magnifyingglass")
+                        }
+                        .buttonStyle(QuietButtonStyle())
+                        .frame(width: 30)
+                        .help(Copy.t("预览材料", "Preview material"))
+                        .accessibilityLabel(Copy.t("预览材料", "Preview material"))
                     }
+                    .padding(.bottom, 10)
                     RecipeChooser(session: session)
                     Text(session.recipeChooserHint)
                     .font(.system(size: 11))
                     .foregroundStyle(Palette.faint)
-                    if session.items.count > 1, session.multiSelect == false {
-                        Text(Copy.t("也可以 Command 点。", "Command-click also works."))
-                            .font(.system(size: 11))
-                            .foregroundStyle(Palette.faint)
-                    }
                     if session.copiedID != nil, batch.contains(where: { $0.id == session.copiedID }) {
                         Text(Copy.t("已复制到剪贴板", "Copied to the clipboard"))
                             .font(.system(size: 11))
-                            .foregroundStyle(Palette.mint)
+                            .foregroundStyle(Palette.accent)
                     }
                     if session.hasRecipe == false && session.hasAgent == false {
                         Button {

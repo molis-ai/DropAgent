@@ -10,6 +10,21 @@ struct ShelfColumn: View {
         VStack(spacing: 0) {
             columnHead
             listSection
+            HStack {
+                Button { session.pasteFromClipboard() } label: {
+                    Label(Copy.t("粘贴", "Paste"), systemImage: "doc.on.clipboard")
+                }
+                .buttonStyle(QuietButtonStyle())
+                .fixedSize()
+                .help(session.prefs.pasteHotKey.label)
+                .accessibilityIdentifier("shelf-paste")
+                Spacer(minLength: 0)
+                Text(Copy.t("\(session.items.count) 项", "\(session.items.count) items"))
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(Palette.faint)
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 8)
         }
         .frame(width: session.fillsShelf ? nil : session.shelfWidth)
         .frame(maxWidth: session.fillsShelf ? .infinity : nil)
@@ -67,10 +82,10 @@ struct ShelfColumn: View {
                         .font(.system(size: 22, weight: .light))
                         .foregroundStyle(Palette.text)
                         .accessibilityHidden(true)
-                    Text(Copy.t("拖到这里，或用 + / 搜索加入", "Drop here, or add with + / search"))
+                    Text(Copy.t("把材料放在这里", "Drop something here"))
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Palette.muted)
-                    Text(HotKeyCopy.emptyHint(hasAgent: session.hasAgent, tuiTitle: session.tuiTitle, captureOK: session.hotKeyCaptureOK))
+                    Text(Copy.t("文件、图片、文字或链接\n拖入，或点 + 选择文件", "Files, images, text, or links\nDrop here, or add with +"))
                         .font(.system(size: 11))
                         .foregroundStyle(Palette.faint)
                 }
@@ -79,26 +94,33 @@ struct ShelfColumn: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 HStack(spacing: 0) {
-                    ScrollView {
-                        LazyVStack(spacing: 2) {
-                            ForEach(session.items, id: \.id) { item in
-                                ItemRowView(
-                                    item: item,
-                                    selected: session.shelf.selection.contains(item.id),
-                                    multiSelect: session.multiSelect
-                                ) { command in
-                                    session.toggleSelect(id: item.id, command: command)
-                                } onHide: {
-                                    session.hideItem(item.id)
-                                } onDelete: {
-                                    session.deleteItem(item.id)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 5) {
+                                ForEach(session.items, id: \.id) { item in
+                                    ItemRowView(
+                                        item: item,
+                                        selected: session.paneFocus == .input && session.shelf.selection.contains(item.id),
+                                        multiSelect: session.multiSelect
+                                    ) { command in
+                                        session.toggleSelect(id: item.id, command: command)
+                                    } onHide: {
+                                        session.hideItem(item.id)
+                                    } onDelete: {
+                                        session.deleteItem(item.id)
+                                    }
+                                    .id(item.id)
+                                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
                                 }
-                                .transition(.opacity.combined(with: .move(edge: .top)))
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.bottom, 8)
+                            .animation(reduceMotion ? nil : Palette.motion, value: session.items.map(\.id))
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.bottom, 8)
-                        .animation(reduceMotion ? nil : Palette.motion, value: session.items.map(\.id))
+                        .onChange(of: session.selectedItems.map(\.id)) { _, ids in
+                            guard !session.multiSelect, ids.count == 1, let id = ids.first else { return }
+                            withAnimation(reduceMotion ? nil : Palette.motion) { proxy.scrollTo(id) }
+                        }
                     }
                     Color.clear
                         .frame(width: LivePanelChrome.scrollGutter)

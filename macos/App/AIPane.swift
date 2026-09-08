@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AIPane: View {
     @ObservedObject var session: AppSession
+    @Namespace private var tabSelection
     @State private var aiHot = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -17,14 +18,19 @@ struct AIPane: View {
                                 ScrollView {
                                     VStack(alignment: .leading, spacing: 12) {
                                         ErrorBanner(session: session)
-                                        if session.aiTab == .result {
-                                            ResultPane(session: session)
-                                        } else {
-                                            WorkPane(session: session)
+                                        Group {
+                                            if session.aiTab == .result {
+                                                ResultPane(session: session)
+                                            } else {
+                                                WorkPane(session: session)
+                                            }
                                         }
+                                        .id(contentID)
+                                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 5)))
                                     }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 16)
+                                    .animation(reduceMotion ? nil : Palette.motion, value: contentID)
                                     .frame(width: geo.size.width)
                                     .frame(minHeight: geo.size.height, alignment: .top)
                                 }
@@ -36,6 +42,7 @@ struct AIPane: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .opacity(session.aiTab == .tty ? 0 : 1)
                         .allowsHitTesting(session.aiTab != .tty)
+                        .accessibilityHidden(session.aiTab == .tty)
 
                         VStack(alignment: .leading, spacing: 4) {
                             ErrorBanner(session: session)
@@ -98,17 +105,19 @@ struct AIPane: View {
                         .padding(.vertical, 8)
                         .opacity(session.aiTab == .tty ? 1 : 0)
                         .allowsHitTesting(session.aiTab == .tty)
+                        .accessibilityHidden(session.aiTab != .tty)
                     }
                     if session.showsComposer {
                         ComposerBar(session: session)
-                        Text(session.shortcutFooter)
+                            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                        Text(Copy.t("回车发送到终端，不是副本沙箱。", "Return sends to the terminal, not the copy sandbox."))
                             .font(.system(size: 10))
                             .foregroundStyle(Palette.faint)
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 10)
-                            .padding(.bottom, 7)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 12)
                     }
                 }
                 DropZoneOverlay(
@@ -121,6 +130,7 @@ struct AIPane: View {
                 )
             }
         }
+        .animation(reduceMotion ? nil : Palette.motion, value: session.showsComposer)
         .frame(minHeight: 168)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AccessibleID(identifier: "ai-pane").frame(width: 0, height: 0).allowsHitTesting(false))
@@ -131,31 +141,68 @@ struct AIPane: View {
         })
     }
 
-    private var tabs: some View {
-        HStack(spacing: 10) {
-            tabButton(Copy.t("动作", "Actions"), .work, disabled: false)
-            tabButton(Copy.t("终端", "Terminal"), .tty, disabled: session.canOpenTerminalTab == false && session.aiTab != .tty)
-            tabButton(Copy.t("预览", "Preview"), .result, disabled: session.currentResult() == nil && session.results.isEmpty)
-            Spacer(minLength: 0)
+    private var contentID: String {
+        if session.aiTab == .result { return "preview-" + (session.currentResult()?.id.rawValue ?? "empty") }
+        if session.selectedItems.contains(where: { $0.status == .running }) { return "running" }
+        if let recipe = session.confirmRecipeID, session.selectedItems.contains(where: { $0.status == .confirm }) {
+            return "confirm-" + recipe.rawValue
         }
-        .padding(.horizontal, 16)
-        .frame(height: LivePanelChrome.columnHeadHeight)
-        .animation(reduceMotion ? nil : Palette.motion, value: session.aiTab)
+        return "actions"
+    }
+
+    private var tabs: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 2) {
+                tabButton(Copy.t("动作", "Actions"), .work, disabled: false)
+                tabButton(Copy.t("终端", "Terminal"), .tty, disabled: session.canOpenTerminalTab == false && session.aiTab != .tty)
+                tabButton(Copy.t("预览", "Preview"), .result, disabled: session.currentResult() == nil && session.results.isEmpty)
+            }
+            .padding(3)
+            .background(Palette.panel2)
+            .clipShape(RoundedRectangle(cornerRadius: 9))
+            Spacer(minLength: 0)
+            if !session.runningItems.isEmpty {
+                Button { session.showRunningJob() } label: {
+                    Label(Copy.t("运行中", "Running"), systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(Palette.accent)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("show-running-job")
+                .help(Copy.t("返回任务，可查看进展或取消", "Return to the job to check progress or cancel"))
+            }
+        }
+        .padding(.horizontal, 20)
+        .frame(height: 44)
+        .animation(reduceMotion ? nil : Palette.selectionMotion, value: session.aiTab)
     }
 
     private func tabButton(_ title: String, _ tab: AITab, disabled: Bool) -> some View {
-        Button {
-            if !disabled { session.aiTab = tab }
-        } label: {
+        Button { if !disabled { session.openTab(tab) } } label: {
             Text(title)
+                .font(.system(size: 11.5, weight: session.aiTab == tab ? .semibold : .medium))
+                .foregroundStyle(session.aiTab == tab ? Palette.text : Palette.muted)
+                .padding(.horizontal, 11)
+                .frame(height: 26)
+                .background {
+                    if session.aiTab == tab {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Palette.panel)
+                            .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
+                            .matchedGeometryEffect(id: "tab-selection", in: tabSelection)
+                    }
+                }
+                .contentShape(Rectangle())
         }
-        .buttonStyle(TagButtonStyle(selected: session.aiTab == tab))
+        .buttonStyle(.plain)
         .disabled(disabled)
-        .opacity(disabled ? 0.4 : 1)
+        .opacity(disabled ? 0.5 : 1)
         .accessibilityLabel(title)
         .accessibilityAddTraits(session.aiTab == tab ? .isSelected : [])
         .accessibilityHint(disabled ? Copy.t("现在不可用", "Unavailable right now") : "")
     }
+
 }
 
 enum TTYPalette {

@@ -5,7 +5,17 @@ import Foundation
 
 extension AppSession {
     func chooseRecipe(_ recipe: RecipeID) {
+        onPanelInteraction?()
         otherOpen = false
+        // A new confirmation replaces the previous draft, even after switching inputs.
+        // Otherwise a later multi-selection can silently run two different drafts as one.
+        for item in shelf.items() where item.status == .confirm {
+            try? shelf.patch(id: item.id) { live in
+                live.status = .idle
+                live.recipe = nil
+            }
+        }
+        paneFocus = .input
         let spec = RecipeCatalog.spec(recipe)
         var skipped = 0
         for item in selectedItems where item.status == .idle || item.status == .confirm || item.status == .failed || item.status == .sent {
@@ -29,12 +39,14 @@ extension AppSession {
     }
 
     func cancelConfirm() {
+        onPanelInteraction?()
         for item in selectedItems where item.status == .confirm {
             try? shelf.patch(id: item.id) { live in
                 live.status = .idle
                 live.recipe = nil
             }
         }
+        refresh()
     }
 
     func confirmRun() async {
@@ -51,17 +63,22 @@ extension AppSession {
         guard let first = batch.first, let recipe = RecipeID.allCases.first(where: { $0.fullTitle == first.recipe }) else {
             return
         }
+        guard runningItems.isEmpty, batch.count >= recipe.minimumCount,
+              batch.allSatisfy({ $0.recipe == first.recipe }) else {
+            errorText = Copy.t("材料或任务状态已变化，请返回动作重新选择。", "The selection or job state changed. Go back and choose an action again.")
+            return
+        }
+        let previousResults = Set(shelf.results().map(\.id))
+        errorText = nil
         do {
             _ = try await job.start(itemIDs: batch.map(\.id), recipe: recipe, optionID: choiceID(for: recipe))
-            adoptNewestResult()
-            aiTab = .result
+            presentJobResult(sourceIDs: Set(batch.map(\.id)))
         } catch AgentError.cancelled {
-            aiTab = .work
+            if paneFocus == .input, Set(selectedItems.map(\.id)) == Set(batch.map(\.id)) { aiTab = .work }
         } catch {
             errorText = human(error)
-            if shelf.results().isEmpty == false {
-                adoptNewestResult()
-                aiTab = .result
+            if shelf.results().contains(where: { !previousResults.contains($0.id) }) {
+                presentJobResult(sourceIDs: Set(batch.map(\.id)))
             }
         }
     }
@@ -89,16 +106,30 @@ extension AppSession {
             )
             return
         }
+        let previousResults = Set(shelf.results().map(\.id))
+        errorText = nil
         do {
             _ = try await job.start(itemIDs: fitted, recipe: recipe, optionID: choiceID(for: recipe))
-            adoptNewestResult()
+            presentJobResult(sourceIDs: Set(fitted))
         } catch AgentError.cancelled {
             return
         } catch {
             errorText = human(error)
-            if shelf.results().isEmpty == false {
-                adoptNewestResult()
+            if shelf.results().contains(where: { !previousResults.contains($0.id) }) {
+                presentJobResult(sourceIDs: Set(fitted))
             }
+        }
+    }
+
+    func presentJobResult(sourceIDs: Set<ItemID>) {
+        // Completion must not replace another material, preview, or an open draft.
+        let followsJob = paneFocus == .input && aiTab == .work && !otherOpen
+            && Set(selectedItems.map(\.id)) == sourceIDs
+        refresh()
+        if !prefs.showResult { setShowResult(true) }
+        if followsJob {
+            adoptNewestResult()
+            aiTab = .result
         }
     }
 

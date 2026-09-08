@@ -9,11 +9,17 @@ struct PanelHeader: View {
     var body: some View {
         HStack(spacing: 6) {
             Text("DropAgent")
-                .font(.system(size: 10, weight: .bold))
-                .tracking(1.2)
-                .textCase(.uppercase)
+                .font(.system(size: 13, weight: .semibold))
+                .tracking(-0.3)
+                .fixedSize()
                 .foregroundStyle(Palette.text)
                 .accessibilityAddTraits(.isHeader)
+            if showsHeaderSearch {
+                HeaderSearchField(session: session)
+                    .frame(minWidth: 64, maxWidth: 240)
+                    .padding(.leading, 12)
+                    .layoutPriority(-1)
+            }
             Spacer(minLength: 0)
             if showsStatusChip {
                 statusChip
@@ -64,12 +70,7 @@ struct PanelHeader: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 48)
-        .overlay {
-            if showsHeaderSearch {
-                HeaderSearchField(session: session)
-                    .frame(width: 260)
-            }
-        }
+        .background(Palette.panel)
     }
 
     private var showsHeaderSearch: Bool {

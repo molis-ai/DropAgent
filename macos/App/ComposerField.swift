@@ -23,7 +23,7 @@ struct ComposerField: NSViewRepresentable {
         field.cell?.usesSingleLineMode = true
         field.cell?.wraps = false
         field.cell?.isScrollable = true
-        field.setAccessibilityLabel("写给终端")
+        field.setAccessibilityLabel(Copy.t("写给终端", "Write to terminal"))
         applyChrome(field)
         return field
     }
@@ -32,12 +32,14 @@ struct ComposerField: NSViewRepresentable {
         context.coordinator.text = $text
         context.coordinator.focused = $focused
         context.coordinator.onSubmit = onSubmit
-        if nsView.stringValue != text {
+        let composing = (nsView.currentEditor() as? NSTextView)?.hasMarkedText() == true
+        if nsView.stringValue != text && composing == false {
             nsView.stringValue = text
         }
         nsView.isEnabled = enabled
         nsView.isEditable = enabled
         applyChrome(nsView)
+        (nsView as? ComposerTextField)?.focusRequested = focused && enabled
     }
 
     private func applyChrome(_ field: NSTextField) {
@@ -84,6 +86,23 @@ struct ComposerField: NSViewRepresentable {
 }
 
 private final class ComposerTextField: NSTextField {
+    var focusRequested = false {
+        didSet { if focusRequested { requestFocusIfNeeded() } }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        requestFocusIfNeeded()
+    }
+
+    private func requestFocusIfNeeded() {
+        guard focusRequested, window != nil, currentEditor() == nil else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.focusRequested, self.currentEditor() == nil else { return }
+            self.window?.makeFirstResponder(self)
+        }
+    }
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func becomeFirstResponder() -> Bool {
