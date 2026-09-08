@@ -427,8 +427,8 @@ enum AppE2E {
             guard zipHint.contains("这类文件不能总结或翻译") else {
                 fail("zip recipe hint \(zipHint)")
             }
-            guard zipHint.contains("新交付") else {
-                fail("zip hint missing brief \(zipHint)")
+            guard zipHint.contains("整合") || zipHint.contains("Combine") else {
+                fail("zip hint missing combine \(zipHint)")
             }
             guard zipHint.contains("或在下面写一句话") == false else {
                 fail("zip hint still generic \(zipHint)")

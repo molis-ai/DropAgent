@@ -63,7 +63,7 @@ extension AppSession {
     var confirmRecipeID: RecipeID? {
         let title = selectedItems.first(where: { $0.status == .confirm })?.recipe
             ?? selectedItems.first?.recipe
-        return RecipeID.allCases.first { $0.fullTitle == title }
+        return RecipeID.fromStored(title)
     }
     var shortcutFooter: String {
         let keys = HotKeyCopy.hotkeyLine(hasAgent: hasAgent, toggleOK: hotKeyToggleOK, captureOK: hotKeyCaptureOK, filesOK: hotKeyFilesOK)
@@ -118,7 +118,10 @@ extension AppSession {
             return "点「其他」写一句话，发给 \(tuiTitle) 终端。"
         }
         if recipeBatch.contains(where: { $0.kind == .file }) && recipeBatch.count < RecipeID.brief.minimumCount {
-            return "这类文件不能总结或翻译。发给 \(tuiTitle)，或再选一份做「新交付」。"
+            return Copy.t(
+                "这类文件不能总结或翻译。发给 \(tuiTitle)，或再选一份做「整合」。",
+                "This kind of file cannot be summarized or translated. Send it to \(tuiTitle), or pick one more item and Combine."
+            )
         }
         return "选中的材料不能跑这些动作。发给 \(tuiTitle)。"
     }
@@ -149,7 +152,7 @@ extension AppSession {
     var failedOutputRetryRecipe: RecipeID? {
         guard isFailedOutputTakeaway, hasRecipe else { return nil }
         guard let title = selectedItems.first?.recipe else { return nil }
-        return RecipeID.allCases.first { $0.fullTitle == title }
+        return RecipeID.fromStored(title)
     }
 
     var doneActionHint: String {

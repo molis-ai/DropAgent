@@ -79,7 +79,7 @@ extension RecipeCatalog {
                 hint: "",
                 choices: [
                     RecipeChoice(id: "page", title: "一页"),
-                    RecipeChoice(id: "full", title: "完整 briefing")
+                    RecipeChoice(id: "full", title: "完整一份")
                 ],
                 defaultID: "full"
             )
@@ -157,9 +157,9 @@ extension RecipeCatalog {
         case .brief:
             switch choiceID {
             case "page":
-                return "根据这些材料生成一页可交付 briefing（Markdown）。"
+                return "把这些材料整合成一页 Markdown，作为最终回复。"
             default:
-                return "根据这些材料生成一份完整可交付 briefing（Markdown）。"
+                return "把这些材料整合成一份完整 Markdown，作为最终回复。"
             }
         }
     }

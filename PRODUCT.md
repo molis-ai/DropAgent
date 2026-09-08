@@ -38,7 +38,7 @@ Lives in the macOS menu bar. Also needs a six-slice drop wheel around the pointe
 - First open shows a skippable readiness checklist when Accessibility or browser automation is not granted. The same list lives at the top of Settings. Authorizing a browser must present the system control prompt; opening an empty Automation pane is not enough.
 - Settings lists every shortcut (global toggle/capture and in-panel hide/paste/copy/delete are editable; up/down is display-only) and a capability guide: drop targets, accepted types, shelf URL capture vs AI-pane link, what is read, where files are written, and drag-out payloads. Appearance can hide the work pane, results pane, and drop wheel. Originals are never overwritten. Dropping on the wheel does not open or close the panel.
 - Shelf can hold items without running.
-- Recipes (v1 names only): summarize, extract, translate keeping format, redact, convert to Markdown, assemble a new brief from several materials.
+- Recipes (v1 names only): summarize, extract, translate keeping format, redact, convert to Markdown, combine several items into one document.
 - Files drag out as standard Mac pasteboard types (file, text, image, URL). Promise Finder, Desktop, file upload fields, Office attachments, most IM threads, most AI-desktop composers, and text editors when the payload is text. No per-app plugins. Spring back if the target refuses. Copy, not move. One item at a time. Staged originals may drag out too. Details: `02-prototype-design.md` section 6.
 - Isolation labels: Safe Copy (Claude / custom CLI), Workspace Sandbox (Codex / Gemini when their flags support it), Strict Isolation not in v1.
 - Never load the user's global MCP, hooks, or project rules by default.

@@ -1911,6 +1911,9 @@ private func job() async throws {
     }
     expectEqual(briefOne.0.item(id: briefOne.3.id)?.status, .idle)
     expectEqual(RecipeID.brief.minimumCount, 2)
+    expectEqual(RecipeID.fromStored("新交付"), .brief)
+    expectEqual(RecipeID.fromStored("根据多份材料生成一个新交付"), .brief)
+    expectEqual(RecipeID.fromStored("把几份材料整合成一份"), .brief)
 
     let briefRoot = try tempDir()
     let originalA = briefRoot.appendingPathComponent("a.md")

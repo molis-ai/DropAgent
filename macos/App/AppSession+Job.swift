@@ -60,7 +60,7 @@ extension AppSession {
             return
         }
         let batch = selectedItems.filter { $0.status == .confirm }
-        guard let first = batch.first, let recipe = RecipeID.allCases.first(where: { $0.fullTitle == first.recipe }) else {
+        guard let first = batch.first, let recipe = RecipeID.fromStored(first.recipe) else {
             return
         }
         guard runningItems.isEmpty, batch.count >= recipe.minimumCount,

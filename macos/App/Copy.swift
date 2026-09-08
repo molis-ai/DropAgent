@@ -33,7 +33,7 @@ enum Copy {
         case .translate: return t("翻译", "Translate")
         case .redact: return t("脱敏", "Redact")
         case .toMarkdown: return t("转 MD", "To Markdown")
-        case .brief: return t("新交付", "Brief")
+        case .brief: return t("整合", "Combine")
         }
     }
 
@@ -44,7 +44,7 @@ enum Copy {
         case .translate: return t("翻译并保留格式", "Translate and keep formatting")
         case .redact: return t("敏感信息脱敏", "Redact sensitive information")
         case .toMarkdown: return t("转换为 Markdown", "Convert to Markdown")
-        case .brief: return t("根据多份材料生成一个新交付", "Assemble a new brief from several items")
+        case .brief: return t("把几份材料整合成一份", "Combine several items into one document")
         }
     }
 
@@ -55,7 +55,7 @@ enum Copy {
         case .translate: return t("译成指定语言，尽量留版式", "Translate and keep the layout.")
         case .redact: return t("去掉联系方式、证件等敏感信息", "Strip contacts, IDs, and similar private bits.")
         case .toMarkdown: return t("转成可编辑的 Markdown", "Turn it into editable Markdown.")
-        case .brief: return t("把几份材料合成一份新稿", "Assemble several items into one brief.")
+        case .brief: return t("选几份，合成一份新稿", "Combine several items into one document.")
         }
     }
 
@@ -67,10 +67,7 @@ enum Copy {
 
     static func recipeStored(_ stored: String?) -> String {
         guard let stored, stored.isEmpty == false else { return t("动作", "Action") }
-        if let id = RecipeID(rawValue: stored) { return recipeFull(id) }
-        if let id = RecipeID.allCases.first(where: { $0.fullTitle == stored || $0.shortTitle == stored }) {
-            return recipeFull(id)
-        }
+        if let id = RecipeID.fromStored(stored) { return recipeFull(id) }
         return stored
     }
 

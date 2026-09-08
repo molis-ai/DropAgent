@@ -1654,7 +1654,7 @@
       ["翻译", "翻译并保留格式", "译成指定语言，尽量留版式"],
       ["脱敏", "敏感信息脱敏", "去掉联系方式、证件等敏感信息"],
       ["转 MD", "转换为 Markdown", "转成可编辑的 Markdown"],
-      ["新交付", "根据多份材料生成一个新交付", "把几份材料合成一份新稿"]
+      ["整合", "把几份材料整合成一份", "选几份，合成一份新稿"]
     ];
     const kinds = {
       pdf: { tag: "PDF", word: "文档", tone: "pdf" },
@@ -1671,7 +1671,7 @@
       "翻译并保留格式": "North America +8%.\nChannel discount tightened from 14% to 9%.",
       "敏感信息脱敏": "客户名、金额、内部代号已替换为 [REDACTED]。",
       "转换为 Markdown": "# Q3 Pricing\n\n- NA +8%\n- Channel discount 9%",
-      "根据多份材料生成一个新交付": "给销售的一页 briefing：调价、口径、不能对外说的三件事。"
+      "把几份材料整合成一份": "给销售的一页稿：调价、口径、不能对外说的三件事。"
     };
     const outputs = {
       "总结文件": "summary.md",
@@ -1679,7 +1679,7 @@
       "翻译并保留格式": "Q3-pricing.zh.md",
       "敏感信息脱敏": "Q3-pricing.redacted.pdf",
       "转换为 Markdown": "converted.md",
-      "根据多份材料生成一个新交付": "brief.md"
+      "把几份材料整合成一份": "brief.md"
     };
 
     const recipeOpts = {
@@ -1688,7 +1688,7 @@
       "翻译并保留格式": { label: "译成", hint: "源语言自动识别", items: ["中文", "English", "日本語", "한국어"], def: "中文" },
       "敏感信息脱敏": { label: "范围", hint: "", items: ["联系方式", "金额证件", "全套"], def: "全套" },
       "转换为 Markdown": { label: "版式", hint: "", items: ["保结构", "只要正文", "带目录"], def: "保结构" },
-      "根据多份材料生成一个新交付": { label: "篇幅", hint: "", items: ["一页", "完整 briefing"], def: "完整 briefing" }
+      "把几份材料整合成一份": { label: "篇幅", hint: "", items: ["一页", "完整一份"], def: "完整一份" }
     };
     const state = {
       open: true, hasTui: true, hasRecipe: true, tui: "Grok",
@@ -1776,7 +1776,7 @@
       "翻译": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M3 8h10M8 2.5c-2 2-2 9 0 11M8 2.5c2 2 2 9 0 11"/></svg>',
       "脱敏": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4Z"/><path d="M3 13 13 3"/></svg>',
       "转 MD": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v9H3zM5 7v4M8 6v5M11 8v3"/></svg>',
-      "新交付": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5h7v8H3zM6 3h7v8"/></svg>',
+      "整合": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5h7v8H3zM6 3h7v8"/></svg>',
       "其他": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12.5" cy="8" r="1.1"/></svg>'
     };
     const ico = {
@@ -1929,7 +1929,7 @@
       }
       el.innerHTML = state.results.map((r) => {
         const sel = state.focus === "result" && state.resultId === r.id;
-        const short = (r.recipe || "").replace("并保留格式", "").replace("提取结构化信息", "抽取").replace("根据多份材料生成一个新交付", "新交付");
+        const short = (r.recipe || "").replace("并保留格式", "").replace("提取结构化信息", "抽取").replace("把几份材料整合成一份", "整合").replace("根据多份材料生成一个新交付", "整合");
         return `<div class="result-row ${sel ? "sel" : ""}" draggable="true" data-act="pick-result" data-id="${r.id}">
           <span class="tag tag-md">MD</span>
           <span class="name">${r.name}</span>

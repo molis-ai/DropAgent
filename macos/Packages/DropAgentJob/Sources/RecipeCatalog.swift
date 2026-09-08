@@ -16,7 +16,7 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
         case .translate: return "翻译"
         case .redact: return "脱敏"
         case .toMarkdown: return "转 MD"
-        case .brief: return "新交付"
+        case .brief: return "整合"
         }
     }
 
@@ -27,12 +27,23 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
         case .translate: return "翻译并保留格式"
         case .redact: return "敏感信息脱敏"
         case .toMarkdown: return "转换为 Markdown"
-        case .brief: return "根据多份材料生成一个新交付"
+        case .brief: return "把几份材料整合成一份"
         }
     }
 
     public var minimumCount: Int {
         self == .brief ? 2 : 1
+    }
+
+    public static func fromStored(_ stored: String?) -> RecipeID? {
+        guard let stored, stored.isEmpty == false else { return nil }
+        if let id = RecipeID(rawValue: stored) { return id }
+        switch stored {
+        case "新交付", "根据多份材料生成一个新交付", "Brief", "Combine":
+            return .brief
+        default:
+            return allCases.first { $0.fullTitle == stored || $0.shortTitle == stored }
+        }
     }
 }
 
