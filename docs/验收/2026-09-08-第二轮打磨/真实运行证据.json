@@ -1,0 +1,12 @@
+{
+  "job": "3F5FD33A-9278-4580-B889-AD12E314BB28",
+  "result": "6B2D8251-7BF1-4F0B-8327-69615DD8C737",
+  "source_sha256": "1eca7f999e2cb417c7719ea0adae6c9624ed926e2705f3374aa15c2e910cb3d2",
+  "snapshot_sha256": "1eca7f999e2cb417c7719ea0adae6c9624ed926e2705f3374aa15c2e910cb3d2",
+  "output_sha256": "576b816d44e7d4976aef0f1f823ef00746d2db4d16101c33e6ae5b1568b3679f",
+  "source_unchanged_and_matches_snapshot": true,
+  "source_bytes": 197,
+  "output_bytes": 284,
+  "completion_preserved_other_material_and_draft": true,
+  "draft_observed": "Keep this draft while the translation finishes."
+}

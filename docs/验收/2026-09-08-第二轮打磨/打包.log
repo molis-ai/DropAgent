@@ -1,0 +1,12 @@
+Building for debugging...
+[0/6] Write sources
+[1/6] Write swift-version--1AB21518FC5DEDBE.txt
+[3/6] Emitting module DropAgent
+[4/6] Compiling DropAgent AppSession+Shelf.swift
+[4/7] Write Objects.LinkFileList
+[5/7] Linking DropAgent
+[6/7] Applying DropAgent
+Build of product 'DropAgent' complete! (1.92s)
+/Users/oreal/adeptify-home/repos/DropAgent/macos/dist/DropAgent Review.app: replacing existing signature
+signed adhoc local.dropagent.review (no Developer ID Application identity)
+/Users/oreal/adeptify-home/repos/DropAgent/macos/dist/DropAgent Review.app

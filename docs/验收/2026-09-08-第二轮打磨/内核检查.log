@@ -1,0 +1,8 @@
+Building for debugging...
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+Build of product 'DropAgentCheck' complete! (0.08s)
+live web admit: WEB Example Domain png=80396 md=168
+live Grok: /Users/oreal/.grok/bin/grok
+live Grok send: cwd=/var/folders/j2/q_ctx69x57b2md26b1jclklh0000gn/T/da-35C2E7BB-D6A3-4872-AF09-7FD4C571FD4B/TUIInbox/session
+live capture: captureFailed
+DropAgentCheck: all passed

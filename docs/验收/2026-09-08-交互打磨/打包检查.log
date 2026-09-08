@@ -1,0 +1,12 @@
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+[0/1] Planning build
+Building for debugging...
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+[1/4] Generate SwiftTerm build information
+[2/5] Write Objects.LinkFileList
+[3/5] Linking DropAgent
+[4/5] Applying DropAgent
+Build of product 'DropAgent' complete! (1.75s)
+/Users/oreal/adeptify-home/repos/DropAgent/macos/dist/DropAgent Review.app: replacing existing signature
+signed adhoc local.dropagent.review (no Developer ID Application identity)
+/Users/oreal/adeptify-home/repos/DropAgent/macos/dist/DropAgent Review.app

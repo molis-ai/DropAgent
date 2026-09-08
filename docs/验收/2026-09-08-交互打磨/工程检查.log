@@ -1,0 +1,19 @@
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+[0/1] Planning build
+Building for debugging...
+[0/4] Write sources
+[1/4] Write swift-version--1AB21518FC5DEDBE.txt
+[3/6] Emitting module DropAgentAgent
+[4/6] Compiling DropAgentAgent PrintCLI.swift
+[4/8] Write sources
+[6/10] Emitting module DropAgentCheck
+[7/10] Compiling DropAgentCheck main.swift
+[7/10] Write Objects.LinkFileList
+[8/10] Linking DropAgentCheck
+[9/10] Applying DropAgentCheck
+Build of product 'DropAgentCheck' complete! (4.28s)
+live web admit: WEB Example Domain png=80396 md=168
+live Grok: /Users/oreal/.grok/bin/grok
+live Grok send: cwd=/var/folders/j2/q_ctx69x57b2md26b1jclklh0000gn/T/da-CB47451D-FA14-45DF-B9C4-24F9514B7F3D/TUIInbox/session
+live capture: WEB Example Domain https://example.com/
+DropAgentCheck: all passed

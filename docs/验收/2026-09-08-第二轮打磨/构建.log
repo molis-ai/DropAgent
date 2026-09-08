@@ -1,0 +1,20 @@
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+[0/1] Planning build
+Building for debugging...
+[0/6] Write sources
+[1/6] Write swift-version--1AB21518FC5DEDBE.txt
+[2/5] Generate SwiftTerm build information
+[4/10] Compiling DropAgent AppSession+Job.swift
+[5/10] Emitting module DropAgent
+[6/10] Compiling DropAgent ResultStack.swift
+[7/10] Compiling DropAgent ShelfColumn.swift
+[8/10] Compiling DropAgent AppE2E.swift
+[9/15] Compiling DropAgent RecipeChooser.swift
+[10/15] Compiling DropAgent WorkPane.swift
+[11/15] Compiling DropAgent RecipeConfirmationView.swift
+[12/15] Compiling DropAgent AppSession+Admit.swift
+[13/15] Compiling DropAgent PanelPreview.swift
+[13/16] Write Objects.LinkFileList
+[14/16] Linking DropAgent
+[15/16] Applying DropAgent
+Build of product 'DropAgent' complete! (5.13s)

@@ -1,123 +1,32 @@
 ---
 name: DropAgent
-description: Quiet menu-bar shelf. Cool sage paper over a night desk, after GoalBoard Onboarding.
+description: Native menu-bar shelf with graphite, cool white, and restrained blue.
 colors:
-  desk: "#050607"
-  panel: "#f1f3f2"
-  panel-2: "#ecefee"
-  panel-hover: "#e9eceb"
-  panel-press: "#e2e5e4"
-  ai: "#f1f3f2"
+  panel: "#fcfcfd"
+  sidebar: "#f2f3f6"
+  hover: "#e9edf6"
+  selection: "#dfe7fb"
   text: "#1f272b"
-  muted: "#59656b"
-  faint: "#5d696f"
-  icon: "#718086"
-  line: "#d4dad9"
-  primary: "#222b30"
-  primary-press: "#11181c"
-  on-accent: "#f7f8f7"
-  field: "#e6eae9"
-  tty-well: "#17191c"
-  tty-ink: "#e8e8e3"
-  tty-muted: "rgba(237,237,232,.62)"
-  tag-pdf: "#ead6c2"
-  tag-pdf-ink: "#5a3824"
-  tag-image: "#d5e6db"
-  tag-image-ink: "#2f5340"
-  tag-url: "#d9e0ec"
-  tag-url-ink: "#33445c"
-  tag-web: "#d4e4e6"
-  tag-web-ink: "#2f4d52"
-  tag-md: "#dde3dc"
-  tag-md-ink: "#334038"
-  tag-clip: "#ece0c8"
-  tag-clip-ink: "#5a4320"
-typography:
-  body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, sans-serif"
-    fontSize: "13px"
-    fontWeight: 570
-    lineHeight: 1.35
-    letterSpacing: "-0.015em"
-  brand:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, sans-serif"
-    fontSize: "10px"
-    fontWeight: 760
-    letterSpacing: "0.1em"
-  meta:
-    fontFamily: "ui-monospace, SF Mono, Menlo, monospace"
-    fontSize: "10px"
-    fontWeight: 620
-    lineHeight: 1.5
-    letterSpacing: "0.08em"
-  tty:
-    fontFamily: "ui-monospace, SF Mono, Menlo, monospace"
-    fontSize: "12px"
-    fontWeight: 400
-    lineHeight: 1.72
-    letterSpacing: "normal"
-rounded:
-  sm: "4px"
-  md: "6px"
-  lg: "9px"
-  panel: "12px"
-  pill: "99px"
-spacing:
-  row: "10px"
-  pad: "18px"
-components:
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-accent}"
-    rounded: "5px"
-    height: "38px"
-  tag:
-    backgroundColor: "transparent"
-    textColor: "{colors.faint}"
-    rounded: "0px"
-    padding: "0"
+  muted: "#5c6270"
+  accent: "#365cda"
+  dark-panel: "#1a1c21"
+  dark-sidebar: "#20232a"
+  dark-accent: "#a6bbff"
 ---
 
-## Overview
+# 当前视觉约定
 
-DropAgent is a quiet sage panel hung from the macOS menu bar. It borrows GoalBoard Onboarding’s calm: leftover space, a short guide, stroke icons, and no shouting. Three columns: inputs left, work middle, results right. No chromatic accent. No glass.
+2026-09-08 第二轮。用户明确要求不用绿色；主色、标签、选中态、状态与深色主题均不使用绿色。原生 App 是体验验证对象，HTML 是结构与视觉演示。
 
-## Colors
+DropAgent 仍是菜单栏小工具。保留远端输入／工作／结果三栏与可收起能力。冷白工作面、石墨灰文字、灰色侧栏，以蓝色区分主操作和当前选中状态。不增加玻璃背景、装饰插图或仪表盘。
 
-Cool sage `#f1f3f2` over night `#050607`. Ink `#1f272b`. Selection is a deeper wash, not a color bar. The only solid fill is 拖出. File kinds get a dusty tag wash (PDF brown, image green, URL slate, WEB teal, MD moss, CLIP ochre). Color stays on the tag, not the row.
+- 系统字体 SF Pro / PingFang：工作标题 21pt、动作名 13pt、说明 11.5pt、预览正文 13pt，正文使用明确行距。
+- 动作整行可点，默认不堆灰色卡框；悬停反馈显示可点击范围。无法执行的动作在行内解释条件。
+- 页签采用紧凑分段控件，选中底片移动；动作／确认／预览内容轻微淡入，终端实例始终保留。
+- 确认页从上到下是返回、动作名与材料、选项、执行权限、运行按钮。当前执行能力如实呈现，不简化掉隔离边界。
+- 结果保留有序列表编号；文件名和正文之间有细分隔，标题、段落、列表拉开层级。
+- 选中行清楚区分输入和结果；键盘移动同步滚动。任务运行时可从页签旁返回进展并取消。
+- 交互过渡约 180ms，页签选中使用短弹簧；全部尊重减少动态效果，不做永久装饰动画。
+- 默认面板 800×640，沿用原有栏宽调整和收起规则。仅主操作使用浅投影，层级主要依靠留白和明度。
 
-## Typography
-
-SF Pro / PingFang. Tracked 10px wordmark. Intro 15px. Meta in tiny mono. SF Mono only in the terminal.
-
-## Layout
-
-800px panel by default. Header 48px, brand left. Input 196px, results 196px, work fills the rest. Work and results can hide; the window shrinks, down to about 260px for the shelf alone. Work pane is a single column of action rows: a 120px paper button on the left, one muted sentence on the right. 其他 is the last row. The bottom field stays hidden until 其他 is on, then expands in place. The terminal tab does not show the composer.
-
-## Elevation & Depth
-
-One offset shadow on the panel. Hierarchy is tone, not a grid of borders. Splitters are invisible until hover.
-
-## Shapes
-
-Panel 12px. Choice rows 6px. Send is a circle. 拖出 is 5px.
-
-## Components
-
-- File row: mono tag + name + time. Hover wash. Whole row drags.
-- Header: tracked DROPAGENT; engine as underline; settings / minimize / close as 13px strokes.
-- Work tabs: 动作 / 终端 / 预览 as text with an underline on the current one.
-- Recipes: one vertical list. Each row is a paper button (stroke icon + short name) plus a muted one-line blurb. Click the button, not the sentence. 其他 is the seventh row.
-- 其他: only the button latches on; the composer appears at the bottom in place, not as a modal. The terminal tab does not show the composer.
-- Confirm: option rows + review list, no questionnaire title.
-- Empty: title + one guiding sentence.
-- Terminal well: `#17191c`, no chrome frame.
-- Drop: list = stage, middle = send to TUI.
-
-## Do's and Don'ts
-
-Do: leave space; teach in empty states; keep icons quiet; let 拖出 be the one solid action.
-
-Don't: cobalt as brand; glass; serif wordmark; boxed recipe tiles; file pictograms; a separate Terminal window.
-
-Status color is reserved: running teal, waiting amber, failed dusty red, sent slate, ready sage. Icons sit with those states. The work pane fills the middle column; running is centered with a spinner.
+旧版设计细节以本文件和 `02-prototype-design.md` 的最新修订为准。
