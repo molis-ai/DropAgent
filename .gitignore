@@ -4,7 +4,8 @@ DerivedData/
 .DS_Store
 *.xcuserdata
 xcuserdata/
-.impeccable/config.local.json
+.impeccable/
 macos/.build/
 macos/.swiftpm/
 macos/dist/
+dist/

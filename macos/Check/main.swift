@@ -3508,7 +3508,7 @@ private func liveGrok() async throws {
     let agent = AgentService(runner: StubExecutor(), settings: settings, pathEnvironment: pathEnv, home: home)
     let presence = agent.tuiPresence(settings: settings)
     guard case .grok(let path, _) = presence else {
-        fail("live Grok executable not found")
+        fputs("live Grok: skipped (not installed)\n", stdout)
         return
     }
     fputs("live Grok: \(path.path)\n", stdout)

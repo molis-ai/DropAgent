@@ -4,6 +4,7 @@ import PackageDescription
 let package = Package(
     name: "DropAgent",
     platforms: [.macOS(.v14)],
+    // MIT. See LICENSE and NOTICE in the repository root.
     products: [
         .library(name: "DropAgentShelf", targets: ["DropAgentShelf"]),
         .library(name: "DropAgentIngest", targets: ["DropAgentIngest"]),

@@ -1,32 +1,32 @@
 # DropAgent
 
-**菜单栏上的 Agent 置物架。** 把 PDF、截图或链接先放着，交给本机已经装好的 Grok、Codex、Claude 或 Gemini 处理**副本**，新文件出现在右侧，再拖走。原件不动。
+[![Check](https://github.com/molis-ai/DropAgent/actions/workflows/check.yml/badge.svg)](https://github.com/molis-ai/DropAgent/actions/workflows/check.yml)
+
+**菜单栏上的 Agent 置物架。** 把 PDF、截图或链接先放着，在副本上处理，新文件出现在结果区，再拖走。原件不动。
 
 A macOS menu bar shelf for the coding agent you already have. Stage first, run on a copy, drag the new file out.
 
-![深色模式下的菜单栏面板，左侧已有一份待处理文稿](docs/readme/panel-dark.png)
+![深色面板：上面是文件卡，中间是内容台，下面是动作](docs/readme/panel-dark.png)
 
-拖文件时，指针旁出现六瓣轮盘：加入架子、发给终端、总结、抽取、翻译、转 MD。圆心是空的；拖出外圈即消失，不开关面板。
+点一张卡，中间出现正文；下面是动作栏。取消选中则收起内容台。不把预览挂在面板外面。
 
-![拖着 artifact-v1.json 时出现的六瓣轮盘](docs/readme/wheel.png)
-
-![从空架子、选动作、运行，到右侧出现新文件](docs/readme/loop.gif)
-
-当前是可以在本机打包运行的 macOS 菜单栏工具（0.1.0）。不上 Mac App Store，也不提供云端模型。深色面板和轮盘是运行中的真实截图；循环 GIF 来自界面预览，材料是合成样例。
+当前版本 **0.1.0**，从源码打包运行。不上 Mac App Store，不提供云端模型。截图来自当前界面预览。
 
 ## 它解决什么
 
 这些 Agent 习惯对着代码仓库干活。手头却常常只是一份报价 PDF、一张截图、一篇网页：你不想 `cd` 进某个项目，也不想让它改原文件。
 
-DropAgent 给它们一个项目之外的投递口：
+1. 拖到菜单栏，或打开面板放到文件架。此时还不跑。
+2. 点开看内容。要跑动作时，先看到读什么、写哪里、是否联网、隔离是哪一档。
+3. 结果区出现新文件。上面的材料还在。把产出拖到桌面、Finder 或上传框。
 
-1. 拖到菜单栏，或打开面板放进左侧架子。此时还不跑。
-2. 选一个动作。运行前能看到读什么、写哪里、是否联网、当前是哪一档隔离。
-3. 右侧出现新文件。左侧输入还在。把产出拖到桌面、Finder 或上传框。
+![选中结果后：上面仍是原 PDF，中间是 summary.md，下面是结果卡](docs/readme/result.png)
 
-![左侧仍是 sample.pdf，右侧是新的 summary.md](docs/readme/result.png)
+成功时你看到的是：**原件还在上面，新文件在结果区，中间可以读。** 不是 Agent 启动了就算完。
 
-成功时你看到的是：**原件还在左边，新文件在右边，中间可以预览。** 不是 Agent 启动了就算完。
+拖文件时，指针旁可出现六瓣轮盘：加入架子、发给终端、总结、抽取、翻译、转 MD。圆心是空的；拖出外圈即消失。
+
+![拖着 artifact-v1.json 时出现的六瓣轮盘](docs/readme/wheel.png)
 
 ## 和现有做法差在哪
 
@@ -36,7 +36,7 @@ DropAgent 给它们一个项目之外的投递口：
 | Yoink / Dropover 只暂存 | 架子还在，但可以选动作，结果作为新文件拿走 |
 | 在终端里对着原路径开工 | 快捷动作在副本里跑；发给终端时会写明「不是副本沙箱」 |
 
-六个 CLI 动作和对应产出：
+六个 CLI 动作需要本机已装、有无界面入口的终端 Agent：
 
 | 动作 | 新文件（不改原件） |
 | --- | --- |
@@ -47,9 +47,9 @@ DropAgent 给它们一个项目之外的投递口：
 | 转 Markdown | `converted.md` |
 | 整合（至少两份材料） | `brief.md` |
 
-选中图片或 PDF 时还有「文字提取」：图片用本机 Vision 写出 `ocr.md`，PDF 抽出可选中文字写出 `pdf.md`。都不需要终端 Agent，也不上网。扫描件 PDF 会标明没有可选中的文字。
+选中图片或 PDF 时还有「文字提取」：图片用本机 Vision 写出 `ocr.md`，PDF 抽出可选中文字写出 `pdf.md`。**不需要终端 Agent，也不上网。** 扫描件 PDF 会标明没有可选中的文字。
 
-没装可用 CLI 时，不会偷偷调云端。架子仍可用来暂存和拖出。
+没装可用 CLI 时，不会偷偷调云端。架子仍可用来暂存、预览和拖出。
 
 ## 开始使用
 
@@ -57,7 +57,8 @@ DropAgent 给它们一个项目之外的投递口：
 
 - macOS 14+
 - Swift 6 工具链（Xcode 或 Command Line Tools）
-- 本机已登录的终端 Agent。预置 TUI：Grok、Claude、Gemini、OpenCode、Cursor CLI、Codex；预置纯 CLI：llm、aichat、sgpt。设置里可以加自定义 Runtime。
+
+第一次成功**不要求**已装 Grok / Codex。有 Agent 再跑总结、翻译。
 
 在仓库根目录：
 
@@ -66,38 +67,62 @@ bash macos/package-app.sh
 open macos/dist/DropAgent.app
 ```
 
-有 Developer ID 就按开发者证书签；否则做 adhoc 签名。应用在菜单栏，Dock 里没有图标。`macos/dist/` 不会进 git，每次从源码打包。
+有 Developer ID 就按开发者证书签；否则做 adhoc 签名。应用在菜单栏，Dock 里没有图标。`macos/dist/` 不进 git。
 
-第一次打开会看到三步：**放上来 → 选动作 → 拖走。** 点「放入示例文稿」，架子上出现 `先读我.md`。选「总结」，看权限条，点「在副本中运行」。成功时右侧出现 `summary.md`，左侧示例还在。
+macOS 可能拦截未公证的 App。若打不开：在 Finder 里选中 `DropAgent.app`，右键 → 打开。这不是沙箱安装包，也还没有 GitHub Release。
+
+打开后面板在菜单栏图标下方。第一次会看到三步引导。也可以点「放入示例文稿」。
+
+![首次打开的三步说明和放入示例](docs/readme/onboard.png)
+
+**不依赖 Agent 的最短路径：**
+
+1. 拖一张截图或一份可选中文字的 PDF 到文件架（或点 `+`）。
+2. 点那张卡，中间出现内容。
+3. 点「文字提取」，看权限条（本机抽字、不发送），再「在副本中运行」。
+4. 结果区出现 `ocr.md` 或 `pdf.md`。上面的原件还在，可以拖走结果。
 
 ![运行前的权限条：读副本、写任务目录、网络、隔离档](docs/readme/confirm.png)
 
-隔离按探测结果写。Codex / Gemini 在官方能力支持时显示 Workspace Sandbox；Claude 和自定义 CLI 是 Safe Copy（原件不被 DropAgent 覆盖，宿主进程仍可能访问其他位置）。探测不到就写「未确认」，不会把未验证的限制说成严格沙箱。第一版没有容器级 Strict Isolation。
+CLI 动作的隔离按探测结果写。Codex / Gemini 在官方能力支持时显示 Workspace Sandbox；Claude 和自定义 CLI 是 Safe Copy（原件不被 DropAgent 覆盖，宿主进程仍可能访问其他位置）。探测不到就写「未确认」，不会把未验证的限制说成严格沙箱。第一版没有容器级 Strict Isolation。
+
+### 权限
+
+只暂存、预览、文字提取：不需要辅助功能。
+
+抓当前网页（⌃⌥W）会申请：
+
+- 辅助功能：读前台浏览器的地址和标题
+- 自动化：问 Safari / Chrome / Edge 当前网址
+- 屏幕截图：给前台窗口拍一张
+
+拒绝后仍可拖文件、粘贴、抽字。系统对话框里的说明见 App 的用途字符串。
 
 默认快捷键（设置里可改）：
 
 | 快捷键 | 作用 |
 | --- | --- |
 | ⌃⌥D | 打开 / 关闭面板 |
-| ⌃⌥W | 把当前 Safari / Chrome / Edge 页加入架子（网址、正文 Markdown、窗口截图；不装扩展） |
+| ⌃⌥W | 把当前 Safari / Chrome / Edge 页加入架子 |
 | ⌃⌥A | 加入前台选中的本地文件 |
 | ⌘V | 从剪贴板贴入 |
 
 ## 换成自己的材料
 
-示例跑通之后，把 `先读我.md` 换成自己的文件即可。
+把示例换成自己的文件即可。
 
-- 拖 PDF、图片、文件夹、文本或链接到**左侧**，或点 `+`、搜索本机文件。
-- 拖到**中间**是发给当前终端，不是加入架子。
+- 拖 PDF、图片、文件夹、文本或链接到**文件架**，或点 `+`、搜索本机文件。
+- 点「其他」打开对话浮窗。拖到浮窗是发给当前终端，不是加入架子。
 
-![拖入时左侧加入架子，中间发给当前 Agent](docs/readme/drop-zones.png)
+![拖到文件架时高亮「加入架子」](docs/readme/drop-zones.png)
 
 - 浏览器最前时按 ⌃⌥W 抓当前页。拖入或粘贴网址也会去抓正文；登录墙后的正文不承诺能拿到。
 - 多选后用「整合」得到一份 `brief.md`。
-- 点「其他」写一句话，连同选中材料发给终端。那一次走该 Agent 自己的权限，界面会写明不是副本沙箱。
-- 结果可复制、拖到别的窗口，或拖回左侧当新材料。多选时一次拖出所选项，复制不是挪走。网站抓取拖出的是文件夹：链接、`page.md`、截图。
+- 结果可复制、拖到别的窗口，或「放到上面当材料」。多选时一次拖出所选项。网站抓取拖出的是文件夹：链接、`page.md`、截图。
 
-轮盘可在设置 → 外观关掉。关掉后，菜单栏图标和左侧列表仍接拖入。
+轮盘可在设置 → 外观关掉。关掉后，菜单栏图标和文件架仍接拖入。
+
+预置 TUI：Grok、Claude、Gemini、OpenCode、Cursor CLI、Codex。预置纯 CLI：llm、aichat、sgpt。设置里可以加自定义 Runtime。
 
 ## 现在不会做的
 
@@ -106,10 +131,15 @@ open macos/dist/DropAgent.app
 - 不解析 TUI 画面，不模拟键盘去点终端菜单。
 - 不接云端 API / Ollama，不上 Mac App Store。
 - 不为某一家办公套件、聊天软件或 AI 桌面做插件。
+- 不把扫描件 PDF 当成已经 OCR 完成。
+
+## 许可
+
+[MIT](LICENSE)。终端内嵌用了 [SwiftTerm](NOTICE)（MIT）。
 
 ## 开发
 
-产品事实以 [`01-requirements.md`](01-requirements.md)、[`02-prototype-design.md`](02-prototype-design.md) 为准。分包和禁区见 [`AGENTS.md`](AGENTS.md) 与 [`03-tech-architecture.md`](03-tech-architecture.md)。
+产品事实以 [`01-requirements.md`](01-requirements.md)、[`02-prototype-design.md`](02-prototype-design.md) 为准。怎么改见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。漏洞请走 [`SECURITY.md`](SECURITY.md)。
 
 ```bash
 cd macos && swift run DropAgentCheck
@@ -117,4 +147,4 @@ cd macos && swift build --product DropAgent
 DROPAGENT_ROOT=/tmp/dropagent-preview-root macos/.build/debug/DropAgent --preview
 ```
 
-`--preview` 会把当前界面各状态写到 `/tmp/dropagent-preview/`。循环 GIF 和权限 / 结果静帧来自这次输出。
+`--preview` 把当前界面各状态写到 `/tmp/dropagent-preview/`。
