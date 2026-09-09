@@ -25,20 +25,31 @@ extension AppSession {
         shelf.setSelection(ids)
         paneFocus = .input
         aiTab = .work
-        if !prefs.showWork { setShowWork(true) }
         refresh()
     }
 
     func toggleSelect(id: ItemID, command: Bool) {
         onPanelInteraction?()
         NSApp.keyWindow?.makeFirstResponder(nil)
-        paneFocus = .input
-        shelf.toggleSelect(id: id, command: command)
-        if command { return }
+        if command {
+            paneFocus = .input
+            shelf.toggleSelect(id: id, command: true)
+            return
+        }
+        if paneFocus != .input {
+            paneFocus = .input
+            shelf.setSelection([id])
+        } else {
+            paneFocus = .input
+            shelf.toggleSelect(id: id, command: false)
+            if selectedItems.isEmpty { return }
+        }
         if let item = shelf.item(id: id) {
-            if item.status == .done || item.status == .failed { aiTab = .result }
-            else if item.status == .sent { aiTab = canOpenTerminalTab ? .tty : .work }
-            else { aiTab = .work }
+            if item.status == .done || item.status == .failed { aiTab = .work }
+            else if item.status == .sent {
+                aiTab = canOpenTerminalTab ? .tty : .work
+                if canOpenTerminalTab { otherOpen = true }
+            } else { aiTab = .work }
         }
     }
 
@@ -47,10 +58,53 @@ extension AppSession {
         NSApp.keyWindow?.makeFirstResponder(nil)
         selectedResultID = id
         paneFocus = .result
-        aiTab = .result
-        if prefs.showWork == false {
-            setShowWork(true)
+        aiTab = .work
+    }
+
+    func toggleResult(_ id: ResultID) {
+        onPanelInteraction?()
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        if paneFocus == .result, selectedResultID == id {
+            selectedResultID = nil
+            paneFocus = .input
+            return
         }
+        selectedResultID = id
+        paneFocus = .result
+        aiTab = .work
+    }
+
+    func openItem(_ item: Item) {
+        onPanelInteraction?()
+        hideHover()
+        guard let url = openURL(for: item) else {
+            errorText = Copy.t("打不开这个文件。", "This file cannot be opened.")
+            return
+        }
+        if NSWorkspace.shared.open(url) == false {
+            errorText = Copy.t("打不开这个文件。", "This file cannot be opened.")
+        }
+    }
+
+    func openURL(for item: Item) -> URL? {
+        if let output = item.output {
+            return existingFile(output)
+        }
+        if item.kind == .url || item.kind == .web {
+            return SourceLink.isOpenable(item.sourceURL) ? item.sourceURL : nil
+        }
+        if let part = item.parts.first, let file = existingFile(part.url) {
+            return file
+        }
+        if let file = existingFile(item.sourceURL) {
+            return file
+        }
+        return SourceLink.isOpenable(item.sourceURL) ? item.sourceURL : nil
+    }
+
+    private func existingFile(_ url: URL) -> URL? {
+        guard url.isFileURL, FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
     }
 
     func reselectResultSources(_ record: ResultRecord) {
@@ -62,7 +116,6 @@ extension AppSession {
         shelf.setSelection(ids)
         paneFocus = .input
         aiTab = .work
-        if !prefs.showWork { setShowWork(true) }
         errorText = nil
         refresh()
     }
@@ -133,9 +186,12 @@ extension AppSession {
         paneFocus = .input
         shelf.moveSelection(offset: offset)
         if let item = selectedItems.first {
-            if item.status == .done || item.status == .failed { aiTab = .result }
-            else if item.status == .sent { aiTab = canOpenTerminalTab ? .tty : .work }
-            else { aiTab = .work }
+            if item.status == .sent, canOpenTerminalTab {
+                aiTab = .tty
+                otherOpen = true
+            } else {
+                aiTab = .work
+            }
         }
     }
 

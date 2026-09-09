@@ -1,26 +1,75 @@
+import DropAgentShelf
 import SwiftUI
 
 struct PanelRootView: View {
     @ObservedObject var session: AppSession
     var onClose: () -> Void
     var onMinimize: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        ZStack(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: session.showsFloat ? LivePanelChrome.dockGap : 0) {
+                filePanel
+                    .frame(height: coversBody ? LivePanelChrome.panelHeight : nil, alignment: .top)
+                    .animation(nil, value: session.showsFloat)
+                    .transaction { $0.animation = nil }
+                if session.showsFloat || session.canOpenTerminalTab {
+                    AIPane(session: session)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .frame(height: session.showsFloat ? nil : 0, alignment: .top)
+                        .clipped()
+                        .opacity(session.showsFloat ? 1 : 0)
+                        .allowsHitTesting(session.showsFloat)
+                        .accessibilityHidden(session.showsFloat == false)
+                        .animation(reduceMotion ? nil : Palette.floatExpand, value: session.showsFloat)
+                }
+            }
+            .padding(LivePanelChrome.dockShadowPad)
+            .fixedSize(horizontal: false, vertical: coversBody == false)
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: DockHeightKey.self, value: geo.size.height)
+                }
+            )
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.clear)
+        .ignoresSafeArea()
+        .preferredColorScheme(session.prefs.appearance.colorScheme)
+        .tint(Palette.text)
+        .symbolRenderingMode(.monochrome)
+        .onAppear { session.refreshSetup() }
+        .onPreferenceChange(DockHeightKey.self) { session.setDockHeight($0) }
+        .onChange(of: session.settingsOpen) { _, open in
+            if open {
+                session.hideHover()
+                session.closeClipHistory()
+            }
+            session.refreshSetup()
+            session.applyLayout?()
+        }
+        .onChange(of: session.spotlight.isActive) { _, on in
+            if on { session.closeClipHistory() }
+        }
+        .onChange(of: session.showsSetupCard) { _, _ in
+            session.applyLayout?()
+        }
+    }
+
+    private var filePanel: some View {
         VStack(spacing: 0) {
             PanelHeader(session: session, onClose: onClose, onMinimize: onMinimize)
             ZStack(alignment: .top) {
-                HStack(spacing: 0) {
+                VStack(spacing: 0) {
                     ShelfColumn(session: session)
-                    if session.prefs.showWork {
-                        PanelSplitBar(session: session, edge: .shelf)
-                        AIPane(session: session)
+                    if coversBody == false {
+                        WorkPane(session: session)
                     }
-                    if session.prefs.showResult {
-                        PanelSplitBar(session: session, edge: session.prefs.showWork ? .result : .shelf)
+                    if session.showsResultStrip {
                         ResultStack(session: session)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .opacity(coversBody ? 0 : 1)
                 .allowsHitTesting(coversBody == false)
                 .accessibilityHidden(coversBody)
@@ -36,27 +85,14 @@ struct PanelRootView: View {
                 } else if session.showsSetupCard {
                     SetupCard(session: session)
                 }
+                AccessibleID(identifier: "ai-pane")
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
             }
+            .frame(minHeight: coversBody ? LivePanelChrome.panelHeight - 48 : nil, alignment: .top)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.panel)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Palette.line, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .ignoresSafeArea()
-        .preferredColorScheme(session.prefs.appearance.colorScheme)
-        .tint(Palette.text)
-        .symbolRenderingMode(.monochrome)
-        .onAppear { session.refreshSetup() }
-        .onChange(of: session.settingsOpen) { _, _ in
-            session.refreshSetup()
-            session.applyLayout?()
-        }
-        .onChange(of: session.showsSetupCard) { _, _ in
-            session.applyLayout?()
-        }
+        .dropAgentPaper()
     }
 
     private var coversBody: Bool {

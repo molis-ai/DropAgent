@@ -35,38 +35,27 @@ final class DropAgentPanel: NSPanel {
 
 enum LivePanelChrome {
     static var styleMask: NSWindow.StyleMask { .borderless }
-    static let panelWidth: CGFloat = 800
+    static let panelWidth: CGFloat = 1040
     static let panelHeight: CGFloat = 640
-    static let shelfDefault: CGFloat = 196
-    static let shelfMin: CGFloat = 176
-    static let shelfMax: CGFloat = 240
-    static let resultDefault: CGFloat = 196
-    static let resultMin: CGFloat = 168
-    static let resultMax: CGFloat = 240
-    static let splitWidth: CGFloat = 16
+    static let dockMinHeight: CGFloat = 168
+    static let dockGap: CGFloat = 10
+    static let dockShadowPad: CGFloat = 36
+    static let paperShadowRadius: CGFloat = 16
+    static let paperShadowY: CGFloat = 8
+    static let cardRadius: CGFloat = 12
+    static let fileCardWidth: CGFloat = 168
+    static let fileCardHeight: CGFloat = 80
+    static let floatMaxHeight: CGFloat = 360
+    static let floatExpandDuration: TimeInterval = 0.28
     static let scrollGutter: CGFloat = 12
-    static let columnHeadHeight: CGFloat = 36
+    static let columnHeadHeight: CGFloat = 32
     static let shelfOnlyMin: CGFloat = 260
-    static let shelfOnlyMax: CGFloat = 280
+}
 
-    static func fittedWidth(
-        showWork: Bool,
-        showResult: Bool,
-        shelfWidth: CGFloat,
-        resultWidth: CGFloat
-    ) -> CGFloat {
-        let shelf = min(shelfMax, max(shelfMin, shelfWidth))
-        let result = min(resultMax, max(resultMin, resultWidth))
-        switch (showWork, showResult) {
-        case (true, true):
-            return panelWidth
-        case (true, false):
-            return panelWidth - result - splitWidth
-        case (false, true):
-            return shelf + splitWidth + result
-        case (false, false):
-            return min(shelfOnlyMax, max(shelfOnlyMin, shelf + 64))
-        }
+struct DockHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = LivePanelChrome.dockMinHeight
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
@@ -96,11 +85,28 @@ private final class HitThroughIDView: NSView {
 }
 
 final class PaperHostView<Content: View>: NSHostingView<Content> {
+    override var isOpaque: Bool { false }
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         ClickModifiers.installIfNeeded()
+        wantsLayer = true
+        layer?.isOpaque = false
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
+}
+
+extension View {
+    func dropAgentPaper() -> some View {
+        clipShape(RoundedRectangle(cornerRadius: LivePanelChrome.cardRadius, style: .continuous))
+            .compositingGroup()
+            .shadow(
+                color: Color.black.opacity(0.18),
+                radius: LivePanelChrome.paperShadowRadius,
+                y: LivePanelChrome.paperShadowY
+            )
     }
 }
 
@@ -141,6 +147,23 @@ enum StatusChrome {
     static var restoresOnActivate: Bool { blockActivateRestore == false }
 
     static func hideForPrompt() {
+        captureStatusWindows()
+        for item in stored {
+            item.window.ignoresMouseEvents = true
+            item.window.alphaValue = 0
+            item.window.level = .normal
+            item.window.orderOut(nil)
+        }
+    }
+
+    static func lowerForPicker() {
+        captureStatusWindows()
+        for item in stored {
+            item.window.level = .floating
+        }
+    }
+
+    private static func captureStatusWindows() {
         NSApp.activate(ignoringOtherApps: true)
         blockActivateRestore = true
         if stored.isEmpty == false { return }
@@ -152,12 +175,6 @@ enum StatusChrome {
                 ignoresMouseEvents: window.ignoresMouseEvents,
                 wasVisible: window.isVisible
             )
-        }
-        for item in stored {
-            item.window.ignoresMouseEvents = true
-            item.window.alphaValue = 0
-            item.window.level = .normal
-            item.window.orderOut(nil)
         }
     }
 

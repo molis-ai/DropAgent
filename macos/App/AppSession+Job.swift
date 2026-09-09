@@ -126,10 +126,9 @@ extension AppSession {
         let followsJob = paneFocus == .input && aiTab == .work && !otherOpen
             && Set(selectedItems.map(\.id)) == sourceIDs
         refresh()
-        if !prefs.showResult { setShowResult(true) }
         if followsJob {
             adoptNewestResult()
-            aiTab = .result
+            aiTab = .work
         }
     }
 
@@ -138,8 +137,5 @@ extension AppSession {
         guard let newest = results.first else { return }
         selectedResultID = newest.id
         paneFocus = .result
-        if prefs.showResult == false {
-            setShowResult(true)
-        }
     }
 }

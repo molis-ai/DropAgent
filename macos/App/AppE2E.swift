@@ -50,6 +50,7 @@ enum AppE2E {
             window.makeKeyAndOrderFront(nil)
             self.window = window
             self.hosting = host
+            session.hoverPreview.panelFrame = { [weak self] in self?.window?.frame ?? .zero }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 240) {
                 fputs("e2e: timeout\n", stderr)
@@ -73,18 +74,26 @@ enum AppE2E {
             verifyEdgePlacement()
             verifyLivePanelChrome()
             verifyPanelIdle()
+            verifyPlusKeepsPanel()
             verifyFirstOpen()
             await verifySetupCard()
-            verifyShelfWidth()
             await verifyPaneLayout()
+            verifyShelfDragRelease()
             verifyStatusIcon()
             await verifyPanelSettings()
             verifyFrontFileHotKey()
             await verifyShelfAddSearch()
             verifyStatusHover()
             verifyResultMarkdown()
+            verifyHoverReadable()
+            verifyHoverPlacement()
+            await verifyHoverStay()
+            verifyHoverPan()
+            verifyFileKindGlyph()
+            verifyTtyTheme()
             verifyIsolationFact()
             verifyIsolationShownRecord()
+            verifyOpenItem()
             verifyConfirmFacts()
             verifyEmptyWorkHint()
             verifyRecipeChooserHint()
@@ -103,6 +112,7 @@ enum AppE2E {
             await verifyFolderLoop()
             await verifyZipLoop()
             await verifyClipboardLoop()
+            await verifyClipHistory()
             verifyPolishPaths()
             await verifyCaptureLoop()
             if let deferredCaptureFailure {
@@ -159,8 +169,8 @@ enum AppE2E {
             guard session.aiTab == .tty else {
                 fail("did not switch to tty")
             }
-            guard session.showsComposer == false else {
-                fail("tty still shows composer")
+            guard session.otherOpen, session.showsComposer else {
+                fail("send did not open the chat float")
             }
             session.aiTab = .work
             await settle()
@@ -228,8 +238,28 @@ enum AppE2E {
             guard session.paneFocus == .input, session.aiTab == .work, session.selectedItems.first?.id == first.id else { fail("failed result did not return to source") }
             try? session.shelf.patch(id: first.id) { $0.status = .sent }
             session.resetTUISession()
+            session.shelf.setSelection([])
             session.toggleSelect(id: first.id, command: false)
             guard session.aiTab == .work else { fail("old sent input opened nonexistent terminal") }
+            session.toggleSelect(id: first.id, command: false)
+            guard session.selectedItems.isEmpty else { fail("clicking selected item did not deselect") }
+            session.selectResult(r2.id)
+            session.toggleResult(r2.id)
+            guard session.selectedResultID == nil, session.paneFocus == .input else {
+                fail("clicking selected result did not deselect")
+            }
+            session.selectResult(r2.id)
+            session.selectResult(r2.id)
+            guard session.selectedResultID == r2.id, session.paneFocus == .result else {
+                fail("programmatic selectResult toggled off")
+            }
+            session.toggleResult(r2.id)
+            session.shelf.setSelection([first.id])
+            session.selectResult(r2.id)
+            session.toggleSelect(id: first.id, command: false)
+            guard session.selectedItems.map(\.id) == [first.id], session.paneFocus == .input else {
+                fail("clicking file from result focus deselected")
+            }
             session.chooseRecipe(.summarize)
             session.toggleSelect(id: second.id, command: false)
             session.chooseRecipe(.translate)
@@ -253,7 +283,7 @@ enum AppE2E {
             session.toggleSelect(id: first.id, command: false)
             session.openTab(.work)
             session.presentJobResult(sourceIDs: [first.id])
-            guard session.aiTab == .result, session.paneFocus == .result else {
+            guard session.paneFocus == .result, session.selectedResultID != nil else {
                 fail("completion did not reveal a result while following the job")
             }
             session.selectResult(r2.id)
@@ -346,6 +376,65 @@ enum AppE2E {
             session.removeResult(shown.id)
             session.remove(id: id)
             session.aiTab = .work
+        }
+
+        private func verifyOpenItem() {
+            try? DropAgentPaths.ensure()
+            let note = DropAgentPaths.inbox.appendingPathComponent("open-me.md")
+            try? Data("# open\n".utf8).write(to: note)
+            session.admit(urls: [note])
+            guard let file = session.items.first(where: { $0.title == "open-me.md" }) else {
+                fail("no open-me.md")
+            }
+            guard let fileURL = session.openURL(for: file), fileURL.isFileURL,
+                  FileManager.default.fileExists(atPath: fileURL.path) else {
+                fail("file open url missing")
+            }
+            let link = Item(
+                kind: .url,
+                title: "example.com",
+                sourceURL: URL(string: "https://example.com/dropagent-open")!,
+                parts: [ItemPart(name: "link.txt", url: fileURL)]
+            )
+            guard session.openURL(for: link)?.absoluteString == "https://example.com/dropagent-open" else {
+                fail("url open \(session.openURL(for: link)?.absoluteString ?? "nil")")
+            }
+            let result = session.shelf.addResult(
+                ResultRecord(
+                    sourceItemIDs: [file.id],
+                    recipe: "总结文件",
+                    title: "open-out.md",
+                    kind: .markdown,
+                    output: note
+                )
+            )
+            session.refresh()
+            guard session.openURL(for: result.takeawayItem()) == note else {
+                fail("result open url \(session.openURL(for: result.takeawayItem())?.path ?? "nil")")
+            }
+            let missing = ResultRecord(
+                sourceItemIDs: [file.id],
+                recipe: "总结文件",
+                title: "gone.md",
+                kind: .markdown,
+                output: DropAgentPaths.inbox.appendingPathComponent("does-not-exist.md")
+            )
+            guard session.openURL(for: missing.takeawayItem()) == nil else {
+                fail("missing result file was openable")
+            }
+            let bad = Item(
+                kind: .url,
+                title: "bad",
+                sourceURL: URL(string: "javascript:alert(1)")!,
+                parts: [ItemPart(name: "link.txt", url: note)]
+            )
+            guard session.openURL(for: bad) == nil else {
+                fail("javascript url was openable")
+            }
+            session.removeResult(result.id)
+            session.remove(id: file.id)
+            session.aiTab = .work
+            session.errorText = nil
         }
 
         private func verifyConfirmFacts() {
@@ -570,7 +659,7 @@ enum AppE2E {
             guard session.isDoneTakeaway else {
                 fail("done not takeaway")
             }
-            guard session.doneActionHint.contains("点右边结果拿走") else {
+            guard session.doneActionHint.contains("点下面结果区拿走") else {
                 fail("done hint \(session.doneActionHint)")
             }
             guard session.doneActionHint.contains("不能跑这些动作") == false else {
@@ -1090,6 +1179,113 @@ enum AppE2E {
             session.aiTab = .work
         }
 
+        private func verifyClipHistory() async {
+            let one = NSPasteboard.withUniqueName()
+            one.clearContents()
+            guard one.setString("history-one", forType: .string) else {
+                fail("history one pasteboard")
+            }
+            session.notePasteboard(one)
+            guard let first = session.clipRecords.first, first.text == "history-one" else {
+                fail("history did not record text \(session.clipRecords.first?.text ?? "nil")")
+            }
+            guard session.currentClipFingerprint == first.fingerprint else {
+                fail("current fingerprint not on latest clip")
+            }
+
+            let two = NSPasteboard.withUniqueName()
+            two.clearContents()
+            guard two.setString("history-two", forType: .string) else {
+                fail("history two pasteboard")
+            }
+            session.notePasteboard(two)
+            guard session.clipRecords.count >= 2 else {
+                fail("history count \(session.clipRecords.count)")
+            }
+            guard session.clipRecords[0].text == "history-two" else {
+                fail("latest clip \(session.clipRecords[0].text ?? "nil")")
+            }
+
+            let older = session.clipRecords[1]
+            guard session.currentClipFingerprint == session.clipRecords[0].fingerprint else {
+                fail("current marker should stay on the latest clipboard")
+            }
+            let button = CGRect(x: 900, y: 700, width: 22, height: 22)
+            let placed = ClipHistoryWindow.frame(
+                anchor: button,
+                size: CGSize(width: 280, height: 180),
+                screen: CGRect(x: 0, y: 0, width: 1440, height: 900)
+            )
+            guard abs(placed.maxX - button.maxX) < 0.5 else {
+                fail("clip menu should align to the button \(placed)")
+            }
+            guard abs(placed.maxY - (button.minY - 4)) < 0.5 else {
+                fail("clip menu should sit below the button \(placed)")
+            }
+
+            let beforeItems = session.items.count
+            session.toggleClipSelect(id: older.id, command: false)
+            guard session.clipSelection == [older.id] else {
+                fail("clip select \(session.clipSelection)")
+            }
+            session.toggleClipSelect(id: older.id, command: false)
+            guard session.clipSelection.isEmpty else {
+                fail("clip deselect")
+            }
+            session.toggleClipSelect(id: older.id, command: false)
+            session.toggleClipSelect(id: session.clipRecords[0].id, command: true)
+            guard session.clipSelection.count == 2 else {
+                fail("clip command multi \(session.clipSelection.count)")
+            }
+            await settle()
+            guard session.items.count == beforeItems else {
+                fail("selecting a clip admitted it")
+            }
+            let dragged = session.clipDragGroup(starting: older.id)
+            guard dragged.count == 2 else {
+                fail("clip drag group \(dragged.count)")
+            }
+
+            session.notePasteboard(one)
+            guard session.clipRecords[0].text == "history-one" else {
+                fail("duplicate did not bump \(session.clipRecords[0].text ?? "nil")")
+            }
+            let beforeDelete = session.clipRecords.count
+            session.deleteClip(session.clipRecords[0].id)
+            guard session.clipRecords.count == beforeDelete - 1 else {
+                fail("delete clip \(session.clipRecords.count)")
+            }
+
+            let hidden = NSPasteboard.withUniqueName()
+            hidden.clearContents()
+            hidden.setString("password", forType: .string)
+            hidden.setString("1", forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
+            let beforeHidden = session.clipRecords.count
+            session.notePasteboard(hidden)
+            guard session.clipRecords.count == beforeHidden else {
+                fail("concealed clip was stored")
+            }
+
+            if let gone = ClipDraft(kind: .files, title: "gone", filePaths: ["/tmp/dropagent-e2e-missing.pdf"]) {
+                let missing = session.clipHistory.record(gone)
+                session.refreshClips()
+                guard session.clipDragGroup(starting: missing.id).isEmpty else {
+                    fail("missing file should not drag")
+                }
+                session.deleteClip(missing.id)
+            } else {
+                fail("missing file draft")
+            }
+
+            for item in session.items {
+                let body = item.parts.first.flatMap { try? String(contentsOf: $0.url, encoding: .utf8) } ?? ""
+                if body.contains("history-one") {
+                    session.remove(id: item.id)
+                }
+            }
+            session.errorText = nil
+        }
+
         private func tinyPNG() -> Data {
             let image = NSImage(size: NSSize(width: 2, height: 2), flipped: false) { rect in
                 NSColor.red.setFill()
@@ -1270,6 +1466,260 @@ enum AppE2E {
             verifyMarkdownImageBounds()
         }
 
+        private func verifyHoverReadable() {
+            try? DropAgentPaths.ensure()
+            let note = DropAgentPaths.inbox.appendingPathComponent("hover-keep.md")
+            try? Data("# Keep\n\n- one\n- two\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n".utf8).write(to: note)
+            session.admit(urls: [note])
+            guard let md = session.items.first(where: { $0.title == "hover-keep.md" }) else {
+                fail("no hover-keep.md")
+            }
+            guard case .markdown(let mdBody, _, false) = ItemPeek.hoverBody(for: md) else {
+                fail("hover md \(String(describing: ItemPeek.hoverBody(for: md)))")
+            }
+            guard mdBody.contains("\n") else { fail("hover md collapsed newlines") }
+            let mdBlocks = ResultMarkdown.blocks(mdBody)
+            guard mdBlocks.contains(.heading(1, "Keep")) else { fail("hover md heading \(mdBlocks)") }
+            guard mdBlocks.contains(.item("one")) else { fail("hover md list \(mdBlocks)") }
+            guard mdBlocks.contains(.table(header: ["A", "B"], rows: [["1", "2"]])) else {
+                fail("hover md table \(mdBlocks)")
+            }
+
+            let page = DropAgentPaths.inbox.appendingPathComponent("hover-quote.html")
+            try? Data("<html><body><h1>报价</h1><script>alert(1)</script><p>第一段。</p></body></html>".utf8).write(to: page)
+            session.admit(urls: [page])
+            guard let html = session.items.first(where: { $0.title == "hover-quote.html" }) else {
+                fail("no hover-quote.html")
+            }
+            guard html.kind == .file else { fail("html kind \(html.kind)") }
+            guard case .markdown(let htmlBody, _, true) = ItemPeek.hoverBody(for: html) else {
+                fail("hover html \(String(describing: ItemPeek.hoverBody(for: html)))")
+            }
+            guard htmlBody.contains("报价") else { fail("hover html missing heading \(htmlBody)") }
+            guard htmlBody.contains("alert") == false else { fail("hover html kept script") }
+            guard ResultMarkdown.blocks(htmlBody).contains(.heading(1, "报价")) else {
+                fail("hover html not rendered as heading \(ResultMarkdown.blocks(htmlBody))")
+            }
+
+            let json = DropAgentPaths.inbox.appendingPathComponent("hover.json")
+            try? Data("{\"b\":1,\"a\":2}".utf8).write(to: json)
+            session.admit(urls: [json])
+            guard let jsonItem = session.items.first(where: { $0.title == "hover.json" }) else {
+                fail("no hover.json")
+            }
+            guard case .json(let pretty) = ItemPeek.hoverBody(for: jsonItem), pretty.contains("\n") else {
+                fail("hover json \(String(describing: ItemPeek.hoverBody(for: jsonItem)))")
+            }
+
+            for title in ["hover-keep.md", "hover-quote.html", "hover.json"] {
+                if let id = session.items.first(where: { $0.title == title })?.id {
+                    session.remove(id: id)
+                }
+            }
+        }
+
+        private func verifyHoverPlacement() {
+            let size = CGSize(width: HoverPlacement.width, height: 180)
+            let screen = CGRect(x: 0, y: 0, width: 1800, height: 1169)
+            let panel = CGRect(x: 700, y: 400, width: 1040, height: 640)
+            let pad = LivePanelChrome.dockShadowPad
+            let left = HoverPlacement.frame(panel: panel, size: size, screen: screen, paperInset: pad)
+            let paper = panel.insetBy(dx: pad, dy: pad)
+            guard abs(left.maxX - (paper.minX - HoverPlacement.gap)) < 0.5 else {
+                fail("hover not left of panel \(left)")
+            }
+            guard abs(left.maxY - paper.maxY) < 0.5 else {
+                fail("hover not top-aligned \(left)")
+            }
+            let tight = CGRect(x: 8, y: 400, width: 1040, height: 640)
+            let right = HoverPlacement.frame(panel: tight, size: size, screen: screen, paperInset: pad)
+            let tightPaper = tight.insetBy(dx: pad, dy: pad)
+            guard abs(right.minX - (tightPaper.maxX + HoverPlacement.gap)) < 0.5 else {
+                fail("hover did not flip to right \(right)")
+            }
+            let leftWindow = HoverPlacement.windowFrame(visual: left, sitsLeft: true)
+            guard abs(leftWindow.maxX - paper.minX) < 0.5 else {
+                fail("left hover bridge should touch paper \(leftWindow)")
+            }
+            guard abs(leftWindow.minX - left.minX) < 0.5 else {
+                fail("left hover outer edge moved \(leftWindow)")
+            }
+            let rightWindow = HoverPlacement.windowFrame(visual: right, sitsLeft: false)
+            guard abs(rightWindow.minX - tightPaper.maxX) < 0.5 else {
+                fail("right hover bridge should touch paper \(rightWindow)")
+            }
+            guard HoverPlacement.needsScroll(contentHeight: HoverPlacement.maxHeight + 40) else {
+                fail("tall hover should scroll")
+            }
+            guard HoverPlacement.needsScroll(contentHeight: 120) == false else {
+                fail("short hover should not scroll")
+            }
+            guard HoverPlacement.needsScroll(contentHeight: 120, contentWidth: HoverPlacement.width + 40) else {
+                fail("wide hover should scroll")
+            }
+            guard HoverPlacement.needsScroll(contentHeight: 120, contentWidth: HoverPlacement.width) == false else {
+                fail("narrow short hover should not scroll")
+            }
+        }
+
+        private func verifyHoverStay() async {
+            let note = DropAgentPaths.inbox.appendingPathComponent("hover-stay.md")
+            var lines = ["# Stay", ""]
+            lines.append(contentsOf: (1...40).map { "- line \($0) extra words for height" })
+            try? Data(lines.joined(separator: "\n").utf8).write(to: note)
+            session.admit(urls: [note])
+            guard let item = session.items.first(where: { $0.title == "hover-stay.md" }) else {
+                fail("no hover-stay.md")
+            }
+            session.showHover(item: item, screenRect: .zero)
+            guard session.hoverPreview.itemID == item.id else {
+                fail("hover did not show")
+            }
+            guard session.hoverPreview.ignoresMouseEvents == false else {
+                fail("hover must receive mouse")
+            }
+
+            session.hideHover(of: item.id)
+            guard session.hoverPreview.itemID == item.id else {
+                fail("leaving the card hid hover immediately")
+            }
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard session.hoverPreview.itemID == item.id else {
+                fail("hover hid before the linger elapsed")
+            }
+            guard HoverPreviewWindow.hideDelayNanos >= 2_000_000_000 else {
+                fail("hover linger should be about two seconds, got \(HoverPreviewWindow.hideDelayNanos)")
+            }
+
+            session.hoverPreview.setPointerInside(true)
+            try? await Task.sleep(nanoseconds: HoverPreviewWindow.hideDelayNanos + 80_000_000)
+            guard session.hoverPreview.itemID == item.id else {
+                fail("hover hid while pointer was inside the preview")
+            }
+
+            session.hoverPreview.isolateFromMouse()
+            session.hoverPreview.setPointerInside(false)
+            session.hideHover()
+            guard session.hoverPreview.itemID == nil else {
+                fail("immediate hideHover left preview visible")
+            }
+
+            session.remove(id: item.id)
+        }
+
+        private func verifyHoverPan() {
+            let wide = DropAgentPaths.inbox.appendingPathComponent("hover-wide.md")
+            let header = (1...8).map { "Col\($0)" }.joined(separator: " | ")
+            let rule = (1...8).map { _ in "---" }.joined(separator: " | ")
+            let cells = (1...8).map { "value \($0) extra" }.joined(separator: " | ")
+            try? Data("# Wide\n\n| \(header) |\n| \(rule) |\n| \(cells) |\n".utf8).write(to: wide)
+            session.admit(urls: [wide])
+            guard let table = session.items.first(where: { $0.title == "hover-wide.md" }) else {
+                fail("no hover-wide.md")
+            }
+            let tableSize = hoverNaturalSize(table)
+            guard tableSize.width > HoverPlacement.width + 0.5 else {
+                fail("wide hover table should overflow \(tableSize)")
+            }
+            guard HoverPlacement.needsScroll(contentHeight: tableSize.height, contentWidth: tableSize.width) else {
+                fail("wide hover table should enable scroll \(tableSize)")
+            }
+            session.remove(id: table.id)
+
+            let codeFile = DropAgentPaths.inbox.appendingPathComponent("hover-wide.py")
+            let line = "print(\"" + String(repeating: "abcdefghij", count: 12) + "\")\n"
+            try? Data(line.utf8).write(to: codeFile)
+            session.admit(urls: [codeFile])
+            guard let code = session.items.first(where: { $0.title == "hover-wide.py" }) else {
+                fail("no hover-wide.py")
+            }
+            guard case .code = ItemPeek.hoverBody(for: code) else {
+                fail("hover-wide.py should be code")
+            }
+            let codeSize = hoverNaturalSize(code)
+            guard codeSize.width > HoverPlacement.width + 0.5 else {
+                fail("long hover code should overflow \(codeSize)")
+            }
+            session.remove(id: code.id)
+
+            let note = DropAgentPaths.inbox.appendingPathComponent("hover-narrow.md")
+            try? Data("# Hi\n\nA short paragraph.\n".utf8).write(to: note)
+            session.admit(urls: [note])
+            guard let short = session.items.first(where: { $0.title == "hover-narrow.md" }) else {
+                fail("no hover-narrow.md")
+            }
+            let shortSize = hoverNaturalSize(short)
+            guard shortSize.width <= HoverPlacement.width + 1 else {
+                fail("short hover should stay card width \(shortSize)")
+            }
+            guard HoverPlacement.needsScroll(contentHeight: shortSize.height, contentWidth: shortSize.width) == false else {
+                fail("short hover should not scroll \(shortSize)")
+            }
+            session.remove(id: short.id)
+        }
+
+        private func hoverNaturalSize(_ item: Item) -> CGSize {
+            let probe = NSHostingView(
+                rootView: HoverPreview(item: item, lockCardWidth: false, includeBridge: false)
+            )
+            probe.safeAreaRegions = []
+            probe.sizingOptions = [.intrinsicContentSize]
+            var size = probe.fittingSize
+            if size.width < 40 || size.height < 40 {
+                probe.frame.size = NSSize(width: HoverPlacement.width, height: HoverPlacement.maxHeight)
+                probe.layoutSubtreeIfNeeded()
+                size = probe.fittingSize
+            }
+            return size
+        }
+
+        private func verifyFileKindGlyph() {
+            guard FileKindGlyph.symbol(kind: .pdf, tag: "PDF") == "doc.richtext" else {
+                fail("pdf glyph")
+            }
+            guard FileKindGlyph.symbol(kind: .url, tag: "URL") == "link" else {
+                fail("url glyph")
+            }
+            guard FileKindGlyph.symbol(kind: .web, tag: "WEB") == "globe" else {
+                fail("web glyph")
+            }
+            guard FileKindGlyph.symbol(kind: .clip, tag: "CLIP") == "doc.on.clipboard" else {
+                fail("clip glyph")
+            }
+            guard FileKindGlyph.symbol(kind: .folder, tag: "DIR") == "folder.fill" else {
+                fail("folder glyph")
+            }
+            guard FileKindGlyph.symbol(kind: .file, tag: "ZIP") == "archivebox" else {
+                fail("zip glyph")
+            }
+            guard FileKindGlyph.symbol(kind: .markdown, tag: "JSON") == "curlybraces" else {
+                fail("json glyph")
+            }
+            guard FileKindGlyph.symbol(kind: .image, tag: "PNG") == "photo" else {
+                fail("image glyph")
+            }
+        }
+
+        private func verifyTtyTheme() {
+            session.setAppearance(.light)
+            let light = Palette.ttyWellNS.usingColorSpace(.genericRGB)
+            guard let light, light.redComponent > 0.9 else {
+                fail("light tty well \(light?.redComponent ?? -1)")
+            }
+            guard Palette.ttyIdleFill.contains("#fcfcfd") else {
+                fail("light tty fill \(Palette.ttyIdleFill)")
+            }
+            session.setAppearance(.dark)
+            let dark = Palette.ttyWellNS.usingColorSpace(.genericRGB)
+            guard let dark, dark.redComponent < 0.15 else {
+                fail("dark tty well \(dark?.redComponent ?? -1)")
+            }
+            guard Palette.ttyIdleFill.contains("#171717") else {
+                fail("dark tty fill \(Palette.ttyIdleFill)")
+            }
+            session.setAppearance(.light)
+        }
+
         private func verifyMarkdownImageBounds() {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
             try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -1380,11 +1830,11 @@ enum AppE2E {
             guard settingsShows("Show drop wheel") else {
                 fail("settings appearance missing wheel \(settingsTree())")
             }
-            guard settingsShows("Work") else {
-                fail("settings appearance missing work \(settingsTree())")
+            guard settingsShows("settings-show-work") == false else {
+                fail("settings still has work pane toggle")
             }
-            guard settingsShows("Results") else {
-                fail("settings appearance missing results \(settingsTree())")
+            guard settingsShows("settings-show-result") == false else {
+                fail("settings still has result pane toggle")
             }
             session.setLanguage(.zh)
             session.settingsSection = .guide
@@ -1573,11 +2023,11 @@ enum AppE2E {
             guard LivePanelChrome.styleMask.contains(.miniaturizable) == false else {
                 fail("live panel still miniaturizable")
             }
-            guard LivePanelChrome.panelWidth == 800 else {
+            guard LivePanelChrome.panelWidth == 1040 else {
                 fail("panel width \(LivePanelChrome.panelWidth)")
             }
-            guard LivePanelChrome.splitWidth >= 16 else {
-                fail("split width \(LivePanelChrome.splitWidth)")
+            guard LivePanelChrome.dockGap >= 10 else {
+                fail("dock gap \(LivePanelChrome.dockGap)")
             }
             guard LivePanelChrome.scrollGutter >= 12 else {
                 fail("scroll gutter \(LivePanelChrome.scrollGutter)")
@@ -1601,6 +2051,12 @@ enum AppE2E {
             guard host.acceptsFirstMouse(for: nil) else {
                 fail("paper host rejects first mouse")
             }
+            guard host.isOpaque == false else {
+                fail("paper host is opaque")
+            }
+            guard LivePanelChrome.dockShadowPad > LivePanelChrome.paperShadowRadius + LivePanelChrome.paperShadowY else {
+                fail("shadow pad clips paper shadow")
+            }
         }
 
         private func verifyPanelIdle() {
@@ -1612,6 +2068,19 @@ enum AppE2E {
             }
             guard PanelIdle.toggle(visible: true, recessed: false) == .hide else {
                 fail("active toggle should hide")
+            }
+            guard PanelIdle.toggle(visible: true, recessed: false, onActiveSpace: false) == .show else {
+                fail("off-space active toggle should show")
+            }
+            guard PanelIdle.toggle(visible: true, recessed: true, onActiveSpace: false) == .show else {
+                fail("off-space recessed toggle should show")
+            }
+            let space = PanelIdle.spaceBehavior
+            guard space.contains(.moveToActiveSpace), space.contains(.fullScreenAuxiliary) else {
+                fail("space behavior missing move/fullscreen")
+            }
+            guard space.contains(.stationary) == false, space.contains(.canJoinAllSpaces) == false else {
+                fail("space behavior still sticky")
             }
             guard PanelIdle.shouldRecess(
                 visible: true, isKey: false, mouseInside: false, exporting: false, diagnostic: false
@@ -1642,6 +2111,11 @@ enum AppE2E {
                 visible: true, isKey: false, mouseInside: false, exporting: false, diagnostic: false, dragging: true
             ) == false else {
                 fail("dragging recessed")
+            }
+            guard PanelIdle.shouldRecess(
+                visible: true, isKey: false, mouseInside: false, exporting: false, diagnostic: false, prompting: true
+            ) == false else {
+                fail("picker recessed")
             }
             let frame = NSRect(x: 100, y: 100, width: 200, height: 200)
             guard PanelIdle.dragHitsPanel(mouse: NSPoint(x: 94, y: 150), frame: frame) else {
@@ -1678,6 +2152,54 @@ enum AppE2E {
             guard panel.level == PanelIdle.activeLevel else {
                 fail("active level \(panel.level.rawValue)")
             }
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+            PanelIdle.attachToActiveSpace(panel)
+            let attached = panel.collectionBehavior
+            guard attached.contains(.moveToActiveSpace), attached.contains(.fullScreenAuxiliary) else {
+                fail("attach missing move/fullscreen")
+            }
+            guard attached.contains(.stationary) == false, attached.contains(.canJoinAllSpaces) == false else {
+                fail("attach still sticky")
+            }
+            panel.orderOut(nil)
+            PanelIdle.attachToActiveSpace(panel)
+            guard panel.isVisible == false else {
+                fail("attach showed hidden panel")
+            }
+            panel.makeKeyAndOrderFront(nil)
+            let onSpace = panel.isOnActiveSpace
+            PanelIdle.attachToActiveSpace(panel)
+            if onSpace {
+                guard panel.isVisible else {
+                    fail("attach hid on-space panel")
+                }
+            } else {
+                guard panel.isVisible == false else {
+                    fail("attach left off-space panel visible")
+                }
+            }
+            panel.orderOut(nil)
+        }
+
+        private func verifyPlusKeepsPanel() {
+            let panel = NSPanel(
+                contentRect: NSRect(x: 40, y: 40, width: 80, height: 80),
+                styleMask: .borderless,
+                backing: .buffered,
+                defer: false
+            )
+            panel.isFloatingPanel = true
+            panel.level = .statusBar
+            panel.alphaValue = 1
+            panel.orderFront(nil)
+            StatusChrome.lowerForPicker()
+            guard panel.isVisible else { fail("plus hid the panel") }
+            guard panel.alphaValue > 0.99 else { fail("plus faded the panel \(panel.alphaValue)") }
+            guard panel.level == .floating else { fail("plus level \(panel.level.rawValue)") }
+            StatusChrome.restore()
+            guard panel.isVisible else { fail("restore hid the panel") }
+            guard panel.level == .statusBar else { fail("restore level \(panel.level.rawValue)") }
+            panel.orderOut(nil)
         }
 
         private func verifySetupCard() async {
@@ -1756,8 +2278,8 @@ enum AppE2E {
                 guard decoded.setupCardDismissed == false else {
                     fail("missing setupCardDismissed should be false")
                 }
-                guard decoded.showWork, decoded.showResult, decoded.showDropWheel else {
-                    fail("missing pane prefs should default on")
+                guard decoded.showDropWheel else {
+                    fail("missing drop wheel pref should default on")
                 }
             } catch {
                 fail("prefs decode empty \(error)")
@@ -1919,65 +2441,18 @@ enum AppE2E {
         }
 
         private func verifyPaneLayout() async {
-            guard session.prefs.showWork, session.prefs.showResult, session.prefs.showDropWheel else {
-                fail("pane prefs should default on")
+            guard session.prefs.showDropWheel else {
+                fail("drop wheel should default on")
             }
-            let full = LivePanelChrome.fittedWidth(
-                showWork: true, showResult: true,
-                shelfWidth: LivePanelChrome.shelfDefault,
-                resultWidth: LivePanelChrome.resultDefault
-            )
-            guard abs(full - 800) < 0.5 else { fail("full panel width \(full)") }
-            let workOnly = LivePanelChrome.fittedWidth(
-                showWork: true, showResult: false,
-                shelfWidth: LivePanelChrome.shelfDefault,
-                resultWidth: LivePanelChrome.resultDefault
-            )
-            guard abs(workOnly - 588) < 0.5 else { fail("work-only width \(workOnly)") }
-            let resultOnly = LivePanelChrome.fittedWidth(
-                showWork: false, showResult: true,
-                shelfWidth: LivePanelChrome.shelfDefault,
-                resultWidth: LivePanelChrome.resultDefault
-            )
-            guard abs(resultOnly - 408) < 0.5 else { fail("result-only width \(resultOnly)") }
-            let shelfOnly = LivePanelChrome.fittedWidth(
-                showWork: false, showResult: false,
-                shelfWidth: LivePanelChrome.shelfDefault,
-                resultWidth: LivePanelChrome.resultDefault
-            )
-            guard shelfOnly >= LivePanelChrome.shelfOnlyMin,
-                  shelfOnly <= LivePanelChrome.shelfOnlyMax
-            else {
-                fail("shelf-only width \(shelfOnly)")
-            }
-            guard settingsShows("result-stack") else {
-                fail("result pane missing before hide \(settingsTree())")
-            }
-            guard settingsShows("ai-pane") else {
-                fail("work pane missing before hide \(settingsTree())")
-            }
-            session.setShowResult(false)
-            await settle()
-            guard settingsShows("result-stack") == false else {
-                fail("result stack stayed after hide")
-            }
-            guard settingsShows("ai-pane") else {
-                fail("work pane missing after hiding results \(settingsTree())")
-            }
-            session.setShowWork(false)
-            await settle()
-            guard settingsShows("ai-pane") == false else {
-                fail("work pane stayed after hide")
+            guard abs(LivePanelChrome.panelWidth - 1040) < 0.5 else {
+                fail("full panel width \(LivePanelChrome.panelWidth)")
             }
             guard settingsShows("shelf-column") else {
-                fail("shelf missing in shelf-only layout \(settingsTree())")
+                fail("shelf missing \(settingsTree())")
             }
-            session.setShowWork(false)
-            session.selectResult(ResultID())
-            guard session.prefs.showWork else {
-                fail("selecting a result did not reveal work")
+            guard settingsShows("pane-menu") == false else {
+                fail("pane menu still in header")
             }
-            session.setShowResult(false)
             let note = DropAgentPaths.inbox.appendingPathComponent("pane-layout.md")
             try? Data("# pane\n".utf8).write(to: note)
             let record = session.shelf.addResult(
@@ -1990,8 +2465,12 @@ enum AppE2E {
                 )
             )
             session.adoptNewestResult()
-            guard session.prefs.showResult else {
-                fail("job result did not reveal results pane")
+            await settle()
+            guard settingsShows("result-stack") else {
+                fail("result strip missing after job \(settingsTree())")
+            }
+            guard settingsShows("import-result") else {
+                fail("import action missing \(settingsTree())")
             }
             session.hideResult(record.id)
             session.setShowDropWheel(false)
@@ -2004,42 +2483,37 @@ enum AppE2E {
             else {
                 fail("prefs.json missing showDropWheel")
             }
-            session.setShowWork(true)
-            session.setShowResult(true)
             session.setShowDropWheel(true)
-            await settle()
-            guard settingsShows("result-stack"), settingsShows("ai-pane") else {
-                fail("panes did not restore \(settingsTree())")
-            }
-        }
-
-        private func verifyShelfWidth() {
-            guard abs(session.shelfWidth - LivePanelChrome.shelfDefault) < 0.5 else {
-                fail("default shelf width \(session.shelfWidth)")
-            }
-            session.setShelfWidth(100)
-            guard abs(session.shelfWidth - LivePanelChrome.shelfMin) < 0.5 else {
-                fail("min shelf width \(session.shelfWidth)")
-            }
-            session.setShelfWidth(400)
-            guard abs(session.shelfWidth - LivePanelChrome.shelfMax) < 0.5 else {
-                fail("max shelf width \(session.shelfWidth)")
-            }
-            session.persistChrome()
-            guard let data = try? Data(contentsOf: DropAgentPaths.panelFile),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let stored = object["shelfWidth"] as? Double,
-                  abs(stored - Double(LivePanelChrome.shelfMax)) < 0.5
-            else {
-                fail("panel.json missing shelfWidth")
-            }
-            session.setShelfWidth(LivePanelChrome.shelfDefault)
-            session.persistChrome()
             session.setMultiSelect(true)
             guard session.multiSelect else {
                 fail("multi-select did not turn on")
             }
             session.setMultiSelect(false)
+        }
+
+        private func verifyShelfDragRelease() {
+            try? DropAgentPaths.ensure()
+            let note = DropAgentPaths.inbox.appendingPathComponent("shelf-drag.md")
+            try? Data("# drag\n".utf8).write(to: note)
+            session.admit(urls: [note])
+            guard let id = session.items.first(where: { $0.title == "shelf-drag.md" })?.id else {
+                fail("no shelf-drag.md")
+            }
+            let count = session.items.count
+            session.beginShelfDrag(ids: [id])
+            session.admitDrop(providers: [])
+            guard session.items.count == count else {
+                fail("dropping a shelf item back onto the shelf copied it")
+            }
+            session.shelfDragIDs = []
+            PasteboardService.clearShelfDrag()
+            session.admit(urls: [note])
+            guard session.items.filter({ $0.title == "shelf-drag.md" }).count == 2 else {
+                fail("dropping the original again should still add")
+            }
+            for item in session.items.filter({ $0.title == "shelf-drag.md" }) {
+                session.remove(id: item.id)
+            }
         }
 
         private func sourcePDF() -> URL {

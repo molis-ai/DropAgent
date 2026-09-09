@@ -44,6 +44,10 @@ public enum FrontAdmit {
         map(FrontFiles.decide(kind: unwrap(kind), axTrusted: axTrusted, finderAllowed: finderAllowed))
     }
 
+    public static func finderAllowedOffMain() async -> Bool {
+        await PermissionWork.run { finderAllowed() }
+    }
+
     public static func finderAllowed() -> Bool {
         AutomationAccess.isAllowed(bundleIdentifier: FrontFiles.finderBundleID)
     }

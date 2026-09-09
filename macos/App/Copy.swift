@@ -71,36 +71,6 @@ enum Copy {
         return stored
     }
 
-    static func metaLine(_ item: Item) -> String {
-        let kind = kindWord(item.kind)
-        switch item.status {
-        case .idle:
-            if item.kind == .web, item.event.isEmpty == false {
-                return "\(kind) · \(item.event)"
-            }
-            return t("\(kind) · 待处理", "\(kind) · Idle")
-        case .confirm:
-            return t(
-                "\(kind) · \(recipeStored(item.recipe)) · 未运行",
-                "\(kind) · \(recipeStored(item.recipe)) · Not run"
-            )
-        case .running:
-            return item.event.isEmpty ? kind : item.event
-        case .done:
-            if item.sourceURL.isFileURL {
-                return t(
-                    "\(kind) · 来自 \(item.sourceURL.lastPathComponent)",
-                    "\(kind) · from \(item.sourceURL.lastPathComponent)"
-                )
-            }
-            return kind
-        case .sent:
-            return kind
-        case .failed:
-            return item.failureReason ?? t("\(kind) · 失败", "\(kind) · Failed")
-        }
-    }
-
     static func displayPath(_ url: URL) -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let path = url.path

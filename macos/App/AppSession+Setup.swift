@@ -25,9 +25,27 @@ extension AppSession {
     }
 
     func refreshSetup() {
+        if let override = setupPermissionsOverride {
+            applySetup(override)
+            return
+        }
+        // AX trust can change while Automation is waiting for system consent.
+        let trusted = PageAdmit.isTrusted()
+        if setup.accessibilityTrusted != trusted { setup.accessibilityTrusted = trusted }
+        guard setupRefreshing == false, authorizingID == nil else { return }
+        setupRefreshing = true
+        Task {
+            let updated = await PageAdmit.setupStatusOffMain()
+            setupRefreshing = false
+            guard setupPermissionsOverride == nil else { return }
+            applySetup(updated)
+        }
+    }
+
+    private func applySetup(_ updated: PageAdmitSetup) {
         let showing = setupLoaded && showsSetupCard
-        setup = setupPermissionsOverride ?? PageAdmit.setupStatus()
-        setupLoaded = true
+        if setup != updated { setup = updated }
+        if !setupLoaded { setupLoaded = true }
         if showing && SetupCardPolicy.captureReady(setup) {
             dismissSetupCard()
         }
@@ -45,9 +63,8 @@ extension AppSession {
         setupWatchTask = Task { @MainActor in
             while Task.isCancelled == false {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
-                if authorizingID == nil {
-                    refreshSetup()
-                }
+                guard Task.isCancelled == false else { break }
+                refreshSetup()
             }
         }
     }
@@ -72,6 +89,7 @@ extension AppSession {
     }
 
     private func authorizeAccessibilityNow() async {
+        guard authorizingID == nil else { return }
         authorizingID = "ax"
         StatusChrome.hideForPrompt()
         PageAdmit.requestTrustIfNeeded()
@@ -96,41 +114,41 @@ extension AppSession {
             return
         }
         let token = lastCaptureToken ?? .snapshot()
-        if let target = PageAdmit.privacyTarget(token: token) {
+        if let target = await PageAdmit.privacyTargetOffMain(token: token) {
             await authorizeBrowserRow(target, openSettingsIfDenied: true)
             return
         }
     }
 
     private func authorizeBrowserRow(_ row: PageAdmitBrowserRow, openSettingsIfDenied: Bool) async {
+        guard authorizingID == nil else { return }
         authorizingID = row.bundleIdentifier
-        var bundle = row.bundleIdentifier
+        authorizationSlow = false
+        let waiting = Task {
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard Task.isCancelled == false else { return }
+            authorizationSlow = true
+        }
+        defer {
+            waiting.cancel()
+            authorizingID = nil
+            authorizationSlow = false
+            refreshSetup()
+        }
+        let bundle = row.bundleIdentifier
         var running = row.running
         if running == false {
             running = await openBrowser(bundleIdentifier: bundle)
             refreshSetup()
-            if row.bundleIdentifier == FrontAdmit.finderBundleID {
-                bundle = setup.finder.bundleIdentifier
-                running = setup.finder.running
-            } else if let updated = setup.browsers.first(where: { $0.displayName == row.displayName }) {
-                bundle = updated.bundleIdentifier
-                running = updated.running
-            }
             if running == false {
                 authorizingID = nil
                 return
             }
         }
-        StatusChrome.hideForPrompt()
-        let state = PageAdmit.requestAutomation(bundleIdentifier: bundle)
-        authorizingID = nil
-        refreshSetup()
+        let state = await PageAdmit.requestAutomationOffMain(bundleIdentifier: bundle)
         if openSettingsIfDenied && state == .denied {
-            StatusChrome.finishPromptKeepHidden()
             openSystemPane(Self.automationPanes)
-            return
         }
-        StatusChrome.restore()
     }
 
     private func openBrowser(bundleIdentifier: String) async -> Bool {

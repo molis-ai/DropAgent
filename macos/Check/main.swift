@@ -22,7 +22,7 @@ enum DropAgentCheck {
             try browserFront()
             try captureRecovery()
             try await frontFiles()
-            try automationAccess()
+            try await automationAccess()
             try capturePermissions()
             try await captureService()
             try await liveWebAdmit()
@@ -39,7 +39,9 @@ enum DropAgentCheck {
             try await hideAndDelete()
             try tui()
             try pasteboard()
+            try clipHistory()
             try await pasteboardDragLandsFile()
+            try await pasteboardMultiDrag()
             try await pasteboardWebFolderLands()
             try await pasteboardFolderLands()
             try await pasteboardClipLands()
@@ -153,6 +155,11 @@ private func shelf() throws {
     a.toggleSelect(id: one.id, command: false)
     a.toggleSelect(id: two.id, command: true)
     expectEqual(a.selection, [one.id, two.id])
+    a.setSelection([one.id])
+    a.toggleSelect(id: one.id, command: false)
+    expectEqual(a.selection, [])
+    a.toggleSelect(id: one.id, command: false)
+    expectEqual(a.selection, [one.id])
 
     let runningStore = ShelfStore(fileURL: root.appendingPathComponent("s3.json"))
     let running = try runningStore.add(shelfItem(title: "run.pdf", status: .running))
@@ -674,7 +681,34 @@ private func captureRecovery() throws {
     expectEqual(PageAdmitCopy.needAccessibility, CaptureRecovery.needAccessibility)
 }
 
-private func automationAccess() throws {
+private func automationAccess() async throws {
+    // Exercise the production worker from MainActor with an actual blocking operation.
+    // A watchdog releases the gate if a regression blocks MainActor, so the test fails rather than hangs.
+    let gate = DispatchSemaphore(value: 0)
+    let started = DispatchSemaphore(value: 0)
+    let watchdog = DispatchWorkItem { gate.signal() }
+    DispatchQueue.global().asyncAfter(deadline: .now() + 3, execute: watchdog)
+    let operation = Task { @MainActor in
+        await PermissionWork.run {
+            let offMain = !Thread.isMainThread
+            started.signal()
+            gate.wait()
+            return offMain
+        }
+    }
+    let began = await withCheckedContinuation { continuation in
+        DispatchQueue.global().async {
+            continuation.resume(returning: started.wait(timeout: .now() + 4) == .success)
+        }
+    }
+    let heartbeatStart = Date()
+    await MainActor.run { _ = gate.signal() }
+    let elapsed = Date().timeIntervalSince(heartbeatStart)
+    let offMain = await operation.value
+    watchdog.cancel()
+    expect(began && offMain, "permission request executes off main thread")
+    expect(elapsed < 1, "main actor remains responsive while permission request blocks")
+
     let missing = "local.dropagent.missing.\(UUID().uuidString)"
     let start = Date()
     let allowed = AutomationAccess.isAllowed(bundleIdentifier: missing)
@@ -682,7 +716,7 @@ private func automationAccess() throws {
     expect(Date().timeIntervalSince(start) < 2, "automation probe does not hang")
 
     let requestStart = Date()
-    let requested = AutomationAccess.requestIfNeeded(bundleIdentifier: missing)
+    let requested = await AutomationAccess.requestIfNeededOffMain(bundleIdentifier: missing)
     expect(requested != .allowed, "missing bundle is not allowed after request")
     expect(Date().timeIntervalSince(requestStart) < 2, "automation request of missing bundle does not hang")
 
@@ -690,7 +724,7 @@ private func automationAccess() throws {
     expectEqual(AutomationAccess.state(from: OSStatus(errAEEventNotPermitted)), .denied)
     expectEqual(AutomationAccess.state(from: OSStatus(errAEEventWouldRequireUserConsent)), .notDetermined)
     expectEqual(AutomationAccess.state(from: OSStatus(-600)), .unavailable)
-    expectEqual(AutomationAccess.silentState(.denied), .notDetermined)
+    expectEqual(AutomationAccess.silentState(.denied), .denied)
     expectEqual(AutomationAccess.silentState(.notDetermined), .notDetermined)
     expectEqual(AutomationAccess.silentState(.allowed), .allowed)
     expectEqual(AutomationAccess.silentState(.unavailable), .unavailable)
@@ -2553,6 +2587,91 @@ private func pasteboard() throws {
         parts: [ItemPart(name: "shot.png", url: pngFile)]
     )
     expectEqual(PasteboardService.representation(for: pngItem).pngData, pngBytes)
+
+    let oneFile = root.appendingPathComponent("one.md")
+    let twoFile = root.appendingPathComponent("two.md")
+    try Data("one-body".utf8).write(to: oneFile)
+    try Data("two-body".utf8).write(to: twoFile)
+    let one = Item(kind: .markdown, title: "one.md", sourceURL: oneFile, parts: [ItemPart(name: "one.md", url: oneFile)])
+    let two = Item(kind: .markdown, title: "two.md", sourceURL: twoFile, parts: [ItemPart(name: "two.md", url: twoFile)])
+    let running = Item(
+        kind: .markdown,
+        title: "run.md",
+        sourceURL: oneFile,
+        parts: [ItemPart(name: "run.md", url: oneFile)],
+        status: .running
+    )
+    expectEqual(PasteboardService.exportGroup(starting: one, selection: [one, two]).map(\.title), ["one.md", "two.md"])
+    expectEqual(PasteboardService.exportGroup(starting: two, selection: [one]).map(\.title), ["two.md"])
+    expect(PasteboardService.exportGroup(starting: running, selection: [running, one]).isEmpty, "running start does not drag")
+    expectEqual(PasteboardService.exportGroup(starting: one, selection: [running, one, two]).map(\.title), ["one.md", "two.md"])
+    let shelfBoard = NSPasteboard.withUniqueName()
+    shelfBoard.clearContents()
+    expect(PasteboardService.isShelfDrag(shelfBoard) == false, "empty board is not shelf drag")
+    PasteboardService.markShelfDrag(on: shelfBoard)
+    expect(PasteboardService.isShelfDrag(shelfBoard), "marked board is shelf drag")
+    PasteboardService.clearShelfDrag(on: shelfBoard)
+    expect(PasteboardService.isShelfDrag(shelfBoard) == false, "cleared board is still shelf drag")
+    expectEqual(
+        Set(PasteboardService.fileURLs(for: [one, two]).map(\.lastPathComponent)),
+        ["one.md", "two.md"]
+    )
+
+    let multiBoard = NSPasteboard.withUniqueName()
+    PasteboardService.copy([one, two], to: multiBoard)
+    let copied = (multiBoard.readObjects(forClasses: [NSURL.self], options: [
+        .urlReadingFileURLsOnly: true
+    ]) as? [URL] ?? []).map(\.lastPathComponent)
+    expectEqual(Set(copied), ["one.md", "two.md"])
+    expectEqual(try String(contentsOf: oneFile, encoding: .utf8), "one-body")
+    expectEqual(try String(contentsOf: twoFile, encoding: .utf8), "two-body")
+
+    let singleStill = PasteboardService.representation(for: one)
+    expectEqual(singleStill.plainText, "one-body")
+    expect(singleStill.utis.contains(UTType.fileURL.identifier), "single file uti")
+    expect(singleStill.utis.contains(UTType.utf8PlainText.identifier), "single text uti")
+}
+
+private func pasteboardMultiDrag() async throws {
+    let root = try tempDir()
+    let oneFile = root.appendingPathComponent("alpha.md")
+    let twoFile = root.appendingPathComponent("beta.md")
+    try Data("alpha".utf8).write(to: oneFile)
+    try Data("beta".utf8).write(to: twoFile)
+    let one = Item(kind: .markdown, title: "alpha.md", sourceURL: oneFile, parts: [ItemPart(name: "alpha.md", url: oneFile)])
+    let two = Item(kind: .markdown, title: "beta.md", sourceURL: twoFile, parts: [ItemPart(name: "beta.md", url: twoFile)])
+    let provider = PasteboardService.itemProvider(for: [one, two])
+    let filenamesType = "NSFilenamesPboardType"
+    expect(
+        provider.hasItemConformingToTypeIdentifier(filenamesType)
+            || provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
+        "multi drag advertises files"
+    )
+    var paths: [String] = []
+    if provider.hasItemConformingToTypeIdentifier(filenamesType) {
+        let data = try await loadProviderData(provider, filenamesType)
+        let object = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        paths = object as? [String] ?? []
+    }
+    if paths.count < 2, provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+        let data = try await loadProviderData(provider, UTType.fileURL.identifier)
+        if let url = URL(dataRepresentation: data, relativeTo: nil) {
+            paths.append(url.path)
+        }
+    }
+    expectEqual(Set(paths.map { URL(fileURLWithPath: $0).lastPathComponent }), ["alpha.md", "beta.md"])
+}
+
+private func loadProviderData(_ provider: NSItemProvider, _ type: String) async throws -> Data {
+    try await withCheckedThrowingContinuation { continuation in
+        _ = provider.loadDataRepresentation(forTypeIdentifier: type) { data, error in
+            if let data {
+                continuation.resume(returning: data)
+            } else {
+                continuation.resume(throwing: error ?? NSError(domain: "DropAgentCheck", code: 20))
+            }
+        }
+    }
 }
 
 private func pasteboardDragLandsFile() async throws {
@@ -2744,6 +2863,59 @@ private func pasteboardClipLands() async throws {
     let landed = desktop.appendingPathComponent(source.lastPathComponent)
     try FileManager.default.copyItem(at: source, to: landed)
     expectEqual(try String(contentsOf: landed, encoding: .utf8), "渠道折扣从 14% 收到 9%。")
+}
+
+private func clipHistory() throws {
+    let root = try tempDir()
+    let directory = root.appendingPathComponent("Clipboard", isDirectory: true)
+    let store = ClipHistoryStore(directory: directory)
+    guard let hello = ClipDraft(kind: .text, title: "Hello", text: "hello") else {
+        fail("text draft")
+        return
+    }
+    store.record(hello)
+    expectEqual(store.records().count, 1)
+    store.record(ClipDraft(kind: .text, title: "Hello again", text: "hello")!)
+    expectEqual(store.records().count, 1, "duplicate should bump")
+    expectEqual(store.records()[0].title, "Hello again")
+
+    for index in 1...10 {
+        store.record(ClipDraft(kind: .text, title: "\(index)", text: "body-\(index)")!)
+    }
+    expectEqual(store.records().count, ClipHistoryStore.limit)
+    expectEqual(store.records()[0].title, "10")
+    expect(store.records().contains { $0.text == "hello" } == false, "fifo dropped oldest")
+
+    let reloaded = ClipHistoryStore(directory: directory)
+    expectEqual(reloaded.records().count, ClipHistoryStore.limit)
+    expectEqual(reloaded.records()[0].title, "10")
+
+    let first = reloaded.records()[0]
+    reloaded.remove(id: first.id)
+    expectEqual(reloaded.records().count, ClipHistoryStore.limit - 1)
+    expect(reloaded.records().contains { $0.id == first.id } == false, "deleted row remains")
+
+    let png = raster(.png)
+    store.record(ClipDraft(kind: .image, title: "pic", imagePNG: png)!)
+    let imageID = store.records()[0].id
+    expect(store.imageData(for: imageID)?.isEmpty == false, "image blob missing")
+
+    let missing = store.record(
+        ClipDraft(kind: .files, title: "gone", filePaths: ["/tmp/dropagent-missing-clip.pdf"])!
+    )
+    expect(missing.filesMissing, "missing file should flag")
+
+    let huge = Data(repeating: 1, count: ClipDraft.maxImageBytes + 1)
+    expect(ClipDraft(kind: .image, title: "big", imagePNG: huge) == nil, "huge image should skip")
+
+    let board = NSPasteboard.withUniqueName()
+    board.clearContents()
+    board.setString("secret", forType: .string)
+    board.setString("1", forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
+    expect(ClipPasteboard.isIgnored(board), "concealed clipboard should be ignored")
+
+    let urlDraft = ClipDraft(kind: .url, title: "example.com", text: "https://example.com/x")
+    expectEqual(urlDraft?.fingerprint.hasPrefix("u:"), Optional(true))
 }
 
 private func captureService() async throws {

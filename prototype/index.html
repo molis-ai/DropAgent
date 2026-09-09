@@ -24,9 +24,9 @@
       --field-focus: #fcfcfd;
       --solid: #365cda;
       --solid-ink: #f7f8f7;
-      --tty: #17191c;
-      --tty-ink: #e8e8e3;
-      --tty-muted: rgba(237, 237, 232, .62);
+      --tty: #fcfcfd;
+      --tty-ink: #1f272b;
+      --tty-muted: #69707f;
       --danger: #8c3e43;
       --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
       --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
@@ -187,13 +187,24 @@
     .edge g[data-slice].hot .slice-label { fill: var(--solid-ink); }
     .edge g[data-slice].hot .slice-icon { stroke: var(--solid-ink); }
 
-    .panel {
+    .dock {
       position: absolute;
       top: 36px;
       right: 18px;
-      width: 800px;
-      height: min(640px, calc(100dvh - 60px));
+      width: 1040px;
       display: none;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 30;
+      align-items: stretch;
+    }
+    .dock.show { display: flex; }
+    .panel {
+      position: relative;
+      width: 100%;
+      height: auto;
+      max-height: min(640px, calc(100dvh - 60px));
+      display: flex;
       flex-direction: column;
       background: var(--panel);
       border-radius: 12px;
@@ -203,10 +214,7 @@
       z-index: 30;
       transform-origin: top right;
     }
-    .panel.show {
-      display: flex;
-      animation: panelIn 460ms var(--ease) both;
-    }
+    .panel.show { display: flex; }
     @keyframes panelIn {
       from { opacity: .12; filter: blur(6px); transform: translateY(14px); }
       to { opacity: 1; filter: blur(0); transform: none; }
@@ -312,8 +320,167 @@
       flex: 1;
       min-height: 0;
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       position: relative;
+    }
+    .shelf-block {
+      display: flex;
+      flex-direction: column;
+      background: var(--panel-2);
+      min-height: 0;
+    }
+    .col-in, .col-out { display: flex; flex-direction: column; min-width: 0; }
+    .col-out { display: none; background: color-mix(in srgb, var(--panel) 42%, var(--panel-2)); }
+    .shelf-block.split .col-out { display: flex; }
+    .file-shelf {
+      display: flex; align-items: stretch; gap: 8px;
+      overflow-x: auto; flex-wrap: nowrap; padding: 6px 16px 10px;
+    }
+    .file-card {
+      flex: 0 0 168px; width: 168px; min-width: 168px; height: 80px;
+      display: flex; flex-direction: column; align-items: stretch; justify-content: space-between;
+      padding: 8px 10px; border: 1px solid transparent; border-radius: 12px;
+      background: var(--panel); color: inherit; text-align: left; cursor: pointer;
+      box-shadow: 0 8px 18px rgba(31, 39, 43, .05);
+      position: relative;
+    }
+    .file-card:hover { transform: translateY(-1px); }
+    .file-card.sel { border-color: #a8b9ee; }
+    .file-card.kind-pdf, .file-card.kind-image, .file-card.kind-md, .file-card.kind-dir, .file-card.kind-file {
+      flex-direction: row; align-items: center; gap: 10px;
+    }
+    .file-card .doc, .file-card .thumb, .file-card .kind-mark {
+      position: relative; flex: none; width: 32px; height: 32px;
+    }
+    .kind-mark {
+      display: grid; place-items: center; border-radius: 8px;
+    }
+    .kind-mark svg, .kind-chip svg {
+      width: 15px; height: 15px; display: block;
+      fill: none; stroke: currentColor; stroke-width: 1.6;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .kind-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      height: 18px; padding: 0 6px; border-radius: 5px;
+      font-family: var(--mono); font-size: 9px; font-weight: 700;
+      align-self: flex-start;
+    }
+    .kind-chip svg { width: 10px; height: 10px; }
+    .tone-pdf { background: #e8c8a8; color: #5c341c; }
+    .tone-image { background: #ccdaf6; color: #2a447a; }
+    .tone-url { background: #d0d8e8; color: #30405c; }
+    .tone-web { background: #c6dcee; color: #244c70; }
+    .tone-md { background: #d6daec; color: #384066; }
+    .tone-clip { background: #ecd2a4; color: #5c3e18; }
+    .tone-dir { background: #ded6c6; color: #4e402c; }
+    .tone-file { background: #e0dcd0; color: #444034; }
+    .tone-code { background: #d2d8e8; color: #303c60; }
+    .file-card .thumb { border-radius: 5px; background: #e7ebf3; overflow: hidden; }
+    .file-card .thumb i, .file-card .thumb b, .file-card .thumb em {
+      position: absolute; display: block; border-radius: 1px; font: 0/0 a;
+    }
+    .file-card .thumb i { left: 5px; right: 6px; top: 6px; height: 3px; background: #b7c3d6; }
+    .file-card .thumb b { left: 5px; right: 11px; top: 12px; height: 3px; background: #c5d0e4; }
+    .file-card .thumb em { left: 5px; right: 5px; top: 18px; bottom: 6px; background: linear-gradient(180deg, #c9d4e6, #8fa3c4); }
+    .file-card .copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .file-card .name {
+      font-size: 13px; font-weight: 600; letter-spacing: -.02em;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .file-card .cap { font-size: 11px; color: var(--muted); }
+    .file-card .snippet {
+      margin: 0; font-size: 12px; line-height: 1.4; color: var(--text);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .file-card .kill {
+      position: absolute; right: 6px; top: 6px; width: 18px; height: 18px;
+      border: 0; border-radius: 4px; background: transparent; color: var(--icon);
+      opacity: 0; cursor: pointer;
+    }
+    .file-card:hover .kill, .file-card.sel .kill { opacity: 1; }
+    .acts {
+      display: none; align-items: center; flex-wrap: nowrap;
+      gap: 0; padding: 0 10px 8px 12px; overflow-x: auto;
+    }
+    .acts.show { display: flex; }
+    .acts .act {
+      display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap;
+      min-height: 32px; padding: 0 7px; border: 0; border-radius: 6px;
+      background: transparent; color: var(--text); font-size: 12px; font-weight: 570; cursor: pointer;
+    }
+    .acts .act:hover { background: var(--panel-hover); }
+    .acts .act:disabled { opacity: .42; cursor: not-allowed; }
+    .acts .act .ico { width: 14px; height: 14px; color: var(--solid); }
+    .acts .act.on { background: var(--panel-press); }
+    .acts .act.ghost { margin-left: 6px; color: var(--muted); }
+    .import-btn {
+      display: none; align-items: center; gap: 6px;
+      min-height: 28px; padding: 0 8px; border: 0; border-radius: 6px;
+      background: transparent; color: var(--text); font-size: 12px; font-weight: 570; cursor: pointer;
+    }
+    .import-btn.show { display: inline-flex; }
+    .import-btn:hover { background: var(--panel-hover); }
+    .import-btn .ico { width: 14px; height: 14px; color: var(--solid); }
+    .work-strip { padding: 0 16px 10px; }
+    .work-strip:empty { display: none; padding: 0; }
+    .float {
+      display: none; flex-direction: column;
+      max-height: min(380px, calc(100dvh - 280px));
+      background: var(--panel); border-radius: 12px;
+      box-shadow: 0 32px 80px rgba(0, 0, 0, .34);
+      overflow: hidden; color: var(--text);
+    }
+    .float.show { display: flex; }
+    .float .log {
+      display: none; flex: 1; min-height: 0; overflow: auto;
+      padding: 6px 16px 10px; background: var(--panel-2);
+    }
+    .float.has-log .log { display: block; }
+    .hover-preview {
+      position: fixed; z-index: 40; width: 276px;
+      padding: 12px 14px 14px; border-radius: 12px;
+      background: var(--panel); color: var(--text);
+      box-shadow: 0 18px 44px rgba(15, 18, 22, .22);
+      opacity: 0; transform: translateX(-6px); pointer-events: none;
+      transition: opacity 160ms ease, transform 180ms var(--ease);
+      max-height: 320px; overflow: auto; overflow-x: auto; overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .hover-preview.show { opacity: 1; transform: none; pointer-events: auto; }
+    .hover-preview .pv-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+    .hover-preview .pv-head strong { font-size: 13px; font-weight: 620; }
+    .hover-preview .pv-head span { font-size: 11px; color: var(--muted); }
+    .hover-preview .pv-page { padding: 12px; border-radius: 8px; background: #f4f5f8; font-size: 12px; line-height: 1.55; }
+    .hover-preview .pv-page p { margin: 0 0 8px; }
+    .hover-preview .pv-page h3 { font-size: 14px; font-weight: 620; margin: 0 0 6px; color: var(--text); }
+    .hover-preview .pv-page h4 { font-size: 12px; font-weight: 620; margin: 0 0 6px; color: var(--text); }
+    .hover-preview .pv-page ul { margin: 0 0 8px; padding-left: 1.15em; }
+    .hover-preview .pv-page li { margin: 0 0 2px; }
+    .hover-preview .pv-page p:last-child, .hover-preview .pv-page ul:last-child, .hover-preview .pv-page h3:last-child, .hover-preview .pv-page h4:last-child { margin-bottom: 0; }
+    .hover-preview .pv-hint { font-size: 10px; color: var(--muted); margin: 0 0 6px; }
+    .hover-preview .pv-shot { height: 120px; border-radius: 8px; background: #e7ebf3; position: relative; overflow: hidden; }
+    .shelf-bar, .list-toolbar {
+      display: flex !important; align-items: center; gap: 10px;
+      min-height: 28px; padding: 6px 16px 0;
+    }
+    .file-shelf .empty, .file-shelf .guide { height: auto; min-height: 72px; padding: 10px 4px 8px; }
+    .col-in { position: relative; }
+    .float .composer {
+      align-items: end;
+      min-height: 52px;
+      padding: 8px 16px 12px;
+      box-shadow: none;
+      animation: none;
+    }
+    .float.has-log .composer { box-shadow: inset 0 1px var(--rule); }
+    .float .foot-hint { display: block; padding: 0 16px 10px; }
+    .float .result-doc {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 12px 14px 14px;
+      box-shadow: 0 8px 18px rgba(31, 39, 43, .05);
+      max-width: none;
     }
     .cover-pane {
       display: none;
@@ -530,7 +697,9 @@
       background: color-mix(in srgb, var(--panel) 92%, transparent);
       pointer-events: none;
     }
-    .desk.dragging .list-wrap .list-hint { display: flex; }
+    .desk.dragging .list-wrap .list-hint,
+    .desk.dragging .col-in .list-hint { display: flex; }
+    .col-in .list-hint { inset: 28px 0 auto 0; height: 88px; }
 
     .empty,
     .guide {
@@ -1151,21 +1320,14 @@
     }
     .result-take .primary:hover { background: #11181c; transform: translateY(-1px); }
 
-    .tty-caption {
-      font-size: 10px;
-      color: var(--muted);
-      margin-bottom: 10px;
-      font-family: var(--mono);
-      letter-spacing: .06em;
-    }
     .pty-well {
-      min-height: 168px;
+      min-height: 148px;
       border: 0;
-      border-radius: 7px;
+      border-radius: 12px;
       background: var(--tty);
-      padding: 18px 18px;
+      padding: 16px;
       color: var(--tty-ink);
-      box-shadow: 0 16px 38px rgba(0, 0, 0, .18);
+      box-shadow: 0 8px 18px rgba(31, 39, 43, .12);
     }
     .pty-well:has(.hint) {
       display: flex;
@@ -1177,7 +1339,7 @@
     .tty-line.sys { color: var(--tty-muted); }
     .tty-line.in { color: var(--tty-ink); }
     .tty-line.out { color: var(--tty-ink); white-space: pre-wrap; }
-    .tty-line.file { color: rgba(237, 237, 232, .7); }
+    .tty-line.file { color: var(--tty-muted); }
 
     .result-doc {
       font-size: 12.5px;
@@ -1272,11 +1434,11 @@
       background: transparent;
       color: var(--muted);
       border: 0;
-      border-radius: 50%;
+      border-radius: 6px;
       margin-bottom: 2px;
       transition: color 160ms ease, transform 260ms var(--ease);
     }
-    .composer .go:hover:not(:disabled) { color: var(--text); }
+    .composer .go:hover:not(:disabled) { color: var(--text); background: var(--panel-hover); }
     .composer .go .ico { width: 16px; height: 16px; transition: transform 300ms var(--ease); }
     .composer .go:hover:not(:disabled) .ico { transform: translateX(4px); }
     .clip-btn {
@@ -1284,9 +1446,34 @@
       height: 32px;
       min-height: 32px;
       margin-bottom: 2px;
-      border-radius: 50%;
+      border-radius: 6px;
     }
+    .clip-btn:hover:not(:disabled) { background: var(--panel-hover); }
     .clip-btn .ico { width: 13px; height: 13px; color: var(--icon); }
+    .clip-history {
+      position: absolute; z-index: 24; top: 34px; right: 44px; min-width: 220px; max-width: 320px;
+      padding: 4px 0; background: var(--panel); border-radius: 8px; border: 1px solid var(--line);
+      box-shadow: 0 10px 28px rgba(15, 18, 22, .18); display: none;
+    }
+    .clip-history.show { display: block; }
+    .clip-row { padding: 0; }
+    .clip-row .clip-main {
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+      padding: 5px 12px; min-height: 22px;
+    }
+    .clip-row .clip-main:hover,
+    .clip-row .clip-main.sel { background: var(--panel-hover); }
+    .clip-row .dot {
+      width: 6px; height: 6px; border-radius: 99px; border: 1px solid var(--line); flex: none;
+    }
+    .clip-row .dot.on { background: var(--text); border-color: var(--text); }
+    .clip-row .clip-title { font-size: 13px; color: var(--text); flex: 1; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .clip-row .kill {
+      margin-left: auto; opacity: 0; border: 0; background: none; color: var(--muted);
+      width: 18px; height: 18px; cursor: pointer;
+    }
+    .clip-row .clip-main:hover .kill { opacity: 1; }
     .recipes button i { display: none; }
     .ico {
       width: 13px;
@@ -1493,13 +1680,14 @@
 
     <aside class="pile">
       <h1>拖进去</h1>
-      <p>拖的时候：左列加入，中间发给终端。右边结果可以拖到桌面，或拖回左列当新材料。</p>
+      <p>拖到文件行加入架子。点文件才出动作。点「其他」出对话浮窗。结果在下面，可放到上面当材料。</p>
       <div class="chip" role="button" draggable="true" data-name="Q3-pricing.pdf" data-kind="pdf"><span class="kind">PDF</span>Q3-pricing.pdf</div>
       <div class="chip" role="button" draggable="true" data-name="截图 09-05.png" data-kind="image"><span class="kind">PNG</span>截图 09-05.png</div>
       <div class="chip" role="button" draggable="true" data-name="https://dropoverapp.com" data-kind="url"><span class="kind">URL</span>dropoverapp.com</div>
       <div class="clip-chip" id="clipChip" role="button" draggable="true" data-name="剪贴板" data-kind="clip"><span class="kind">CLIP</span><span id="clipLabel">剪贴板是空的</span></div>
     </aside>
 
+    <div class="dock" id="dock">
     <div class="panel" id="panel" role="dialog" aria-label="DropAgent 面板">
       <div class="head">
         <div class="brand">DropAgent</div>
@@ -1539,48 +1727,41 @@
       </div>
 
       <div class="panel-body">
-      <div class="list-wrap" id="listWrap">
-        <div class="col-head">输入</div>
-        <div class="list-toolbar" id="listToolbar">
-          <button type="button" class="multi-btn" id="multiBtn" aria-label="多选">
-            <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg>
-            <span id="multiLabel">多选</span>
-          </button>
-          <span class="multi-count" id="multiCount"></span>
+      <div class="shelf-block" id="shelfBlock">
+        <div class="col col-in">
+          <div class="shelf-bar list-toolbar" id="listToolbar">
+            <div class="col-head">文件</div>
+            <button type="button" class="multi-btn" id="multiBtn" aria-label="多选">
+              <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg>
+              <span id="multiLabel">多选</span>
+            </button>
+            <span class="multi-count" id="multiCount" style="margin-left:auto;"></span>
+            <button class="clip-btn" id="shelfPasteBtn" type="button" title="剪贴板历史" aria-label="剪贴板历史">
+              <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="2" width="8" height="12" rx="1.5"/><path d="M3 5h2m6 0h2v9H5"/></svg>
+            </button>
+          </div>
+          <div class="clip-history" id="clipHistory"></div>
+          <div class="file-shelf list" id="list" data-drop="stage"></div>
+          <div class="list-hint"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 9.5V13h10V9.5"/><path d="M8 2.5v8"/><path d="M5 8.5 8 11.5 11 8.5"/></svg>加入架子</div>
+          <div class="acts" id="acts"></div>
+          <div class="work-strip" id="aiView"></div>
         </div>
-        <div class="list" id="list" data-drop="stage"></div>
-        <div class="list-hint"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 9.5V13h10V9.5"/><path d="M8 2.5v8"/><path d="M5 8.5 8 11.5 11 8.5"/></svg>加入架子</div>
-      </div>
-      <div class="splitbar" id="splitbar" title="拖动改变列表宽度"></div>
-
-      <div class="ai" id="ai" data-drop="tui">
-        <div class="ai-hint"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h10M9 4.5 13.5 8 9 11.5"/></svg><span id="aiHintText">发给 Grok</span></div>
-        <div class="ai-tabs">
-          <button type="button" data-ai="work" id="tabWork"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx=".8"/><rect x="9" y="2.5" width="4.5" height="4.5" rx=".8"/><rect x="2.5" y="9" width="4.5" height="4.5" rx=".8"/><rect x="9" y="9" width="4.5" height="4.5" rx=".8"/></svg>动作</button>
-          <button type="button" data-ai="tty" id="tabTty"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 10.5h6M5 6.5l2 2-2 2"/></svg>终端</button>
-          <button type="button" data-ai="result" id="tabResult"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h6l3 3V13.5H4z"/><path d="M10 2.5V6h3.5"/><path d="M6 9h4M6 11.5h3"/></svg>预览</button>
-        </div>
-        <div class="ai-body" id="aiView"></div>
-        <div class="composer" id="composer">
-          <span class="count" id="composeMeta"></span>
-          <input id="prompt" type="text" placeholder="写给 Grok，回车发送" autocomplete="off" />
-          <button class="clip-btn" id="pasteBtn" type="button" title="从剪贴板加入" aria-label="从剪贴板加入">
-            <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="2" width="8" height="12" rx="1.5"/><path d="M3 5h2m6 0h2v9H5"/></svg>
-          </button>
-          <button class="go" id="send" type="button" aria-label="发送">
-            <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4.5 13.5 8 9 11.5"/></svg>
-          </button>
-        </div>
-        <div class="foot-hint" id="footHint">发送进 Grok 终端，不是副本沙箱。文件可拖出或复制。</div>
-      </div>
-      <div class="splitbar" id="splitbarRight" title="拖动改变结果宽度"></div>
-      <div class="result-col" id="resultCol">
-        <div class="col-head">结果</div>
-        <div class="list" id="resultStack"></div>
-        <div class="result-take" id="resultTake">
-          <button class="primary run" draggable="true" data-act="dragout" id="takeDrag">拖出</button>
-          <button type="button" class="quiet" data-act="copy" id="takeCopy">复制</button>
-          <button type="button" class="quiet" data-act="preview" id="takeTty">终端</button>
+        <div class="col col-out" id="resultCol">
+          <div class="shelf-bar">
+            <div class="col-head">结果区</div>
+            <button type="button" class="multi-btn" id="outMultiBtn" aria-label="多选结果">
+              <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m5.5 8.2 1.8 1.8 3.4-3.6"/></svg>
+              <span id="outMultiLabel">多选</span>
+            </button>
+            <span class="multi-count" id="outCount" style="margin-left:auto;"></span>
+            <button type="button" class="import-btn" id="importBtn">
+              <svg class="ico" viewBox="0 0 16 16"><path d="M8 3v7M5 7.5 8 10.5 11 7.5"/><path d="M3 13h10"/></svg>
+              放到上面当材料
+            </button>
+            <button type="button" class="quiet" data-act="copy" id="takeCopy">复制</button>
+            <button type="button" class="quiet" data-act="preview" id="takeTty">终端</button>
+          </div>
+          <div class="file-shelf" id="resultStack"></div>
         </div>
       </div>
       <div class="cover-pane" id="setupCard">
@@ -1616,17 +1797,46 @@
           <div class="setup-row pair"><div class="row-copy"><div class="row-title">从架子移除</div><div class="cap">默认 ⌫ 和 ⌦ 都可以。改过之后只认你设的那一个。</div></div><div class="settings-keys">⌫</div></div>
           <div class="setup-row pair"><div class="row-copy"><div class="row-title">上一条 / 下一条</div><div class="cap">只在面板里，不能改。</div></div><div class="settings-keys">↑  ↓</div></div>
           <div class="settings-sec">能做什么</div>
-          <div class="setup-row"><div class="row-title">拖进去</div><div class="settings-body">菜单栏图标、鼠标旁的轮盘、左侧输入：加入架子（复制进写入区域，原件不动）。中间工作区：发给当前终端。轮盘六瓣是加入架子、发给终端、总结、抽取、翻译、转 MD；圆心是空的，拖出外圈即消失，不开关面板。屏幕最顶标签栏那一带不出现轮盘。</div></div>
+          <div class="setup-row"><div class="row-title">拖进去</div><div class="settings-body">菜单栏图标、鼠标旁的轮盘、文件行：加入架子（复制进写入区域，原件不动）。点「其他」后的浮窗：发给当前终端。轮盘六瓣是加入架子、发给终端、总结、抽取、翻译、转 MD；圆心是空的，拖出外圈即消失，不开关面板。屏幕最顶标签栏那一带不出现轮盘。</div></div>
           <div class="setup-row"><div class="row-title">选中的文件</div><div class="settings-body">「加入选中的文件」：Finder / 桌面读选中项（可多选）。VSCode 等先模拟 ⌘C，只收文件，剪贴板会还原；没有文件再读当前打开的本地文件。浏览器最前请用抓页。原件不动。</div></div>
-          <div class="setup-row"><div class="row-title">能接什么</div><div class="settings-body">文件、文件夹、PDF、图片（PNG / JPG / GIF / WebP / HEIC）、文本 / Markdown、链接。+ 选文件，或搜索桌面 / 文稿 / 下载。剪贴板可粘贴。</div></div>
-          <div class="setup-row"><div class="row-title">浏览器</div><div class="settings-body">拖到菜单栏图标、鼠标旁的轮盘、左侧列表，或粘贴整段网址：架子上先出现网站条，后台抓正文和截图（按该地址取页，不截你眼前的窗口；登录墙往往只留下链接）。拖到右侧 AI 区只把链接送进终端，不抓页。当前窗口整页（含窗口截图）仍用「抓取当前页」快捷键，Safari / Chrome / Edge 要在最前。Safari 标签若系统不交 URL，仍进不来。</div></div>
+          <div class="setup-row"><div class="row-title">能接什么</div><div class="settings-body">文件、文件夹、PDF、图片（PNG / JPG / GIF / WebP / HEIC）、文本 / Markdown、链接。+ 选文件，或搜索桌面 / 文稿 / 下载。文件行粘贴按钮打开最近十条剪贴板；⌘V 仍直接贴当前。</div></div>
+          <div class="setup-row"><div class="row-title">浏览器</div><div class="settings-body">拖到菜单栏图标、鼠标旁的轮盘、文件行，或粘贴整段网址：架子上先出现网站条，后台抓正文和截图（按该地址取页，不截你眼前的窗口；登录墙往往只留下链接）。拖到对话浮窗只把链接送进终端，不抓页。当前窗口整页（含窗口截图）仍用「抓取当前页」快捷键，Safari / Chrome / Edge 要在最前。Safari 标签若系统不交 URL，仍进不来。</div></div>
           <div class="setup-row"><div class="row-title">读什么</div><div class="settings-body">抓页会读前台浏览器的地址、标题、正文和窗口截图，需要辅助功能和自动化授权。Recipe 只读任务副本，Prompt 里不写原件路径，也不加载你的全局 MCP / Hooks。</div></div>
           <div class="setup-row"><div class="row-title">写什么</div><div class="settings-body">拖入的副本写在「写入区域」（默认 Inbox）。Recipe 结果写在「输出结果」下的任务编号 / output。不覆盖原文件。终端发送走那个 Agent 自己的权限，不是副本沙箱。</div></div>
-          <div class="setup-row"><div class="row-title">拖出去</div><div class="settings-body">一次拖一条，复制不是挪走。Finder / 桌面、上传框、多数聊天和编辑器能接文件或文字。网站抓取拖出是文件夹：链接、正文 md、截图。接不住就弹回架子。</div></div>
+          <div class="setup-row"><div class="row-title">拖出去</div><div class="settings-body">多选时一次拖出所选项，复制不是挪走。Finder / 桌面、上传框、多数聊天和编辑器能接文件或文字。网站抓取拖出是文件夹：链接、正文 md、截图。接不住就弹回架子。</div></div>
         </div>
       </div>
       </div>
     </div>
+    <div class="float" id="float" role="dialog" aria-labelledby="floatTitle">
+      <div class="shelf-bar" id="floatBar">
+        <div class="col-head" id="floatTitle">对话</div>
+        <span class="multi-count" id="floatMeta" style="margin-left:auto;"></span>
+      </div>
+      <div class="log" id="floatLog"></div>
+      <form class="composer" id="composer">
+        <span class="count" id="composeMeta"></span>
+        <input id="prompt" type="text" placeholder="写给 Grok" autocomplete="off" />
+        <button class="clip-btn" id="pasteBtn" type="button" title="从剪贴板加入" aria-label="从剪贴板加入">
+          <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="2" width="8" height="12" rx="1.5"/><path d="M3 5h2m6 0h2v9H5"/></svg>
+        </button>
+        <button class="go" id="send" type="button" aria-label="发送">
+          <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4.5 13.5 8 9 11.5"/></svg>
+        </button>
+      </form>
+      <div class="foot-hint" id="footHint">发给终端是会话，不是副本沙箱。</div>
+    </div>
+    </div>
+    <div class="hover-preview" id="hoverPreview"></div>
+    <span id="aiHintText" hidden></span>
+    <div id="ai" hidden data-drop="tui"></div>
+    <div id="listWrap" hidden></div>
+    <div id="splitbar" hidden></div>
+    <button type="button" id="tabWork" data-ai="work" hidden></button>
+    <button type="button" id="tabTty" data-ai="tty" hidden></button>
+    <button type="button" id="tabResult" data-ai="result" hidden></button>
+    <button type="button" id="takeDrag" data-act="dragout" hidden draggable="true"></button>
+    <div id="resultTake" hidden></div>
 
     <nav class="scenes" aria-label="评审场景">
       <span>评审</span>
@@ -1696,11 +1906,18 @@
       copied: null, ttyLog: [], ai: "work", listW: 196, multiSelect: false,
       results: [], focus: "input", resultId: null, opt: {}, otherOpen: false,
       clip: "渠道折扣收到 9%，不要对外讲数字。",
+      clipHistoryOpen: false,
+      clipSelected: [],
+      clipHistory: [
+        { id: "c1", kind: "text", title: "渠道折扣收到 9%，不要对外讲数字。", body: "渠道折扣收到 9%，不要对外讲数字。", current: true },
+        { id: "c2", kind: "url", title: "example.com", body: "https://example.com", current: false }
+      ],
       desk: [], onboarded: false,
       setup: false,
-      settings: false
+      settings: false,
+      outSelected: [],
+      outMulti: false
     };
-
     const $ = (id) => document.getElementById(id);
     const desk = $("desk");
     const promptEl = $("prompt");
@@ -1727,6 +1944,38 @@
       return `写给 ${state.tui}，回车发送`;
     }
     function kindOf(k) { return kinds[k] || { tag: "FILE", word: "文件", tone: "file" }; }
+    const kindIcons = {
+      pdf: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5h5l3 3V13.5h-8z"/><path d="M9.5 2.5v3h3"/></svg>',
+      image: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9" rx="1.4"/><circle cx="6" cy="7" r="1.1"/><path d="m4.5 11.2 2.4-2.3 2 1.8 2.6-3 2 3.5"/></svg>',
+      url: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.2 9.8 4.8 8.4a2.4 2.4 0 0 1 0-3.4l1.2-1.2a2.4 2.4 0 0 1 3.4 0L11 5.4"/><path d="m9.8 6.2 1.4 1.4a2.4 2.4 0 0 1 0 3.4l-1.2 1.2a2.4 2.4 0 0 1-3.4 0L5 10.6"/></svg>',
+      web: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.2"/><path d="M2.8 8h10.4M8 2.8c1.6 1.6 2.4 3.4 2.4 5.2S9.6 11.6 8 13.2C6.4 11.6 5.6 9.8 5.6 8S6.4 4.4 8 2.8z"/></svg>',
+      md: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 5h9M3.5 8h9M3.5 11h6"/></svg>',
+      clip: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="3.5" width="7" height="10" rx="1.2"/><path d="M6.2 3.5V2.8A.8.8 0 0 1 7 2h2a.8.8 0 0 1 .8.8v.7"/></svg>',
+      dir: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.8 5.2V12a1.2 1.2 0 0 0 1.2 1.2h8a1.2 1.2 0 0 0 1.2-1.2V6.4A1.2 1.2 0 0 0 12 5.2H8L7 4H4A1.2 1.2 0 0 0 2.8 5.2z"/></svg>',
+      file: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5h5l3 3V13.5h-8z"/><path d="M9.5 2.5v3h3"/></svg>',
+      zip: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4.5h9v9h-9z"/><path d="M6.5 4.5V2.8h3v1.7M8 6.2v5"/></svg>',
+      code: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5.5 5-3 3 3 3M10.5 5l3 3-3 3"/></svg>'
+    };
+    function kindGlyph(kind, tag) {
+      const t = String(tag || "").toUpperCase();
+      if (t === "JSON") return kindIcons.code;
+      if (t === "ZIP") return kindIcons.zip;
+      if (["HTML", "HTM", "SWIFT", "PY", "CSS", "YAML", "YML", "XML"].includes(t)) return kindIcons.code;
+      if (["JPG", "JPEG", "PNG", "GIF", "HEIC", "WEBP"].includes(t)) return kindIcons.image;
+      return kindIcons[kind] || kindIcons.file;
+    }
+    function kindTone(kind, tag) {
+      const t = String(tag || "").toUpperCase();
+      if (t === "JSON" || ["HTML", "HTM", "SWIFT", "PY", "CSS", "YAML", "YML", "XML"].includes(t)) return "code";
+      if (t === "ZIP") return "file";
+      return kindOf(kind).tone || "file";
+    }
+    function kindMark(kind, tag, compact) {
+      const tone = kindTone(kind, tag);
+      const glyph = kindGlyph(kind, tag);
+      if (compact) return `<span class="kind-chip tone-${tone}">${glyph}<b>${tag}</b></span>`;
+      return `<span class="kind-mark tone-${tone}" aria-hidden="true">${glyph}</span>`;
+    }
 
 
     function createItem(name, kind) {
@@ -1794,11 +2043,49 @@
     function recipeButtons() {
       const id = state.anchor || state.selected[0] || "";
       const recipeOff = !state.hasRecipe || !state.selected.length;
-      const cmds = recipes.map(([short, full, blurb]) =>
-        `<div class="recipe-row"><button type="button" data-act="recipe" data-id="${id}" data-recipe="${full}" ${recipeOff ? "disabled" : ""}>${recipeIcons[short] || ""}<span class="recipe-copy"><strong>${short}</strong><span class="recipe-blurb">${blurb}</span></span><span aria-hidden="true">›</span></button></div>`
+      const cmds = recipes.map(([short, full]) =>
+        `<button type="button" class="act" data-act="recipe" data-id="${id}" data-recipe="${full}" ${recipeOff ? "disabled" : ""}>${recipeIcons[short] || ""}<span>${short}</span></button>`
       );
-      cmds.push(`<div class="recipe-row"><button type="button" class="${state.otherOpen ? "on" : ""}" data-act="other" ${state.hasTui ? "" : "disabled"}>${recipeIcons["其他"]}<span class="recipe-copy"><strong>其他</strong><span class="recipe-blurb">写一句话，连同选中材料发给终端</span></span><span aria-hidden="true">›</span></button></div>`);
+      cmds.push(`<button type="button" class="act ghost ${state.otherOpen ? "on" : ""}" data-act="other" ${state.hasTui ? "" : "disabled"}>${recipeIcons["其他"]}<span>其他</span></button>`);
       return cmds.join("");
+    }
+    function snippetFor(it) {
+      if (it.kind === "clip") return state.clip || it.name;
+      if (it.kind === "url") return (it.url || it.name).replace(/^https?:\/\//, "");
+      if (it.kind === "web") return it.url || it.name;
+      if (it.kind === "md") return "示例文稿，可发给终端或跑动作。";
+      if (it.kind === "pdf") return "Q3 定价。北美 +8%。渠道折扣从 14% 收到 9%。";
+      return "";
+    }
+    function fileCard(it, selectedIds, asResult) {
+      const k = kindOf(it.kind);
+      const sel = selectedIds.includes(it.id);
+      const drag = it.status !== "running";
+      const act = asResult ? "pick-result" : "select";
+      const cap = asResult
+        ? ((it.recipe || "").replace("并保留格式", "").replace("提取结构化信息", "抽取").replace("把几份材料整合成一份", "整合") || "可拖走")
+        : (k.word + (it.status === "running" ? " · 运行中" : it.status === "sent" ? " · 已进终端" : it.status === "confirm" ? " · 未运行" : ""));
+      const bodyKind = it.kind === "pdf" || it.kind === "md" || it.kind === "dir" || it.kind === "file" || asResult;
+      if (it.kind === "image" && !asResult) {
+        return `<div class="file-card kind-image ${sel ? "sel" : ""}" data-act="${act}" data-id="${it.id}" ${drag ? "draggable=\"true\"" : ""}>
+          <span class="thumb" aria-hidden="true"><i></i><b></b><em></em></span>
+          <span class="copy"><span class="name">${it.name}</span><span class="cap">${cap}</span></span>
+          ${it.status !== "running" && !asResult ? `<button type="button" class="kill" data-act="remove" data-id="${it.id}" aria-label="移除">${ico.x}</button>` : ""}
+        </div>`;
+      }
+      if (bodyKind) {
+        const tag = asResult || it.kind === "md" ? "MD" : k.tag;
+        return `<div class="file-card kind-pdf ${sel ? "sel" : ""}" data-act="${act}" data-id="${it.id}" ${drag ? "draggable=\"true\"" : ""}>
+          ${kindMark(it.kind, tag, false)}
+          <span class="copy"><span class="name">${it.output || it.name}</span><span class="cap">${cap}${it.opt ? " · " + it.opt : ""}</span></span>
+          ${it.status !== "running" && !asResult ? `<button type="button" class="kill" data-act="remove" data-id="${it.id}" aria-label="移除">${ico.x}</button>` : ""}
+        </div>`;
+      }
+      return `<div class="file-card kind-${it.kind} ${sel ? "sel" : ""}" data-act="${act}" data-id="${it.id}" ${drag ? "draggable=\"true\"" : ""}>
+        <p class="snippet">${snippetFor(it)}</p>
+        ${kindMark(it.kind, k.tag, true)}
+        ${it.status !== "running" ? `<button type="button" class="kill" data-act="remove" data-id="${it.id}" aria-label="移除">${ico.x}</button>` : ""}
+      </div>`;
     }
 
     function focusedResult() {
@@ -1815,62 +2102,54 @@
       return it || null;
     }
 
-    function renderAi() {
-      const view = $("aiView");
-      $("tabWork").classList.toggle("on", state.ai === "work");
-      $("tabTty").classList.toggle("on", state.ai === "tty");
-      $("tabResult").classList.toggle("on", state.ai === "result");
-      const hasResult = !!currentResult();
-      $("tabResult").disabled = !hasResult && !state.results.length;
-      $("tabTty").disabled = !state.ttyLog.length && state.ai !== "tty";
-
+    function floatMetaText() {
       if (state.ai === "tty") {
         const file = [...state.ttyLog].reverse().find((l) => l.k === "file");
-        const caption = file
-          ? `${state.tui} · ${file.t.replace(/^📎\s+/, "").replace(/^材料\s+/, "")}`
-          : (state.ttyLog.find((l) => l.k === "sys")?.t || `${state.tui}  ·  本机会话`);
-        const lines = state.ttyLog.filter((l) => l.k === "in" || l.k === "out");
-        view.innerHTML = `<div class="tty-caption">${caption}</div>
-          <div class="pty-well">${lines.length
-            ? lines.map((l) => `<div class="tty-line ${l.k}">${l.t}</div>`).join("")
-            : `<div class="hint">发送后，${state.tui} 会出现在这里</div>`}</div>`;
-        return;
+        if (file) return `${state.tui} · ${file.t.replace(/^📎\s+/, "").replace(/^材料\s+/, "").trim()}`;
+        return state.hasTui ? `${state.tui} · 本机会话` : "";
       }
       if (state.ai === "result") {
         const it = currentResult();
-        if (!it) { view.innerHTML = `<div class="hint">点左边看输入，点右边结果看产出。</div>`; return; }
+        return it ? (it.output || it.name) : "";
+      }
+      return "";
+    }
+    function floatLogHTML() {
+      if (state.ai === "tty") {
+        const lines = state.ttyLog.filter((l) => l.k === "in" || l.k === "out");
+        return `<div class="pty-well">${lines.length
+          ? lines.map((l) => `<div class="tty-line ${l.k}">${l.t}</div>`).join("")
+          : `<div class="hint">发送后，${state.tui} 会出现在这里</div>`}</div>`;
+      }
+      if (state.ai === "result") {
+        const it = currentResult();
+        if (!it) return `<div class="hint">点结果区的文件看正文。</div>`;
         const fromStack = state.results.find((r) => r.id === it.id);
         let body = "";
-        if (fromStack) {
-          body = previews[fromStack.recipe] || "";
-        } else if (it.kind === "web") {
-          body = `<div class="hint">${it.url || "https://example.com"}</div><div class="hint">正文和截图在这一页。</div>`;
-          if (it.status === "sent") body += `<div class="hint">材料已送进终端。在「终端」里继续说。</div>`;
-        } else if (it.kind === "image") {
-          body = `<div class="hint">这张图可以拖出或发给终端。</div>`;
-        } else if (it.kind === "clip" || it.kind === "md") {
-          body = `<div class="hint">正文在这一页，可复制或拖出。</div>`;
-        } else if (it.kind === "url") {
-          body = `<div class="hint">${it.url || it.name}</div><div class="hint">这是链接，不会自动抓正文。要网页材料请用 ⌃⌥W。</div>`;
-        } else if (it.output || it.status === "done") {
-          body = previews[it.recipe] || "";
-        } else {
-          body = state.ttyLog.filter((x) => x.k === "out").map((x) => x.t).join("\n") || "已送到终端，在「终端」里看过程。";
-        }
-        view.innerHTML = `<div class="result-doc"><h3>${it.output || it.name}</h3>${body}</div>
+        if (fromStack) body = previews[fromStack.recipe] || "";
+        else if (it.kind === "web") body = `<div class="hint">${it.url || ""}</div>`;
+        else if (it.output || it.status === "done") body = previews[it.recipe] || "";
+        else body = state.ttyLog.filter((x) => x.k === "out").map((x) => x.t).join("\n") || "";
+        return `<div class="result-doc"><h3>${it.output || it.name}</h3>${body.replace(/\n/g, "<br>")}</div>
           ${state.copied === it.id ? `<div class="toast">已复制到剪贴板</div>` : ""}`;
-        return;
       }
-
+      return "";
+    }
+    function renderAi() {
+      const view = $("aiView");
+      const acts = $("acts");
       const batch = selectedItems();
+      const showActs = batch.length > 0 && !state.setup && !state.settings;
+      acts.classList.toggle("show", showActs);
+      acts.innerHTML = showActs ? recipeButtons() : "";
+
       const idle = batch.filter((x) => x.status === "idle" || x.status === "confirm");
       const confirming = idle.some((x) => x.status === "confirm");
-      if (!batch.length) {
-        if (!state.items.length && !state.onboarded) {
-          const step2 = state.hasRecipe
-            ? `总结、翻译，或发给 ${state.tui}`
-            : (state.hasTui ? `发给 ${state.tui}。当前终端暂不支持快捷动作。` : "先放着。装好终端后再发给它。");
-          view.innerHTML = `<div class="onboard">
+      if (!state.items.length && !state.onboarded && !state.setup && !state.settings) {
+        const step2 = state.hasRecipe
+          ? `总结、翻译，或发给 ${state.tui}`
+          : (state.hasTui ? `发给 ${state.tui}。当前终端暂不支持快捷动作。` : "先放着。装好终端后再发给它。");
+        view.innerHTML = `<div class="onboard">
             <h3>材料放下，轻松处理。</h3>
             <div class="onboard-step"><span class="tag">1</span><div><b>放上来</b><small>拖到架子、⌘V，或 ⌃⌥W 抓当前页</small></div></div>
             <div class="onboard-step"><span class="tag">2</span><div><b>选动作</b><small>${step2}</small></div></div>
@@ -1878,18 +2157,6 @@
             <button class="run" data-act="onboard-try">放入示例文稿</button>
             <button class="quiet" data-act="onboard-skip">我自己添加</button>
           </div>`;
-          return;
-        }
-        const title = state.hasTui
-          ? (state.items.length ? "点左边的一份材料" : "先把材料放在左边")
-          : "还没有终端";
-        const copy = state.hasTui
-          ? (state.items.length
-            ? `或拖到这一区，发给 ${state.tui}。`
-            : `拖到左侧加入架子，或拖到这一区发给 ${state.tui}。`)
-          : "仍可以把文件放到左边。装好终端后再发给它。";
-        view.innerHTML = `<div class="recipes">${recipeButtons()}</div>
-          <div class="guide"><p class="guide-title">${title}</p><p class="guide-copy">${copy}</p></div>`;
         return;
       }
       if (confirming) {
@@ -1914,42 +2181,40 @@
         </div>`;
         return;
       }
-      view.innerHTML = `<div class="recipes">${recipeButtons()}</div>`;
+      view.innerHTML = "";
     }
 
     function renderResultStack() {
       const el = $("resultStack");
-      const take = $("resultTake");
+      const col = $("resultCol");
+      const block = $("shelfBlock");
       if (!el) return;
-      if (!state.results.length) {
-        el.innerHTML = `<div class="result-empty"><p class="guide-title">结果会出现在这里</p><p class="guide-copy">跑完可以拖到桌面，或拖回左边当新材料。</p></div>`;
-        take.classList.remove("show");
-        take.removeAttribute("data-id");
-        return;
-      }
-      el.innerHTML = state.results.map((r) => {
-        const sel = state.focus === "result" && state.resultId === r.id;
-        const short = (r.recipe || "").replace("并保留格式", "").replace("提取结构化信息", "抽取").replace("把几份材料整合成一份", "整合").replace("根据多份材料生成一个新交付", "整合");
-        return `<div class="result-row ${sel ? "sel" : ""}" draggable="true" data-act="pick-result" data-id="${r.id}">
-          <span class="tag tag-md">MD</span>
-          <span class="name">${r.name}</span>
-          <span class="meta">${short}${r.opt ? " · " + r.opt : ""}</span>
-        </div>`;
-      }).join("");
-      const rec = focusedResult();
+      const pending = selectedItems().some((x) => x.status === "running") && !state.results.length;
+      const hasOut = state.results.length > 0 || pending;
+      block.classList.toggle("split", hasOut && !state.setup && !state.settings);
+      col.classList.toggle("open", hasOut);
+      $("importBtn").classList.toggle("show", state.outSelected.length > 0);
+      $("outMultiBtn").classList.toggle("on", state.outMulti);
+      $("outMultiLabel").textContent = state.outMulti ? "完成" : "多选";
+      $("outCount").textContent = state.outSelected.length ? `已选 ${state.outSelected.length}` : "";
+      const rec = focusedResult() || (state.outSelected[0] && state.results.find((r) => r.id === state.outSelected[0]));
+      $("takeCopy").hidden = !rec;
+      $("takeTty").hidden = !rec;
       if (rec) {
-        take.classList.add("show");
-        take.dataset.id = rec.id;
-        $("takeDrag").dataset.id = rec.id;
         $("takeCopy").dataset.id = rec.id;
         $("takeTty").dataset.id = rec.id;
-      } else {
-        take.classList.remove("show");
+        $("takeDrag").dataset.id = rec.id;
       }
+      if (pending) {
+        el.innerHTML = `<div class="working"><div class="working-line"></div><p class="working-title">正在写</p></div>`;
+        return;
+      }
+      el.innerHTML = state.results.map((r) => fileCard(r, state.outSelected, true)).join("");
     }
 
     function render() {
       $("status").classList.toggle("open", state.open);
+      $("dock").classList.toggle("show", state.open);
       $("panel").classList.toggle("show", state.open);
       $("agentIcon").innerHTML = state.hasTui ? ico.check : ico.slash;
       $("agentLabel").textContent = state.hasTui ? state.tui : "未发现终端";
@@ -1958,15 +2223,17 @@
       promptEl.disabled = !sendOK;
       $("send").disabled = !sendOK;
       promptEl.placeholder = composerPlaceholder();
-      $("listWrap").style.width = state.listW + "px";
-      $("listWrap").style.flexBasis = state.listW + "px";
-      $("listToolbar").classList.toggle("show", state.items.length > 0);
       $("multiBtn").classList.toggle("on", state.multiSelect);
       $("multiLabel").textContent = state.multiSelect ? "完成" : "多选";
       $("multiBtn").setAttribute("aria-label", state.multiSelect ? "完成多选" : "多选");
-      $("multiCount").textContent = state.multiSelect && state.selected.length ? `已选 ${state.selected.length}` : "";
+      $("multiCount").textContent = state.selected.length ? `已选 ${state.selected.length}` : "";
       $("composeMeta").textContent = state.selected.length ? `${state.selected.length} 项` : "";
       const busy = selectedItems().some((x) => x.status === "confirm" || x.status === "running");
+      const floatOpen = !state.setup && !state.settings && (state.otherOpen || state.ai === "tty" || (state.ai === "result" && state.outSelected.length));
+      $("float").classList.toggle("show", floatOpen);
+      $("float").classList.toggle("has-log", floatOpen && (state.ai === "tty" || state.ai === "result") && (state.ttyLog.length > 0 || state.ai === "result"));
+      $("floatLog").innerHTML = floatOpen ? floatLogHTML() : "";
+      $("floatMeta").textContent = floatOpen ? floatMetaText() : "";
       $("footHint").textContent = busy
         ? "先运行或取消。原件不会被动。"
         : state.hasTui
@@ -1977,12 +2244,12 @@
         b.classList.toggle("on", state.hasTui ? pick === state.tui : pick === "");
       });
       $("clipLabel").textContent = state.clip ? state.clip.slice(0, 18) + (state.clip.length > 18 ? "…" : "") : "剪贴板是空的";
+      renderClipHistory();
       renderResultStack();
       $("setupCard").classList.toggle("show", state.setup && !state.settings);
       $("settingsPane").classList.toggle("show", state.settings);
-      const showComposer = !state.setup && !state.settings && state.ai === "work" && state.otherOpen;
-      $("composer").classList.toggle("show", showComposer);
-      $("footHint").classList.toggle("show", showComposer);
+      $("composer").classList.toggle("show", floatOpen);
+      $("footHint").classList.toggle("show", floatOpen);
       $("gearDot").classList.toggle("show", !state.settings && (!state.hasTui || state.setup));
       $("setupList").innerHTML = `
         <div class="setup-row ${state.hasTui ? "ok" : ""}"><div class="row-title"><span class="mark">${state.hasTui ? "✓" : "○"}</span>终端 Agent</div><div class="cap">${state.hasTui ? "已发现 " + state.tui : "未发现终端 Agent。可以先把文件放在架子上。"}</div>${state.hasTui ? "" : '<button class="act" type="button">如何安装</button>'}</div>
@@ -1995,25 +2262,9 @@
 
       if (!state.items.length) {
         state.multiSelect = false;
-        $("list").innerHTML = `<div class="empty guide">${ico.tray}<p class="guide-title">还没有材料</p><p class="guide-copy">拖到这里、菜单栏图标或鼠标旁的轮盘。先放下，或拖进轮盘「发给」给 ${state.hasTui ? state.tui : "终端"}。</p></div>`;
+        $("list").innerHTML = `<div class="empty guide">${ico.tray}<p class="guide-title">还没有材料</p><p class="guide-copy">拖到这里、菜单栏图标或鼠标旁的轮盘。先放下，再选动作。</p></div>`;
       } else {
-        $("list").innerHTML = state.items.map((it) => {
-          const k = kindOf(it.kind);
-          const sel = state.selected.includes(it.id);
-          let meta = `${k.word} · 待处理`;
-          if (it.status === "confirm") meta = `${k.word} · ${it.recipe} · 未运行`;
-          if (it.status === "running") meta = `<span class="pill run">运行中</span>${k.word}`;
-          if (it.status === "done") meta = `<span class="pill ok">可拖出</span>${k.word} · 来自 ${it.source}`;
-          if (it.status === "sent") meta = `<span class="pill sent">已进终端</span>${k.word}`;
-          const drag = it.status !== "running";
-          return `<div class="row ${sel ? "sel" : ""} ${it.status}${state.multiSelect ? " picking" : ""}" data-act="select" data-id="${it.id}" ${drag ? `draggable="true"` : ""}>
-            ${state.multiSelect ? `<span class="pick">${sel ? ico.check : ico.circle}</span>` : ""}
-            <span class="tag tag-${k.tone}">${k.tag}</span>
-            <div class="name">${it.name}</div>
-            ${it.status !== "running" ? `<button class="kill" data-act="remove" data-id="${it.id}" aria-label="移除">${ico.x}</button>` : `<span></span>`}
-            <div class="meta">${meta} · ${it.time}</div>
-          </div>`;
-        }).join("");
+        $("list").innerHTML = state.items.map((it) => fileCard(it, state.selected, false)).join("");
       }
 
       renderAi();
@@ -2072,7 +2323,8 @@
         state.results.unshift(rec);
         state.focus = "result";
         state.resultId = rec.id;
-        state.ai = "result";
+        state.outSelected = [rec.id];
+        state.ai = "work";
         render();
       }, 2200));
     }
@@ -2100,6 +2352,7 @@
       }
       promptEl.value = "";
       state.ai = "tty";
+      state.otherOpen = true;
       render();
     }
     function sendToTui(items, text) {
@@ -2123,18 +2376,61 @@
       }
       promptEl.value = "";
       state.ai = "tty";
+      state.otherOpen = true;
       render();
     }
 
+    function rememberClip(body, kind) {
+      const text = String(body || "").trim();
+      if (!text) return;
+      const title = text.length > 40 ? text.slice(0, 40) + "…" : text;
+      const existing = state.clipHistory.find((x) => x.body === text);
+      state.clipHistory.forEach((x) => { x.current = false; });
+      if (existing) {
+        existing.current = true;
+        existing.title = title;
+        state.clipHistory = [existing, ...state.clipHistory.filter((x) => x.id !== existing.id)];
+      } else {
+        state.clipHistory.unshift({
+          id: "c" + Date.now(),
+          kind: kind || (text.startsWith("http") ? "url" : "text"),
+          title,
+          body: text,
+          current: true
+        });
+        state.clipHistory = state.clipHistory.slice(0, 10);
+      }
+    }
     function copyItem(it) {
       const text = it.output || it.name;
       const fromStack = state.results.some((r) => r.id === it.id);
       const body = (it.status === "done" || fromStack) ? (previews[it.recipe] || text) : text;
       state.clip = body;
       state.copied = it.id;
+      rememberClip(body);
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(body);
       render();
       setTimeout(() => { if (state.copied === it.id) { state.copied = null; render(); } }, 1200);
+    }
+    function renderClipHistory() {
+      const box = $("clipHistory");
+      if (!box) return;
+      box.classList.toggle("show", state.clipHistoryOpen);
+      if (!state.clipHistoryOpen) {
+        box.innerHTML = "";
+        return;
+      }
+      const rows = state.clipHistory.map((clip) => {
+        const sel = (state.clipSelected || []).includes(clip.id);
+        return `<div class="clip-row">
+          <div class="clip-main${sel ? " sel" : ""}" data-clip-select="${clip.id}" draggable="true">
+            <span class="dot${clip.current ? " on" : ""}"></span>
+            <div class="clip-title">${escapeHTML(clip.title)}</div>
+            <button type="button" class="kill" data-clip-del="${clip.id}" aria-label="删除">×</button>
+          </div>
+        </div>`;
+      }).join("");
+      box.innerHTML = rows || `<div class="clip-row"><div class="clip-main"><div class="clip-title">还没有记下的剪贴板</div></div></div>`;
     }
 
     function pasteClip() {
@@ -2147,6 +2443,37 @@
       sendFromComposer();
     });
     $("pasteBtn").addEventListener("click", pasteClip);
+    $("shelfPasteBtn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      state.clipHistoryOpen = !state.clipHistoryOpen;
+      if (!state.clipHistoryOpen) state.clipSelected = [];
+      renderClipHistory();
+    });
+    $("clipHistory").addEventListener("click", (e) => {
+      const del = e.target.closest("[data-clip-del]");
+      if (del) {
+        e.stopPropagation();
+        state.clipHistory = state.clipHistory.filter((x) => x.id !== del.dataset.clipDel);
+        state.clipSelected = (state.clipSelected || []).filter((id) => id !== del.dataset.clipDel);
+        renderClipHistory();
+        return;
+      }
+      const pick = e.target.closest("[data-clip-select]");
+      if (pick) {
+        e.stopPropagation();
+        const id = pick.dataset.clipSelect;
+        const selected = state.clipSelected || [];
+        if (e.metaKey || e.ctrlKey) {
+          state.clipSelected = selected.includes(id) ? selected.filter((x) => x !== id) : selected.concat(id);
+        } else if (selected.length === 1 && selected[0] === id) {
+          state.clipSelected = [];
+        } else {
+          state.clipSelected = [id];
+        }
+        renderClipHistory();
+      }
+
+    });
     promptEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -2171,6 +2498,110 @@
     $("multiBtn").addEventListener("click", () => {
       state.multiSelect = !state.multiSelect;
       render();
+    });
+    $("outMultiBtn").addEventListener("click", () => {
+      state.outMulti = !state.outMulti;
+      if (!state.outMulti && state.outSelected.length > 1) state.outSelected = state.outSelected.slice(0, 1);
+      render();
+    });
+    $("importBtn").addEventListener("click", () => {
+      const added = [];
+      state.outSelected.forEach((id) => {
+        const r = state.results.find((x) => x.id === id);
+        if (!r) return;
+        const item = createItem(r.name, "md");
+        item.source = "结果区";
+        added.push(item.id);
+      });
+      if (added.length) state.selected = added;
+      state.outSelected = [];
+      state.focus = "input";
+      render();
+    });
+    $("composer").addEventListener("submit", (e) => { e.preventDefault(); sendFromComposer(); });
+
+    let previewTimer = 0;
+    function escapeHTML(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
+    }
+    function mdPreview(src) {
+      return String(src).trim().split(/\n{2,}/).map((block) => {
+        const lines = block.split("\n").filter((l) => l.length);
+        if (!lines.length) return "";
+        const first = lines[0].trim();
+        const heading = first.match(/^(#{1,3})\s+(.*)$/);
+        if (heading && lines.length === 1) {
+          const tag = heading[1].length === 1 ? "h3" : "h4";
+          return `<${tag}>${escapeHTML(heading[2])}</${tag}>`;
+        }
+        if (lines.every((l) => /^[-*]\s+/.test(l.trim()))) {
+          return `<ul>${lines.map((l) => `<li>${escapeHTML(l.trim().replace(/^[-*]\s+/, ""))}</li>`).join("")}</ul>`;
+        }
+        return `<p>${escapeHTML(block).replace(/\n/g, "<br>")}</p>`;
+      }).join("");
+    }
+    function previewHTML(it, asResult) {
+      if (!it) return "";
+      const title = it.output || it.name;
+      const htmlFile = /\.html?$/i.test(title);
+      if (asResult || it.kind === "md" || htmlFile) {
+        const body = previews[it.recipe] || snippetFor(it);
+        const hint = htmlFile ? `<p class="pv-hint">从 HTML 抽出的正文，不是网页预览。</p>` : "";
+        return `<div class="pv-head"><strong>${escapeHTML(title)}</strong><span>${asResult ? "结果" : htmlFile ? "文件" : "文稿"}</span></div><div class="pv-page">${hint}${mdPreview(body)}</div>`;
+      }
+      if (it.kind === "image") return `<div class="pv-head"><strong>${escapeHTML(title)}</strong><span>PNG 图片</span></div><div class="pv-shot"></div>`;
+      if (it.kind === "pdf") return `<div class="pv-head"><strong>${escapeHTML(title)}</strong><span>PDF · 文档</span></div><div class="pv-page">${escapeHTML(snippetFor(it))}</div>`;
+      return `<div class="pv-head"><strong>${escapeHTML(title)}</strong><span>${kindOf(it.kind).word}</span></div><div class="pv-page">${escapeHTML(snippetFor(it) || "").replace(/\n/g, "<br>")}</div>`;
+    }
+    function showHover(el) {
+      const id = el.dataset.id;
+      const asResult = el.dataset.act === "pick-result";
+      const it = asResult ? state.results.find((x) => x.id === id) : itemById(id);
+      const pv = $("hoverPreview");
+      if (!it) return;
+      pv.innerHTML = previewHTML(it, asResult);
+      const panelBox = $("panel").getBoundingClientRect();
+      const width = 276;
+      const gap = 8;
+      let left = panelBox.left - gap - width;
+      if (left < 18) left = panelBox.right + gap;
+      pv.style.left = left + "px";
+      pv.style.top = panelBox.top + "px";
+      pv.classList.add("show");
+    }
+    function hideHover() { $("hoverPreview").classList.remove("show"); }
+    let hoverPinned = false;
+    function hideHoverSoon() {
+      clearTimeout(previewTimer);
+      previewTimer = setTimeout(() => {
+        if (hoverPinned) return;
+        hideHover();
+      }, 2000);
+    }
+    function bindHover(root) {
+      root.addEventListener("pointerover", (e) => {
+        const el = e.target.closest(".file-card");
+        if (!el || !root.contains(el)) return;
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(() => showHover(el), 180);
+      });
+      root.addEventListener("pointerout", (e) => {
+        const el = e.target.closest(".file-card");
+        if (!el) return;
+        const next = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".file-card");
+        if (next === el) return;
+        hideHoverSoon();
+      });
+    }
+    bindHover($("list"));
+    bindHover($("resultStack"));
+    $("hoverPreview").addEventListener("pointerenter", () => {
+      hoverPinned = true;
+      clearTimeout(previewTimer);
+    });
+    $("hoverPreview").addEventListener("pointerleave", () => {
+      hoverPinned = false;
+      hideHoverSoon();
     });
     const engineMenu = $("engineMenu");
     const agentPill = $("agentPill");
@@ -2227,7 +2658,15 @@
       if (act === "pick-result") {
         state.focus = "result";
         state.resultId = id;
-        state.ai = "result";
+        const additive = e.metaKey || e.ctrlKey || state.outMulti;
+        if (additive) {
+          state.outSelected = state.outSelected.includes(id) ? state.outSelected.filter((x) => x !== id) : [...state.outSelected, id];
+        } else if (state.outSelected.length === 1 && state.outSelected[0] === id) {
+          state.outSelected = [];
+          state.resultId = null;
+        } else {
+          state.outSelected = [id];
+        }
         render();
         return;
       }
@@ -2239,6 +2678,9 @@
         if (additive) {
           state.selected = state.selected.includes(id) ? state.selected.filter((x) => x !== id) : [...state.selected, id];
           state.anchor = id;
+        } else if (state.selected.length === 1 && state.selected[0] === id) {
+          state.selected = [];
+          state.anchor = null;
         } else {
           state.selected = [id];
           state.anchor = id;
@@ -2298,11 +2740,12 @@
     }
     $("list").addEventListener("click", onAction);
     $("aiView").addEventListener("click", onAction);
+    $("acts").addEventListener("click", onAction);
     $("resultStack").addEventListener("click", onAction);
-    $("resultTake").addEventListener("click", onAction);
+    $("resultCol").addEventListener("click", onAction);
 
     $("list").addEventListener("dragstart", (e) => {
-      const row = e.target.closest(".row[draggable]");
+      const row = e.target.closest(".file-card[draggable], .row[draggable]");
       if (!row) return;
       const it = itemById(row.dataset.id);
       if (!it) return;
@@ -2337,7 +2780,7 @@
       e.dataTransfer.effectAllowed = "copy";
     }
     $("resultStack").addEventListener("dragstart", (e) => {
-      const row = e.target.closest(".result-row");
+      const row = e.target.closest(".file-card[data-act=pick-result], .result-row");
       if (!row) return;
       startResultDrag(e, state.results.find((x) => x.id === row.dataset.id));
     });
@@ -2374,6 +2817,25 @@
         return;
       }
       addItem(d.name, d.kind);
+    });
+    bindDrop($("float"), (e) => {
+      const sid = e.dataTransfer.getData("shelf-id");
+      if (sid) {
+        const it = itemById(sid);
+        if (it) sendToTui([it], promptEl.value.trim());
+        return;
+      }
+      const rid = e.dataTransfer.getData("result-id");
+      if (rid) {
+        const rec = state.results.find((x) => x.id === rid);
+        if (rec) sendResultToTui(rec, promptEl.value.trim());
+        return;
+      }
+      const d = readDrop(e);
+      const item = createItem(d.name, d.kind);
+      state.selected = [item.id];
+      state.anchor = item.id;
+      sendToTui([item], promptEl.value.trim());
     });
     bindDrop($("ai"), (e) => {
       const sid = e.dataTransfer.getData("shelf-id");
@@ -2538,14 +3000,13 @@
     });
 
     const bar = $("splitbar");
+    if (bar && !bar.hidden) {
     bar.addEventListener("mousedown", (e) => {
       e.preventDefault();
       const startX = e.clientX;
       const startW = state.listW;
       const move = (ev) => {
         state.listW = Math.max(176, Math.min(240, startW + (ev.clientX - startX)));
-        $("listWrap").style.width = state.listW + "px";
-        $("listWrap").style.flexBasis = state.listW + "px";
       };
       const up = () => {
         document.removeEventListener("mousemove", move);
@@ -2554,6 +3015,7 @@
       document.addEventListener("mousemove", move);
       document.addEventListener("mouseup", up);
     });
+    }
 
     document.querySelectorAll(".scenes button").forEach((b) => {
       b.addEventListener("click", () => {
@@ -2565,6 +3027,7 @@
         state.listW = 196;
         state.multiSelect = scene === "multi";
         state.results = []; state.focus = "input"; state.resultId = null; state.otherOpen = false;
+        state.outSelected = []; state.outMulti = false;
         const idle = (id, name, kind, time) => ({ id, name, kind, source: name, time, status: "idle", recipe: null, event: "", output: null });
         function connect(tui, hasRecipe) {
           state.hasTui = !!tui; state.tui = tui || "Grok"; state.hasRecipe = hasRecipe;
@@ -2586,7 +3049,7 @@
           state.selected = ["1", "2"]; state.anchor = "1"; state.ai = "work";
         }
         if (scene === "sent") {
-          connect("Grok", true); state.ai = "tty";
+          connect("Grok", true); state.ai = "tty"; state.otherOpen = true;
           state.items = [
             { id: "1", name: "Q3-pricing.pdf", source: "Q3-pricing.pdf", kind: "pdf", time: "2:11", status: "sent", recipe: null, event: "", output: null },
             { id: "2", name: "截图 09-05.png", source: "截图 09-05.png", kind: "image", time: "2:08", status: "sent", recipe: null, event: "", output: null }
@@ -2610,11 +3073,13 @@
           state.focus = "result";
           state.resultId = "r1";
           state.results = [{ id: "r1", name: "summary.md", output: "summary.md", recipe: "总结文件", opt: "中 · 500 字", kind: "md", sourceItemIDs: ["1"] }];
+          state.outSelected = ["r1"];
           state.items = [
             idle("1", "Q3-pricing.pdf", "pdf", "2:11"),
             idle("2", "截图 09-05.png", "image", "2:08")
           ];
           state.selected = ["1"]; state.anchor = "1";
+          state.ai = "work";
         }
         if (scene === "confirm") {
           connect("Grok", true); state.ai = "work";

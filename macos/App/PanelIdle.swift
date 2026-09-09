@@ -9,6 +9,7 @@ enum PanelIdle {
     static let fadeDuration: TimeInterval = 0.2
     static let activeLevel = NSWindow.Level.statusBar
     static let recessedLevel = NSWindow.Level.normal
+    static let spaceBehavior: NSWindow.CollectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
 
     enum Toggle: Equatable {
         case show
@@ -16,10 +17,17 @@ enum PanelIdle {
         case hide
     }
 
-    static func toggle(visible: Bool, recessed: Bool) -> Toggle {
-        if visible == false { return .show }
+    static func toggle(visible: Bool, recessed: Bool, onActiveSpace: Bool = true) -> Toggle {
+        if visible == false || onActiveSpace == false { return .show }
         if recessed { return .wake }
         return .hide
+    }
+
+    static func attachToActiveSpace(_ panel: NSWindow) {
+        panel.collectionBehavior = spaceBehavior
+        if panel.isOnActiveSpace == false {
+            panel.orderOut(nil)
+        }
     }
 
     static func shouldRecess(
@@ -28,9 +36,10 @@ enum PanelIdle {
         mouseInside: Bool,
         exporting: Bool,
         diagnostic: Bool,
-        dragging: Bool = false
+        dragging: Bool = false,
+        prompting: Bool = false
     ) -> Bool {
-        visible && isKey == false && mouseInside == false && exporting == false && diagnostic == false && dragging == false
+        visible && isKey == false && mouseInside == false && exporting == false && diagnostic == false && dragging == false && prompting == false
     }
 
     static func dragHitsPanel(mouse: NSPoint, frame: NSRect) -> Bool {

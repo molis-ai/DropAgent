@@ -9,7 +9,7 @@
 
 ## 1. 要做成什么样
 
-Mac 菜单栏小工具。左边是架子，右边是 AI 区。东西先进来，可以先放着；要么用当前芯片对应的 CLI 在副本里跑 Recipe，要么把材料和一句话打进当前所选 TUI。结果在工具里能看，再拖走或复制。原件不被覆盖。
+Mac 菜单栏小工具。上面是文件架，下面是结果区；点「其他」才出对话浮窗。东西先进来，可以先放着；要么用当前芯片对应的 CLI 在副本里跑 Recipe，要么把材料和一句话打进当前所选 TUI。结果在工具里能看，再拖走或复制。原件不被覆盖。
 
 两套代码、同一套边界：
 
@@ -36,7 +36,7 @@ macos/
     DropAgentJob/          副本任务：Jobs/<id>、Recipe、Hash、事件日志。
     DropAgentAgent/        探测本机 Agent、隔离档位文案。不跑 UI、不持有架子。
     DropAgentTUI/          把材料和用户那句话送进对应 TUI 会话。不解析屏幕。
-    DropAgentPasteboard/   拖出 / 复制：按条目组装系统剪贴板。
+    DropAgentPasteboard/   拖出 / 复制：按条目组装系统剪贴板。另管最近 10 条剪贴板历史（落盘、不去架子）。
     DropAgentCapture/      读前台浏览器 URL+标题，或按已有 URL 抓正文 md、截图。被 Ingest 调用。
 ```
 
@@ -138,20 +138,22 @@ D. 拿走
 
 Shelf 列表存 Application Support 下的 `shelf.json`。不进 iCloud、不做多设备同步（第一版）。
 
+剪贴板历史存 `Clipboard/history.json` 与图片 blob。最多 10 条。不是架子 Item，进货仍走 Ingest。
+
 ---
 
 ## 5. 模块职责一句话
 
 | 模块 | 做什么 | 不做什么 |
 |------|--------|----------|
-| App | 窗口、拖入命中（左列表 / 右 AI / 图标）、快捷键、拼 UI | 业务规则 |
+| App | 窗口、拖入命中（文件行 / 对话浮窗 / 图标）、快捷键、拼 UI | 业务规则 |
 | Shelf | 增删改、多选、查询 | 跑 Agent、抓网页 |
 | Ingest | 把外部东西变成 Item | 决定跑 Recipe 还是 TUI |
 | Capture | URL+标题、md、截图 | 加入架子 |
 | Job | 副本、Recipe、Hash、事件 | 画 UI、发 TUI |
 | Agent | 发现二进制、档位文案、执行配置 | 选 Recipe |
 | TUI | 投递进已有或新拉起的会话 | 解析 TUI 画面 |
-| Pasteboard | 按 kind 填多种 UTI | 删除架子条目 |
+| Pasteboard | 按 kind 填多种 UTI；记下最近剪贴板 | 删除架子条目、改系统当前剪贴板 |
 
 细案见：
 
@@ -173,13 +175,13 @@ Shelf 列表存 Application Support 下的 `shelf.json`。不进 iCloud、不做
 |------|------|
 | 菜单栏图标 | `Ingest.admit` → 只进架子（http(s) 随后抓页） |
 | 鼠标旁拖放轮盘 | 同上 |
-| 面板左列表 | 同上 |
-| 面板右 AI 区 | `Ingest.admit(..., capturePages: false)` 得到 Item，立刻 `TUI.send`（框里有字带上） |
+| 面板文件行 | 同上 |
+| 对话浮窗 | `Ingest.admit(..., capturePages: false)` 得到 Item，立刻 `TUI.send`（框里有字带上） |
 | 粘贴快捷键（默认 ⌘V） | `Ingest.admitClipboard`；http(s) 随后 `captureDroppedPages` |
 | 抓页快捷键 | `Ingest.admitCurrentPage` |
 | 加入选中文件快捷键 | `FrontAdmit.collect` → `Ingest.admit(urls:)` |
 
-没有 Agent 时：AI 区落点仍 `admit` 进架子，并提示不能发送；不假装跑成功。
+没有 Agent 时：对话浮窗落点仍 `admit` 进架子，并提示不能发送；不假装跑成功。
 
 ---
 
@@ -212,7 +214,7 @@ Recipe 跑完：对 `sourceURL` 若是本地文件，再读一遍 Hash，必须�
 | URL | `public.url` |
 | 网站组合 | 文件夹（链接 + md + 截图）；文本优先 md；图目标给截图 |
 
-一次拖一条。默认复制。接不住由系统弹回。
+多选时一次拖出所选项。默认复制。接不住由系统弹回。
 
 ---
 

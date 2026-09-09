@@ -39,15 +39,15 @@ struct StatusMark: View {
         ZStack {
             Circle()
                 .fill(tone.wash)
-                .frame(width: 56, height: 56)
+                .frame(width: 28, height: 28)
             if spinning && freeze == false {
                 ProgressView()
                     .progressViewStyle(.circular)
-                    .controlSize(.regular)
+                    .controlSize(.small)
                     .tint(tone.ink)
             } else {
                 Image(systemName: tone.symbol)
-                    .font(.system(size: 22, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(tone.ink)
                     .symbolRenderingMode(.hierarchical)
             }
@@ -72,38 +72,37 @@ struct WorkRunningView: View {
 
     var body: some View {
         let tone: WorkTone = waiting ? .wait : (event.contains("失败") ? .fail : .run)
-        VStack(spacing: 0) {
-            Spacer(minLength: 12)
-            VStack(spacing: 12) {
-                StatusMark(tone: tone, spinning: tone == .run, reduceMotion: reduceMotion)
-                Text(waiting ? Copy.t("等待授权", "Waiting for approval") : Copy.t("正在运行", "Running"))
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(tone.ink)
-                Text(event.isEmpty ? Copy.t("正在准备副本", "Preparing a copy") : event)
-                    .font(.system(size: 13, weight: .medium))
+        HStack(alignment: .top, spacing: 10) {
+            StatusMark(tone: tone, spinning: tone == .run, reduceMotion: reduceMotion)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(waiting ? Copy.t("等待授权", "Waiting for approval") : Copy.t("正在副本里运行", "Running on a copy"))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Palette.text)
-                    .multilineTextAlignment(.center)
-                Text(actor)
-                    .font(.system(size: 12))
+                Text(event.isEmpty ? Copy.t("正在准备副本", "Preparing a copy") : event)
+                    .font(.system(size: 11.5))
                     .foregroundStyle(Palette.muted)
-                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 if waiting {
                     Text(waitCopy)
-                        .font(.system(size: 12))
+                        .font(.system(size: 11.5))
                         .foregroundStyle(Palette.muted)
-                        .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(actor)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.faint)
                 }
             }
-            .frame(maxWidth: 280)
-            Spacer(minLength: 12)
+            Spacer(minLength: 8)
             Button(action: onCancel) {
-                Label(Copy.t("取消", "Cancel"), systemImage: "xmark")
+                Text(Copy.t("取消", "Cancel"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.muted)
             }
-            .buttonStyle(QuietButtonStyle())
+            .buttonStyle(.plain)
             .accessibilityLabel(Copy.t("取消这次副本任务", "Cancel this copy job"))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(waiting ? Copy.t("等待授权", "Waiting for approval") : Copy.t("正在运行", "Running"))
         .accessibilityValue(event)

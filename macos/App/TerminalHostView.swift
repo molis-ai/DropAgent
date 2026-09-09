@@ -28,7 +28,7 @@ struct TerminalHostView: NSViewRepresentable {
         let bg = Palette.ttyWellNS
         view.nativeBackgroundColor = bg
         view.nativeForegroundColor = Palette.ttyInkNS
-        view.caretColor = Palette.paperNS
+        view.caretColor = Palette.ttyInkNS
         view.backgroundOpacity = 1
         view.layer?.backgroundColor = bg.cgColor
         view.layer?.isOpaque = true
@@ -41,6 +41,7 @@ struct TerminalHostView: NSViewRepresentable {
         private var started = false
         private var epoch = UUID()
         private var lastIdleFill = CGSize.zero
+        private var lastDark: Bool?
         private var previewFed = false
         private var revealWork: DispatchWorkItem?
 
@@ -48,8 +49,21 @@ struct TerminalHostView: NSViewRepresentable {
 
         func paintIdleWell(_ view: LocalProcessTerminalView) {
             TerminalHostView.paintChrome(view)
+            let dark = Palette.isDark
+            if started {
+                if lastDark != dark {
+                    lastDark = dark
+                    view.feed(text: Palette.ttyOSCDefaults)
+                }
+                return
+            }
             let size = view.bounds.size
-            guard started == false, size.width > 8, size.height > 8 else { return }
+            guard size.width > 8, size.height > 8 else { return }
+            if lastDark != dark {
+                lastIdleFill = .zero
+                previewFed = false
+            }
+            lastDark = dark
             if isPreview, session.ptyLive {
                 guard size != lastIdleFill || previewFed == false else { return }
                 lastIdleFill = size
@@ -59,7 +73,7 @@ struct TerminalHostView: NSViewRepresentable {
             }
             guard size != lastIdleFill else { return }
             lastIdleFill = size
-            view.feed(text: "\u{1b}]11;#171717\u{07}\u{1b}[48;2;23;23;23m\u{1b}[2J\u{1b}[H")
+            view.feed(text: Palette.ttyIdleFill)
         }
 
         func consumePending() {
@@ -70,6 +84,7 @@ struct TerminalHostView: NSViewRepresentable {
                 }
                 started = false
                 lastIdleFill = .zero
+                lastDark = nil
                 previewFed = false
                 revealWork?.cancel()
                 revealWork = nil
@@ -91,7 +106,9 @@ struct TerminalHostView: NSViewRepresentable {
                 )
                 started = true
                 lastIdleFill = .zero
+                lastDark = Palette.isDark
                 previewFed = false
+                view.feed(text: Palette.ttyOSCDefaults)
                 session.tuiProcessRunning = true
                 session.ptyLive = false
                 scheduleReveal()
@@ -124,6 +141,7 @@ struct TerminalHostView: NSViewRepresentable {
         func processTerminated(source: TerminalView, exitCode: Int32?) {
             started = false
             lastIdleFill = .zero
+            lastDark = nil
             previewFed = false
             revealWork?.cancel()
             revealWork = nil
@@ -151,7 +169,7 @@ struct TerminalHostView: NSViewRepresentable {
         }
 
         private func feedPreview(_ view: LocalProcessTerminalView) {
-            var text = "\u{1b}]11;#171717\u{07}\u{1b}[48;2;23;23;23m\u{1b}[2J\u{1b}[H"
+            var text = Palette.ttyIdleFill
             if session.ttyLines.isEmpty {
                 text += "发送后，\(session.tuiTitle) 会出现在这里\r\n"
             } else {

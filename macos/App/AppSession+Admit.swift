@@ -1,5 +1,6 @@
 import AppKit
 import DropAgentIngest
+import DropAgentPasteboard
 import DropAgentShelf
 import Foundation
 
@@ -11,6 +12,8 @@ extension AppSession {
     }
 
     func pickFilesToAdmit() {
+        hideHover()
+        onPanelInteraction?()
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
@@ -19,6 +22,7 @@ extension AppSession {
         panel.prompt = Copy.t("加入", "Add")
         panel.message = Copy.t("选择要放到架子上的文件或文件夹。原件不动。", "Choose files or folders to put on the shelf. Originals stay put.")
         let urls = OpenPanelHost.run(panel)
+        onPanelInteraction?()
         guard urls.isEmpty == false else { return }
         admit(urls: urls)
     }
@@ -28,12 +32,28 @@ extension AppSession {
         spotlight.setText("")
     }
 
+    func beginShelfDrag(ids: [ItemID]) {
+        shelfDragIDs = ids
+        PasteboardService.markShelfDrag()
+    }
+
+    func endShelfDrag() {
+        PasteboardService.clearShelfDrag()
+        DispatchQueue.main.async { [weak self] in
+            self?.shelfDragIDs = []
+            PasteboardService.clearShelfDrag()
+        }
+    }
+
+    var isShelfDrag: Bool {
+        shelfDragIDs.isEmpty == false
+    }
+
     func admitDrop(providers: [NSItemProvider]) {
-        let now = Date()
-        if let last = lastInternalDropAt, now.timeIntervalSince(last) < 0.35 {
+        if isShelfDrag || PasteboardService.isShelfDrag() {
+            finishExternalDrag()
             return
         }
-        lastInternalDropAt = now
         let fallback = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
         Task {
             var result = await ingest.admitProviders(providers)
@@ -47,6 +67,10 @@ extension AppSession {
     }
 
     func admitPasteboard(_ pasteboard: NSPasteboard) {
+        if isShelfDrag || PasteboardService.isShelfDrag(pasteboard) {
+            finishExternalDrag()
+            return
+        }
         admitPayload(ClipboardPayload.from(pasteboard: pasteboard))
     }
 
@@ -57,6 +81,22 @@ extension AppSession {
     }
 
     func admitFromWheel(_ payload: ClipboardPayload, action: WheelAction) {
+        if isShelfDrag {
+            let ids = shelfDragIDs
+            finishExternalDrag()
+            guard ids.isEmpty == false else { return }
+            switch action {
+            case .shelf:
+                return
+            case .send:
+                if hasAgent {
+                    sendToTUI(itemIDs: ids)
+                }
+            case .recipe(let recipe):
+                Task { await startWheelRecipe(ids: ids, recipe: recipe) }
+            }
+            return
+        }
         let capturePages = action != .send
         let result = ingest.admitPayload(payload, capturePages: capturePages)
         follow(result)
@@ -80,6 +120,15 @@ extension AppSession {
     }
 
     func admitToTUI(providers: [NSItemProvider]) {
+        if isShelfDrag {
+            let ids = shelfDragIDs
+            finishExternalDrag()
+            guard ids.isEmpty == false else { return }
+            if hasAgent {
+                sendToTUI(itemIDs: ids)
+            }
+            return
+        }
         let fallback = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
         Task {
             var result = await ingest.admitProviders(providers, capturePages: false)

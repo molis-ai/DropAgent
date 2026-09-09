@@ -41,7 +41,7 @@ struct ResultPane: View {
                 ResultPreview(item: item)
             }
         } else {
-            Text(Copy.t("点左边看输入，点右边结果看产出。", "Select an input on the left, or a result on the right."))
+            Text(Copy.t("点上面的文件，或点下面结果区看产出。", "Select a file above, or a result below."))
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.faint)
         }

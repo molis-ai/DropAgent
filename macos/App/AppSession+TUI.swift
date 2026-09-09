@@ -32,6 +32,7 @@ extension AppSession {
             promptText = ""
             pendingTUI = prepared
             tuiSessionDirectory = prepared.cwd
+            otherOpen = true
             aiTab = .tty
         } catch {
             errorText = human(error)
@@ -55,6 +56,7 @@ extension AppSession {
             promptText = ""
             pendingTUI = prepared
             tuiSessionDirectory = prepared.cwd
+            otherOpen = true
             aiTab = .tty
         } catch {
             errorText = human(error)

@@ -6,9 +6,11 @@
 
 按一条 Item 的 kind / parts，往系统 Pasteboard 填多种 UTI，供拖出和复制。默认复制：不从 Shelf 删除。
 
+另管最近 10 条剪贴板历史：系统剪贴板与本 App 复制过的，落在 `Clipboard/`，不去架子。点开只看；「放到架子」由 App 走 Ingest。隐蔽 / 自动生成 / 临时类型不记。文件只记路径。
+
 ## 不做什么
 
-不按「微信 / Cursor / Notion」产品名写分支。不写回原件。不一次拖多条（第一版）。不自动按目标 App 的发送按钮。
+不按「微信 / Cursor / Notion」产品名写分支。不写回原件。多选时按选择里每条的文件一起交出；单条仍带该条的多种 UTI。不自动按目标 App 的发送按钮。
 
 ## Public
 
@@ -16,6 +18,8 @@
 export(item: Item) -> NSDraggingItem  // 或等价的 pasteboard writer
 copy(item: Item)
 promisedUTIs(for item: Item) -> [UTI]
+ClipHistoryStore.record / remove / records
+itemProvider(forClip:imageURL:)
 ```
 
 ## 形态表（与需求第 11 节一致）

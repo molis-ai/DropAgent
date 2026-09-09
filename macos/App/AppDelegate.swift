@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reregisterHotKeys()
         session.applyChrome = { [weak self] in self?.applyPanelAppearance() }
         session.applyLayout = { [weak self] in self?.positionPanel() }
+        session.hoverPreview.panelFrame = { [weak self] in self?.panel?.frame ?? .zero }
         session.onPanelInteraction = { [weak self] in self?.wakePanel(makeKey: true) }
         session.onFinishExternalDrag = { [weak self] in
             self?.edgeDrop?.hide()

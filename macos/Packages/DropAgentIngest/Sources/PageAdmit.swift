@@ -130,8 +130,20 @@ public enum PageAdmit {
         wrap(status, foreignCopy: false)
     }
 
-    public static func requestAutomation(bundleIdentifier: String) -> PageAdmitAutomation {
-        PageAdmitAutomation(AutomationAccess.requestIfNeeded(bundleIdentifier: bundleIdentifier))
+    public static func privacyTargetOffMain(token: PageAdmitToken) async -> PageAdmitBrowserRow? {
+        await PermissionWork.run { privacyTarget(token: token) }
+    }
+
+    public static func decideOffMain(token: PageAdmitToken) async -> PageAdmitDecision {
+        await PermissionWork.run { decide(token: token) }
+    }
+
+    public static func failureOffMain(token: PageAdmitToken) async -> PageAdmitDecision {
+        await PermissionWork.run { failure(token: token) }
+    }
+
+    public static func setupStatusOffMain() async -> PageAdmitSetup {
+        await PermissionWork.run { setupStatus() }
     }
 
     public static func requestAutomationOffMain(bundleIdentifier: String) async -> PageAdmitAutomation {

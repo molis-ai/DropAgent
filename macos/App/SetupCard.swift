@@ -51,6 +51,16 @@ struct SetupChecklist: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             agentRow
+            if session.authorizingID != nil {
+                Text(session.authorizationSlow
+                    ? Copy.t("系统授权仍未返回。可继续使用窗口；请检查系统提示，或打开自动化设置。", "System permission is still pending. You can keep using this window; check the system prompt or open Automation settings.")
+                    : Copy.t("正在等待系统授权…", "Waiting for system permission…"))
+                    .font(.system(size: 12))
+                Button(Copy.t("打开自动化设置", "Open Automation Settings")) { session.openAutomationSettings() }
+            } else if session.setupRefreshing && !session.setupLoaded {
+                Text(Copy.t("正在检测权限…", "Checking permissions…"))
+                    .font(.system(size: 12))
+            }
             if includeHotKeys {
                 hotKeyRow(
                     title: SetupCopy.toggleTitle,
@@ -69,6 +79,10 @@ struct SetupChecklist: View {
                 )
             }
             accessibilityRow
+            Text(Copy.t("当前应用：", "Current app: ") + Bundle.main.bundleURL.path)
+                .font(.system(size: 10))
+                .foregroundStyle(Palette.faint)
+                .textSelection(.enabled)
             finderRow
             ForEach(session.setup.browsers) { browser in
                 browserRow(browser)
@@ -123,7 +137,7 @@ struct SetupChecklist: View {
         }()
         return setupRow(
             title: SetupCopy.finderTitle,
-            caption: ready ? SetupCopy.finderReady : SetupCopy.finderNeed,
+            caption: SetupCopy.automationStatus(finder),
             ready: ready,
             actionTitle: action,
             enabled: session.authorizingID == nil || busy,
@@ -146,13 +160,7 @@ struct SetupChecklist: View {
             case .authorize: return SetupCopy.authorize
             }
         }()
-        let caption: String = {
-            switch cue {
-            case .ready: return SetupCopy.browserReady(browser.displayName)
-            case .openAndAuthorize: return SetupCopy.browserClosed(browser.displayName)
-            case .authorize: return SetupCopy.browserNeed(browser.displayName)
-            }
-        }()
+        let caption = SetupCopy.automationStatus(browser)
         return setupRow(
             title: browser.displayName,
             caption: caption,

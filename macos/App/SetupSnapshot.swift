@@ -21,8 +21,7 @@ enum SetupCardPolicy {
             || (setup.browsers.isEmpty == false && setup.browsers.contains(where: \.allowed) == false)
     }
 
-    /// Silent probe often reports denied before Chrome is even in the TCC list.
-    /// The row must still request; opening Automation settings cannot add it.
+    /// A silent denial may precede registration; keep an explicit request available.
     static func browserAction(allowed: Bool, running: Bool) -> BrowserSetupAction {
         if allowed { return .ready }
         if running == false { return .openAndAuthorize }
@@ -100,16 +99,28 @@ enum SetupCopy {
 
     static var accessibilityNeed: String {
         Copy.t(
-            "当前这份还没被信任。列表里开着的可能是另一份。只留菜单栏里这份，把开关关再开，然后完全退出再打开。",
-            "This copy is not trusted yet. The one in System Settings may be another copy. Leave only this menu bar app, toggle Accessibility off and on, then fully quit and reopen."
+            "当前进程未获得辅助功能访问。若系统开关已开，请核对下方应用位置，并在授权后退出重开。",
+            "This process does not have Accessibility access. If the system toggle is on, check the app location below and quit and reopen after granting access."
         )
     }
 
     static var accessibilityForeign: String {
         Copy.t(
-            "还有另一份 DropAgent 在跑。关掉其他份，只留菜单栏里这份，把开关关再开，然后完全退出再打开。",
-            "Another DropAgent is running. Quit the others, leave this menu bar one, toggle Accessibility off and on, then fully quit and reopen."
+            "检测到另一份 DropAgent 进程；当前进程尚未获得辅助功能访问。请核对授权的应用位置。",
+            "Another DropAgent process was detected; this process lacks Accessibility access. Check which app location was granted access."
         )
+    }
+
+    static func automationStatus(_ row: PageAdmitBrowserRow) -> String {
+        switch row.state {
+        case .allowed: return browserReady(row.displayName)
+        case .denied: return Copy.t("系统未许可控制\(row.displayName)。可请求授权，或到系统自动化设置核对。", "The system has not permitted control of \(row.displayName). Request access or check Automation settings.")
+        case .notDetermined: return Copy.t("尚未决定是否允许控制\(row.displayName)。", "Access to \(row.displayName) has not been decided.")
+        case .unavailable:
+            return row.running
+                ? Copy.t("暂时无法检测\(row.displayName)的授权状态。", "Cannot currently determine access to \(row.displayName).")
+                : browserClosed(row.displayName)
+        }
     }
 
     static var authorize: String { Copy.t("去授权", "Authorize") }

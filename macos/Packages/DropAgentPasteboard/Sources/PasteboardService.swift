@@ -32,12 +32,195 @@ public enum PasteboardService {
     }
 
     public static func copy(_ item: Item, to pasteboard: NSPasteboard = .general) {
+        copy([item], to: pasteboard)
+    }
+
+    public static func copy(_ items: [Item], to pasteboard: NSPasteboard = .general) {
+        let group = items.filter { $0.status != .running }
+        if group.count <= 1 {
+            guard let item = group.first else { return }
+            pasteboard.clearContents()
+            pasteboard.writeObjects(writers(for: representation(for: item)))
+            return
+        }
+        let files = fileURLs(for: group)
         pasteboard.clearContents()
-        pasteboard.writeObjects(writers(for: representation(for: item)))
+        if files.count >= 1 {
+            pasteboard.writeObjects(files as [NSURL])
+            if files.count > 1 {
+                pasteboard.setPropertyList(
+                    files.map(\.path),
+                    forType: NSPasteboard.PasteboardType(FileListWriter.filenamesType)
+                )
+            }
+            return
+        }
+        pasteboard.writeObjects(writers(for: representation(for: group[0])))
     }
 
     public static func export(_ item: Item) -> [NSPasteboardWriting] {
         writers(for: representation(for: item))
+    }
+
+    public static func exportGroup(starting item: Item, selection: [Item]) -> [Item] {
+        guard item.status != .running else { return [] }
+        let selected = selection.filter { $0.status != .running }
+        if selected.contains(where: { $0.id == item.id }), selected.count > 1 {
+            return selected
+        }
+        return [item]
+    }
+
+    public static func fileURLs(for items: [Item]) -> [URL] {
+        var seen = Set<String>()
+        var urls: [URL] = []
+        for item in items where item.status != .running {
+            for url in representation(for: item).fileURLs {
+                guard FileManager.default.fileExists(atPath: url.path) else { continue }
+                let key = url.standardizedFileURL.path
+                if seen.insert(key).inserted {
+                    urls.append(url)
+                }
+            }
+        }
+        return urls
+    }
+
+    public static let shelfDragType = NSPasteboard.PasteboardType("local.dropagent.internal-shelf")
+
+    public static func markShelfDrag(on pasteboard: NSPasteboard = .init(name: .drag)) {
+        pasteboard.setString("1", forType: shelfDragType)
+    }
+
+    public static func isShelfDrag(_ pasteboard: NSPasteboard = .init(name: .drag)) -> Bool {
+        guard let value = pasteboard.string(forType: shelfDragType) else { return false }
+        return value.isEmpty == false
+    }
+
+    public static func clearShelfDrag(on pasteboard: NSPasteboard = .init(name: .drag)) {
+        pasteboard.setString("", forType: shelfDragType)
+    }
+
+    public static func attachFileListToDragPasteboard(_ urls: [URL]) {
+        guard urls.count > 1 else { return }
+        let pb = NSPasteboard(name: .drag)
+        pb.setPropertyList(
+            urls.map(\.path),
+            forType: NSPasteboard.PasteboardType(FileListWriter.filenamesType)
+        )
+        let already = Set(
+            ((pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? [])
+                .map { $0.standardizedFileURL.path }
+        )
+        let extra = urls.filter { already.contains($0.standardizedFileURL.path) == false }
+        if extra.isEmpty == false {
+            pb.writeObjects(extra as [NSURL])
+        }
+    }
+
+    public static func itemProvider(for items: [Item]) -> NSItemProvider {
+        let group = items.filter { $0.status != .running }
+        if group.count <= 1 {
+            return group.first.map { itemProvider(for: $0) } ?? NSItemProvider()
+        }
+        let files = fileURLs(for: group)
+        if files.count > 1 {
+            return NSItemProvider(object: FileListWriter(urls: files))
+        }
+        if let fileItem = group.first(where: { representation(for: $0).fileURLs.isEmpty == false }) {
+            return itemProvider(for: fileItem)
+        }
+        return itemProvider(for: group[0])
+    }
+
+    public static func itemProvider(forClipFiles urls: [URL]) -> NSItemProvider {
+        let existing = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        if existing.count > 1 {
+            return NSItemProvider(object: FileListWriter(urls: existing))
+        }
+        if let url = existing.first {
+            let provider = NSItemProvider()
+            provider.suggestedName = url.lastPathComponent
+            provider.registerObject(url as NSURL, visibility: .all)
+            return provider
+        }
+        return NSItemProvider()
+    }
+
+    public static func itemProvider(forClip record: ClipRecord, imageURL: URL?) -> NSItemProvider {
+        switch record.kind {
+        case .text:
+            let provider = NSItemProvider()
+            if let text = record.text {
+                provider.registerDataRepresentation(
+                    forTypeIdentifier: UTType.utf8PlainText.identifier,
+                    visibility: .all
+                ) { completion in
+                    completion(Data(text.utf8), nil)
+                    return nil
+                }
+            }
+            return provider
+        case .url:
+            let provider = NSItemProvider()
+            if let text = record.text, let url = URL(string: text) {
+                provider.registerDataRepresentation(
+                    forTypeIdentifier: UTType.url.identifier,
+                    visibility: .all
+                ) { completion in
+                    completion(Data(text.utf8), nil)
+                    return nil
+                }
+                provider.registerObject(url as NSURL, visibility: .all)
+                if provider.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier) == false {
+                    provider.registerDataRepresentation(
+                        forTypeIdentifier: UTType.utf8PlainText.identifier,
+                        visibility: .all
+                    ) { completion in
+                        completion(Data(text.utf8), nil)
+                        return nil
+                    }
+                }
+            }
+            return provider
+        case .image:
+            guard let url = imageURL, FileManager.default.fileExists(atPath: url.path) else {
+                return NSItemProvider()
+            }
+            let provider = NSItemProvider()
+            provider.suggestedName = url.lastPathComponent
+            provider.registerFileRepresentation(
+                forTypeIdentifier: UTType.png.identifier,
+                fileOptions: [],
+                visibility: .all
+            ) { completion in
+                completion(url, false, nil)
+                return nil
+            }
+            return provider
+        case .files:
+            let urls = record.filePaths
+                .map { URL(fileURLWithPath: $0) }
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+            if urls.count > 1 {
+                return NSItemProvider(object: FileListWriter(urls: urls))
+            }
+            if let url = urls.first {
+                let provider = NSItemProvider()
+                provider.suggestedName = url.lastPathComponent
+                provider.registerFileRepresentation(
+                    forTypeIdentifier: UTType.fileURL.identifier,
+                    fileOptions: [],
+                    visibility: .all
+                ) { completion in
+                    completion(url, false, nil)
+                    return nil
+                }
+                provider.registerObject(url as NSURL, visibility: .all)
+                return provider
+            }
+            return NSItemProvider()
+        }
     }
 
     public static func itemProvider(for item: Item) -> NSItemProvider {
@@ -189,5 +372,45 @@ public enum PasteboardService {
                 webURL: item.sourceURL
             )
         }
+    }
+}
+
+final class FileListWriter: NSObject, NSItemProviderWriting {
+    static let filenamesType = "NSFilenamesPboardType"
+
+    let urls: [URL]
+
+    init(urls: [URL]) {
+        self.urls = urls
+        super.init()
+    }
+
+    static var writableTypeIdentifiersForItemProvider: [String] {
+        [filenamesType, UTType.fileURL.identifier]
+    }
+
+    func loadData(
+        withTypeIdentifier typeIdentifier: String,
+        forItemProviderCompletionHandler completionHandler: @escaping @Sendable (Data?, (any Error)?) -> Void
+    ) -> Progress? {
+        if typeIdentifier == Self.filenamesType {
+            do {
+                let data = try PropertyListSerialization.data(
+                    fromPropertyList: urls.map(\.path),
+                    format: .xml,
+                    options: 0
+                )
+                completionHandler(data, nil)
+            } catch {
+                completionHandler(nil, error)
+            }
+            return nil
+        }
+        if typeIdentifier == UTType.fileURL.identifier, let first = urls.first {
+            completionHandler(first.dataRepresentation, nil)
+            return nil
+        }
+        completionHandler(nil, nil)
+        return nil
     }
 }

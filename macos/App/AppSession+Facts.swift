@@ -157,9 +157,9 @@ extension AppSession {
 
     var doneActionHint: String {
         if hasAgent {
-            return "点右边结果拿走，或发给 \(tuiTitle)。"
+            return "点下面结果区拿走，或发给 \(tuiTitle)。"
         }
-        return "点右边结果拿走。没有终端也能拖出或复制。"
+        return "点下面结果区拿走。没有终端也能拖出或复制。"
     }
 
     var canOpenTerminalTab: Bool {

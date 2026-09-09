@@ -11,7 +11,7 @@ extension AppSession {
     }
 
     func admitFrontSelection() async {
-        guard isCapturing == false, isAdmittingFiles == false else { return }
+        guard isCapturing == false, isAdmittingFiles == false, authorizingID == nil else { return }
         isAdmittingFiles = true
         errorText = nil
         offerPrivacySettings = false
@@ -27,15 +27,22 @@ extension AppSession {
         let pid = lastFrontPID
         let kind = FrontAdmit.classify(bundleID: bundle)
         var ax = PageAdmit.isTrusted()
-        var finderOK = FrontAdmit.finderAllowed()
+        var finderOK = await FrontAdmit.finderAllowedOffMain()
         if case .failure(let fail) = FrontAdmit.decide(kind: kind, axTrusted: ax, finderAllowed: finderOK) {
             if fail == .needAccessibility {
                 PageAdmit.requestTrustIfNeeded()
                 ax = PageAdmit.isTrusted()
             }
             if fail == .needFinderAutomation {
-                _ = PageAdmit.requestAutomation(bundleIdentifier: FrontAdmit.finderBundleID)
-                finderOK = FrontAdmit.finderAllowed()
+                guard authorizingID == nil else {
+                    isAdmittingFiles = false
+                    return
+                }
+                authorizingID = FrontAdmit.finderBundleID
+                let state = await PageAdmit.requestAutomationOffMain(bundleIdentifier: FrontAdmit.finderBundleID)
+                authorizingID = nil
+                refreshSetup()
+                finderOK = state == .allowed
             }
         }
         if case .failure(let fail) = FrontAdmit.decide(kind: kind, axTrusted: ax, finderAllowed: finderOK) {

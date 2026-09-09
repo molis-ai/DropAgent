@@ -63,8 +63,6 @@ struct AppPreferences: Codable, Equatable {
     var pasteHotKey: HotKeyChord
     var copyHotKey: HotKeyChord
     var deleteHotKey: HotKeyChord
-    var showWork: Bool
-    var showResult: Bool
     var showDropWheel: Bool
 
     static let `default` = AppPreferences()
@@ -82,8 +80,6 @@ struct AppPreferences: Codable, Equatable {
         pasteHotKey: HotKeyChord = .pasteDefault,
         copyHotKey: HotKeyChord = .copyDefault,
         deleteHotKey: HotKeyChord = .deleteDefault,
-        showWork: Bool = true,
-        showResult: Bool = true,
         showDropWheel: Bool = true
     ) {
         self.appearance = appearance
@@ -98,8 +94,6 @@ struct AppPreferences: Codable, Equatable {
         self.pasteHotKey = pasteHotKey
         self.copyHotKey = copyHotKey
         self.deleteHotKey = deleteHotKey
-        self.showWork = showWork
-        self.showResult = showResult
         self.showDropWheel = showDropWheel
     }
 
@@ -117,8 +111,6 @@ struct AppPreferences: Codable, Equatable {
         pasteHotKey = try container.decodeIfPresent(HotKeyChord.self, forKey: .pasteHotKey) ?? .pasteDefault
         copyHotKey = try container.decodeIfPresent(HotKeyChord.self, forKey: .copyHotKey) ?? .copyDefault
         deleteHotKey = try container.decodeIfPresent(HotKeyChord.self, forKey: .deleteHotKey) ?? .deleteDefault
-        showWork = try container.decodeIfPresent(Bool.self, forKey: .showWork) ?? true
-        showResult = try container.decodeIfPresent(Bool.self, forKey: .showResult) ?? true
         showDropWheel = try container.decodeIfPresent(Bool.self, forKey: .showDropWheel) ?? true
     }
 
@@ -135,8 +127,6 @@ struct AppPreferences: Codable, Equatable {
         case pasteHotKey
         case copyHotKey
         case deleteHotKey
-        case showWork
-        case showResult
         case showDropWheel
     }
 

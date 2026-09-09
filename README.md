@@ -4,9 +4,15 @@
 
 A macOS menu bar shelf for the coding agent you already have. Stage first, run on a copy, drag the new file out.
 
+![深色模式下的菜单栏面板，左侧已有一份待处理文稿](docs/readme/panel-dark.png)
+
+拖文件时，指针旁出现六瓣轮盘：加入架子、发给终端、总结、抽取、翻译、转 MD。圆心是空的；拖出外圈即消失，不开关面板。
+
+![拖着 artifact-v1.json 时出现的六瓣轮盘](docs/readme/wheel.png)
+
 ![从空架子、选动作、运行，到右侧出现新文件](docs/readme/loop.gif)
 
-当前是可以在本机打包运行的 macOS 菜单栏工具（0.1.0）。不上 Mac App Store，也不提供云端模型。上面的画面来自当前 App 界面，材料是合成样例，不是跨应用拖拽录像。
+当前是可以在本机打包运行的 macOS 菜单栏工具（0.1.0）。不上 Mac App Store，也不提供云端模型。深色面板和轮盘是运行中的真实截图；循环 GIF 来自界面预览，材料是合成样例。
 
 ## 它解决什么
 
@@ -87,9 +93,9 @@ open macos/dist/DropAgent.app
 - 浏览器最前时按 ⌃⌥W 抓当前页。拖入或粘贴网址也会去抓正文；登录墙后的正文不承诺能拿到。
 - 多选后用「整合」得到一份 `brief.md`。
 - 点「其他」写一句话，连同选中材料发给终端。那一次走该 Agent 自己的权限，界面会写明不是副本沙箱。
-- 结果可复制、拖到别的窗口，或拖回左侧当新材料。一次一条，复制不是挪走。网站抓取拖出的是文件夹：链接、`page.md`、截图。
+- 结果可复制、拖到别的窗口，或拖回左侧当新材料。多选时一次拖出所选项，复制不是挪走。网站抓取拖出的是文件夹：链接、`page.md`、截图。
 
-拖文件时，指针旁还可以出现六瓣轮盘（加入架子、发给终端、总结、抽取、翻译、转 MD）。圆心是空的，拖出外圈即消失，不开关面板。可在设置 → 外观关掉。
+轮盘可在设置 → 外观关掉。关掉后，菜单栏图标和左侧列表仍接拖入。
 
 ## 现在不会做的
 
@@ -109,4 +115,4 @@ cd macos && swift build --product DropAgent
 DROPAGENT_ROOT=/tmp/dropagent-preview-root macos/.build/debug/DropAgent --preview
 ```
 
-`--preview` 会把当前界面各状态写到 `/tmp/dropagent-preview/`。本文插图即来自这次输出。
+`--preview` 会把当前界面各状态写到 `/tmp/dropagent-preview/`。循环 GIF 和权限 / 结果静帧来自这次输出。

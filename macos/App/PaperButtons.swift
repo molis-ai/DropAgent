@@ -1,23 +1,5 @@
 import SwiftUI
 
-struct RecipeButtonStyle: ButtonStyle {
-    var selected = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        PaperButtonChrome(
-            pressed: configuration.isPressed,
-            height: nil,
-            labelStyle: false,
-            semibold: false,
-            inkOnPaper: true,
-            selected: selected,
-            stroked: false
-        ) {
-            configuration.label
-        }
-    }
-}
-
 struct QuietButtonStyle: ButtonStyle {
     var selected = false
 

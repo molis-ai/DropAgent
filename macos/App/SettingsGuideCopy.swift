@@ -4,8 +4,8 @@ enum SettingsGuideCopy {
     static var dropInTitle: String { Copy.t("拖进去", "Adding Files") }
     static var dropIn: String {
         Copy.t(
-            "菜单栏图标、鼠标旁的轮盘、左侧列表：加入架子（复制进写入区域，原件不动）。右侧 AI：发给当前终端。轮盘六瓣是加入架子、发给终端、总结、抽取、翻译、转 MD；拖出外圈即消失，不开关面板。可在外观里关掉轮盘。",
-            "Menu bar icon, the drop wheel beside the pointer, and the left list add to the shelf (a copy in the incoming folder; originals stay put). The right AI pane sends to the current terminal. The wheel has six slices: shelf, send, summarize, extract, translate, to Markdown. Leaving the ring dismisses it; it does not open or close the panel. Turn the wheel off in Appearance."
+            "菜单栏图标、鼠标旁的轮盘、文件行：加入架子（复制进写入区域，原件不动）。点「其他」后的对话浮窗：发给当前终端。轮盘六瓣是加入架子、发给终端、总结、抽取、翻译、转 MD；圆心是空的，拖出外圈即消失，不开关面板。屏幕最顶标签栏那一带不出现轮盘。",
+            "Menu bar icon, the drop wheel beside the pointer, and the file row add to the shelf (a copy in the incoming folder; originals stay put). The chat float after Other sends to the current terminal. The wheel has six slices: shelf, send, summarize, extract, translate, to Markdown. The hub is empty; leaving the ring dismisses it; it does not open or close the panel. It stays off the top tab strip."
         )
     }
 
@@ -20,16 +20,16 @@ enum SettingsGuideCopy {
     static var acceptsTitle: String { Copy.t("能接什么", "Supported Types") }
     static var accepts: String {
         Copy.t(
-            "文件、文件夹、PDF、图片（PNG / JPG / GIF / WebP / HEIC）、文本 / Markdown、链接。+ 选文件，或搜索桌面 / 文稿 / 下载。剪贴板可粘贴。",
-            "Files, folders, PDFs, images (PNG / JPG / GIF / WebP / HEIC), text / Markdown, and links. Use + to pick files, or search Desktop / Documents / Downloads. Paste from the clipboard."
+            "文件、文件夹、PDF、图片（PNG / JPG / GIF / WebP / HEIC）、文本 / Markdown、链接。+ 选文件，或搜索桌面 / 文稿 / 下载。文件行粘贴按钮打开最近十条剪贴板；⌘V 仍直接贴当前。",
+            "Files, folders, PDFs, images (PNG / JPG / GIF / WebP / HEIC), text / Markdown, and links. Use + to pick files, or search Desktop / Documents / Downloads. The file-row paste button opens the last ten clips; ⌘V still pastes the current clip."
         )
     }
 
     static var browserTitle: String { Copy.t("浏览器", "Browser") }
     static var browser: String {
         Copy.t(
-            "拖到菜单栏图标、鼠标旁的轮盘（加入架子那瓣）、左侧列表，或粘贴整段网址：架子上先出现网站条，后台抓正文和截图（按该地址取页，不截你眼前的窗口；登录墙往往只留下链接）。拖到右侧 AI 区或轮盘「发给」只把链接送进终端，不抓页。当前窗口整页（含窗口截图）仍用「抓取当前页」快捷键，Safari / Chrome / Edge 要在最前。Safari 标签若系统不交 URL，仍进不来。",
-            "Drop on the menu bar icon, the drop wheel’s shelf slice, left list, or paste a URL: the shelf gets a website item and fetches the body and a page snapshot in the background (from that URL, not the front window; logged-in pages often keep only the link). Drop on the right AI pane or the wheel’s Send slice sends the link to the terminal and does not fetch. A full front-window page still uses the capture shortcut while Safari / Chrome / Edge is frontmost. Safari tabs still cannot be dropped if the system gives no URL."
+            "拖到菜单栏图标、鼠标旁的轮盘、文件行，或粘贴整段网址：架子上先出现网站条，后台抓正文和截图（按该地址取页，不截你眼前的窗口；登录墙往往只留下链接）。拖到对话浮窗或轮盘「发给」只把链接送进终端，不抓页。当前窗口整页（含窗口截图）仍用「抓取当前页」快捷键，Safari / Chrome / Edge 要在最前。Safari 标签若系统不交 URL，仍进不来。",
+            "Drop on the menu bar icon, the drop wheel, the file row, or paste a URL: the shelf gets a website item and fetches the body and a page snapshot in the background (from that URL, not the front window; logged-in pages often keep only the link). Drop on the chat float or the wheel’s Send slice sends the link to the terminal and does not fetch. A full front-window page still uses the capture shortcut while Safari / Chrome / Edge is frontmost. Safari tabs still cannot be dropped if the system gives no URL."
         )
     }
 
@@ -52,8 +52,8 @@ enum SettingsGuideCopy {
     static var dropOutTitle: String { Copy.t("拖出去", "Dragging Out") }
     static var dropOut: String {
         Copy.t(
-            "一次拖一条，复制不是挪走。Finder / 桌面、上传框、多数聊天和编辑器能接文件或文字。网站抓取拖出是文件夹：链接、正文 md、截图。接不住就弹回架子。",
-            "One item at a time; DropAgent copies the file and does not move it. Finder, Desktop, upload fields, and most chats or editors can accept a file or text. A captured page drags out as a folder: link, markdown, and screenshot. If the destination cannot accept it, the item returns to the shelf."
+            "多选时一次拖出所选项，复制不是挪走。Finder / 桌面、上传框、多数聊天和编辑器能接文件或文字。网站抓取拖出是文件夹：链接、正文 md、截图。接不住就弹回架子。",
+            "Multi-select drags every selected item. DropAgent copies the file and does not move it. Finder, Desktop, upload fields, and most chats or editors can accept a file or text. A captured page drags out as a folder: link, markdown, and screenshot. If the destination cannot accept it, the item returns to the shelf."
         )
     }
 }

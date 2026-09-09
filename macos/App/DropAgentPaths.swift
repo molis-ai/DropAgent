@@ -20,13 +20,14 @@ enum DropAgentPaths {
     static var shelfFile: URL { root.appendingPathComponent("shelf.json") }
     static var settingsFile: URL { root.appendingPathComponent("settings.json") }
     static var prefsFile: URL { root.appendingPathComponent("prefs.json") }
-    static var panelFile: URL { root.appendingPathComponent("panel.json") }
     static var openedFile: URL { root.appendingPathComponent("opened") }
     static var onboardedFile: URL { root.appendingPathComponent("onboarded") }
+    static var clipboard: URL { root.appendingPathComponent("Clipboard", isDirectory: true) }
 
     static func ensure() throws {
         try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: jobs, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: tuiInbox, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: clipboard, withIntermediateDirectories: true)
     }
 }

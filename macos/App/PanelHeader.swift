@@ -24,8 +24,8 @@ struct PanelHeader: View {
             if showsStatusChip {
                 statusChip
             }
-            paneMenu
             Button {
+                session.onPanelInteraction?()
                 session.settingsOpen.toggle()
             } label: {
                 ZStack(alignment: .topTrailing) {
@@ -73,44 +73,9 @@ struct PanelHeader: View {
         .background(Palette.panel)
     }
 
-    private var showsHeaderSearch: Bool {
-        session.settingsOpen || session.showsSetupCard || session.prefs.showWork
-    }
+    private var showsHeaderSearch: Bool { true }
 
-    private var showsStatusChip: Bool {
-        session.settingsOpen || session.showsSetupCard || session.prefs.showWork || session.prefs.showResult
-    }
-
-    private var paneMenu: some View {
-        Menu {
-            Toggle(isOn: Binding(
-                get: { session.prefs.showWork },
-                set: { session.setShowWork($0) }
-            )) {
-                Text(Copy.t("工作", "Work"))
-            }
-            .accessibilityIdentifier("pane-work")
-            Toggle(isOn: Binding(
-                get: { session.prefs.showResult },
-                set: { session.setShowResult($0) }
-            )) {
-                Text(Copy.t("结果", "Results"))
-            }
-            .accessibilityIdentifier("pane-result")
-        } label: {
-            Image(systemName: "rectangle.split.3x1")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Palette.faint)
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
-        }
-        .menuIndicator(.hidden)
-        .buttonStyle(.plain)
-        .accessibilityLabel(Copy.t("栏", "Panes"))
-        .accessibilityHint(Copy.t("显示或收起工作和结果栏", "Show or hide the work and results panes"))
-        .accessibilityIdentifier("pane-menu")
-        .help(Copy.t("栏", "Panes"))
-    }
+    private var showsStatusChip: Bool { true }
 
     @ViewBuilder
     private var statusChip: some View {

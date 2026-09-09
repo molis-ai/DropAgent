@@ -2,6 +2,7 @@ import Combine
 import DropAgentAgent
 import DropAgentIngest
 import DropAgentJob
+import DropAgentPasteboard
 import DropAgentShelf
 import DropAgentTUI
 import Foundation
@@ -39,6 +40,17 @@ final class AppSession: ObservableObject {
     var onPanelInteraction: (() -> Void)?
     var onFinishExternalDrag: (() -> Void)?
     var onApplyHotKeys: (() -> Void)?
+    let hoverPreview = HoverPreviewWindow()
+    let clipMenu = ClipHistoryWindow()
+    let clipHistory: ClipHistoryStore
+    @Published var clipHistoryOpen = false
+    @Published var clipRecords: [ClipRecord] = []
+    @Published var clipSelection: Set<ClipID> = []
+    @Published var clipMultiSelect = false
+    @Published var currentClipFingerprint: String?
+    var clipDragging = false
+    var clipWatchTask: Task<Void, Never>?
+    var lastPasteboardChange = Int.min
     @Published var recordingHotKey: HotKeySlot?
     private var cancellables = Set<AnyCancellable>()
 
@@ -50,8 +62,7 @@ final class AppSession: ObservableObject {
     @Published var recipePresence: AgentPresence = .none
     @Published var installedEngines: [AgentPresence] = []
     @Published var aiTab: AITab = .work
-    @Published var shelfWidth: CGFloat = LivePanelChrome.shelfDefault
-    @Published var resultWidth: CGFloat = LivePanelChrome.resultDefault
+    @Published var dockHeight: CGFloat = LivePanelChrome.dockMinHeight
     @Published var otherOpen = false
     @Published var recipeOptions: [RecipeID: String] = [:]
     @Published var multiSelect = false
@@ -81,14 +92,16 @@ final class AppSession: ObservableObject {
     var lastFrontPID: pid_t = 0
     var hasFrozenFront = false
     @Published var systemDragActive = false
-    var lastInternalDropAt: Date?
+    var shelfDragIDs: [ItemID] = []
     @Published var hotKeyToggleOK = true
     @Published var hotKeyCaptureOK = true
     @Published var hotKeyFilesOK = true
     @Published var tuiEpoch = UUID()
     @Published private var onboarded = false
     var lastCaptureToken: PageAdmitToken?
-    var setupLoaded = false
+    var setupRefreshing = false
+    @Published var authorizationSlow = false
+    @Published var setupLoaded = false
     var setupWatchCount = 0
     var setupWatchTask: Task<Void, Never>?
 
@@ -113,6 +126,7 @@ final class AppSession: ObservableObject {
         }
         settings = loaded
         shelf = ShelfStore(fileURL: DropAgentPaths.shelfFile)
+        clipHistory = ClipHistoryStore(directory: DropAgentPaths.clipboard)
         ingest = IngestService(shelf: shelf, inboxRoot: DropAgentPaths.inbox)
         agent = AgentService(runner: CodexCLI(), settings: loaded)
         job = JobService(shelf: shelf, agent: jobRunner ?? agent, jobsRoot: DropAgentPaths.jobs)
@@ -130,9 +144,15 @@ final class AppSession: ObservableObject {
                 self?.refresh()
             }
         }
-        let chrome = Self.storedChrome()
-        shelfWidth = chrome.shelf
-        resultWidth = chrome.result
+        clipHistory.onChange = { [weak self] in
+            Task { @MainActor in
+                self?.refreshClips()
+            }
+        }
+        refreshClips()
+        if suppressSetupCard == false {
+            startClipWatch()
+        }
         spotlight.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -140,6 +160,7 @@ final class AppSession: ObservableObject {
     }
 
     func refresh() {
+        refreshClips()
         items = shelf.items()
         if items.isEmpty == false { markOnboarded() }
         results = shelf.results()
@@ -201,50 +222,35 @@ final class AppSession: ObservableObject {
         onFinishExternalDrag?()
     }
 
-    func persistChrome() {
-        try? DropAgentPaths.ensure()
-        let payload = [
-            "shelfWidth": Double(shelfWidth),
-            "resultWidth": Double(resultWidth)
-        ]
-        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) {
-            try? data.write(to: DropAgentPaths.panelFile, options: .atomic)
-        }
-    }
-
-    func setShelfWidth(_ width: CGFloat) {
-        shelfWidth = min(LivePanelChrome.shelfMax, max(LivePanelChrome.shelfMin, width))
-        if prefs.showWork == false || prefs.showResult == false {
-            applyLayout?()
-        }
-    }
-
-    func setResultWidth(_ width: CGFloat) {
-        resultWidth = min(LivePanelChrome.resultMax, max(LivePanelChrome.resultMin, width))
-        if prefs.showWork == false || prefs.showResult == false {
-            applyLayout?()
-        }
-    }
-
-    var fillsShelf: Bool {
-        settingsOpen == false && showsSetupCard == false && prefs.showWork == false && prefs.showResult == false
-    }
-
     var panelWidth: CGFloat {
+        LivePanelChrome.panelWidth
+    }
+
+    var panelHeight: CGFloat {
         if settingsOpen || showsSetupCard {
-            return LivePanelChrome.panelWidth
+            return LivePanelChrome.panelHeight + LivePanelChrome.dockShadowPad * 2
         }
-        return LivePanelChrome.fittedWidth(
-            showWork: prefs.showWork,
-            showResult: prefs.showResult,
-            shelfWidth: shelfWidth,
-            resultWidth: resultWidth
+        return min(
+            max(dockHeight, LivePanelChrome.dockMinHeight + LivePanelChrome.dockShadowPad * 2),
+            LivePanelChrome.panelHeight + LivePanelChrome.floatMaxHeight + LivePanelChrome.dockGap + LivePanelChrome.dockShadowPad * 2
         )
     }
 
     var showsComposer: Bool {
+        showsFloat
+    }
+
+    var showsFloat: Bool {
         if settingsOpen || showsSetupCard { return false }
-        return aiTab == .work && otherOpen
+        return otherOpen
+    }
+
+    var showsResultStrip: Bool {
+        results.isEmpty == false && settingsOpen == false && showsSetupCard == false
+    }
+
+    var showsActionBar: Bool {
+        selectedItems.isEmpty == false && settingsOpen == false && showsSetupCard == false
     }
 
     func choiceID(for recipe: RecipeID) -> String {
@@ -258,26 +264,36 @@ final class AppSession: ObservableObject {
 
     func toggleOther() {
         onPanelInteraction?()
-        otherOpen.toggle()
-        if otherOpen { aiTab = .work }
+        withAnimation(Palette.floatExpand) {
+            otherOpen.toggle()
+            if otherOpen { aiTab = canOpenTerminalTab ? .tty : .work }
+        }
+    }
+
+    func setDockHeight(_ height: CGFloat) {
+        if settingsOpen || showsSetupCard { return }
+        let rounded = height.rounded()
+        guard rounded >= LivePanelChrome.dockMinHeight else { return }
+        guard abs(dockHeight - rounded) > 1 else { return }
+        dockHeight = rounded
+        applyLayout?()
     }
 
     func setMultiSelect(_ on: Bool) {
         multiSelect = on
     }
 
-    private static func storedChrome() -> (shelf: CGFloat, result: CGFloat) {
-        guard let data = try? Data(contentsOf: DropAgentPaths.panelFile),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            return (LivePanelChrome.shelfDefault, LivePanelChrome.resultDefault)
+    func showHover(item: Item, screenRect: CGRect) {
+        guard settingsOpen == false, showsSetupCard == false else { return }
+        hoverPreview.show(item: item, cardInScreen: screenRect)
+    }
+
+    func hideHover(of id: ItemID? = nil) {
+        if let id {
+            hoverPreview.hide(ifMatching: id)
+        } else {
+            hoverPreview.hide()
         }
-        let shelf = (object["shelfWidth"] as? Double).map { CGFloat($0) } ?? LivePanelChrome.shelfDefault
-        let result = (object["resultWidth"] as? Double).map { CGFloat($0) } ?? LivePanelChrome.resultDefault
-        return (
-            min(LivePanelChrome.shelfMax, max(LivePanelChrome.shelfMin, shelf)),
-            min(LivePanelChrome.resultMax, max(LivePanelChrome.resultMin, result))
-        )
     }
 
     func human(_ error: Error) -> String {

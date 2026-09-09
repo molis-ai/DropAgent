@@ -5,7 +5,11 @@ import SwiftUI
 extension AppDelegate {
     func togglePanel() {
         guard let panel else { return }
-        switch PanelIdle.toggle(visible: panel.isVisible, recessed: panelRecessed) {
+        switch PanelIdle.toggle(
+            visible: panel.isVisible,
+            recessed: panelRecessed,
+            onActiveSpace: panel.isOnActiveSpace
+        ) {
         case .show, .wake:
             showPanel()
         case .hide:
@@ -23,6 +27,7 @@ extension AppDelegate {
         positionPanel()
         guard let panel else { return }
         panel.level = PanelIdle.activeLevel
+        PanelIdle.attachToActiveSpace(panel)
         panelGeneration += 1
         let skipMotion = shouldSkipPanelMotion || panel.isVisible
         if skipMotion {
@@ -51,6 +56,8 @@ extension AppDelegate {
     }
 
     func hidePanel() {
+        session.hideHover()
+        session.closeClipHistory()
         cancelRecess()
         guard let panel, panel.isVisible else { return }
         let skip = shouldSkipPanelMotion || panelRecessed
@@ -84,6 +91,10 @@ extension AppDelegate {
     func wakePanel(makeKey: Bool) {
         cancelRecess()
         guard let panel, panel.isVisible else { return }
+        if panel.isOnActiveSpace == false {
+            showPanel()
+            return
+        }
         panelRecessed = false
         panel.level = PanelIdle.activeLevel
         if makeKey {
@@ -106,6 +117,7 @@ extension AppDelegate {
 
     func scheduleRecess() {
         recessWork?.cancel()
+        guard StatusChrome.restoresOnActivate else { return }
         guard isDiagnosticLaunch == false, let panel, panel.isVisible, panelRecessed == false else { return }
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
@@ -124,14 +136,18 @@ extension AppDelegate {
     func recessPanelIfNeeded() {
         recessWork = nil
         guard let panel else { return }
-        let mouseInside = PanelIdle.dragHitsPanel(mouse: NSEvent.mouseLocation, frame: panel.frame)
+        let mouse = NSEvent.mouseLocation
+        let mouseInside = PanelIdle.dragHitsPanel(mouse: mouse, frame: panel.frame)
+            || session.hoverPreview.containsPointer(mouse)
+            || session.clipMenu.containsPointer(mouse)
         guard PanelIdle.shouldRecess(
             visible: panel.isVisible,
             isKey: panel.isKeyWindow,
             mouseInside: mouseInside,
             exporting: exportingFromPanel,
             diagnostic: isDiagnosticLaunch,
-            dragging: session.systemDragActive
+            dragging: session.systemDragActive,
+            prompting: StatusChrome.restoresOnActivate == false
         ) else { return }
         panelRecessed = true
         panel.level = PanelIdle.recessedLevel
@@ -155,9 +171,13 @@ extension AppDelegate {
             }
             return
         }
-        if type == .leftMouseUp, exportingFromPanel {
-            exportingFromPanel = false
-            scheduleRecess()
+        if type == .leftMouseUp {
+            session.endShelfDrag()
+            session.endClipDrag()
+            if exportingFromPanel {
+                exportingFromPanel = false
+                scheduleRecess()
+            }
         }
     }
 
@@ -183,15 +203,17 @@ extension AppDelegate {
         panel.title = "DropAgent"
         panel.isFloatingPanel = true
         panel.level = PanelIdle.activeLevel
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        panel.collectionBehavior = PanelIdle.spaceBehavior
         panel.hidesOnDeactivate = false
         panel.isMovable = false
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.delegate = self
         panel.onMouseInsideChange = { [weak self] inside in
             guard let self else { return }
-            if inside {
+            let overHover = self.session.hoverPreview.containsPointer(NSEvent.mouseLocation)
+                || self.session.clipMenu.containsPointer(NSEvent.mouseLocation)
+            if inside || overHover {
                 if self.panelRecessed == false {
                     self.cancelRecess()
                 }
@@ -230,7 +252,6 @@ extension AppDelegate {
         let visible = screen.visibleFrame
         let target = session.panelWidth
         let width: CGFloat = min(target, max(LivePanelChrome.shelfOnlyMin, visible.width - 16))
-        let height: CGFloat = min(LivePanelChrome.panelHeight, visible.height - 48)
         let buttonRect: NSRect
         if let button = statusItem?.button, let window = button.window {
             let rect = window.convertToScreen(button.convert(button.bounds, to: nil))
@@ -238,9 +259,12 @@ extension AppDelegate {
         } else {
             buttonRect = NSRect(x: visible.maxX - 28, y: visible.maxY, width: 28, height: 22)
         }
+        let top = buttonRect.minY - 6
+        let maxHeight = max(LivePanelChrome.dockMinHeight, top - (visible.minY + 8))
+        let height: CGFloat = min(session.panelHeight, maxHeight)
         var x = buttonRect.maxX - width
         x = min(max(visible.minX + 8, x), max(visible.minX + 8, visible.maxX - width - 8))
-        let y = max(visible.minY + 8, buttonRect.minY - height - 6)
+        let y = top - height
         panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
         hosting?.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
         panel.invalidateShadow()

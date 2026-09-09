@@ -136,6 +136,8 @@ public final class ShelfStore: @unchecked Sendable {
             } else {
                 selectionIDs.insert(id)
             }
+        } else if selectionIDs.count == 1, selectionIDs.contains(id) {
+            selectionIDs = []
         } else {
             selectionIDs = [id]
         }

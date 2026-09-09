@@ -10,11 +10,10 @@ public enum AccessibilityPage {
     public static func hasSiblingDropAgent() -> Bool {
         let selfPID = ProcessInfo.processInfo.processIdentifier
         return NSWorkspace.shared.runningApplications.contains { app in
-            guard app.processIdentifier != selfPID else { return false }
+            guard app.processIdentifier != selfPID, !app.isTerminated else { return false }
             let bid = app.bundleIdentifier?.lowercased() ?? ""
-            let name = app.localizedName?.lowercased() ?? ""
             let exe = app.executableURL?.lastPathComponent.lowercased() ?? ""
-            return bid == "local.dropagent" || name.contains("dropagent") || exe == "dropagent"
+            return bid == "local.dropagent" || bid == "local.dropagent.review" || exe == "dropagent"
         }
     }
 

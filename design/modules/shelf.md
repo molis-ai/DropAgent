@@ -23,7 +23,7 @@ results() -> [ResultRecord]
 item(id:) -> Item?
 result(id:) -> ResultRecord?
 selection: Set<ItemID>
-toggleSelect(id:, command: Bool)   // Command 多选；单击单选
+toggleSelect(id:, command: Bool)   // Command 多选；单击单选；已选再点清空
 persist() / load()
 ```
 

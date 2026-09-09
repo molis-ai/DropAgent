@@ -3,7 +3,7 @@ import SwiftUI
 struct OnboardingView: View {
     @ObservedObject var session: AppSession
     var body: some View {
-        VStack(alignment: .leading, spacing: 52) {
+        VStack(alignment: .leading, spacing: 12) {
             Text(Onboarding.headline)
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(Palette.text)

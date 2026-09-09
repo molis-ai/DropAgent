@@ -25,13 +25,17 @@ extension AppSession {
     }
 
     func captureCurrentPage() async {
+        guard authorizingID == nil else {
+            isCapturing = false
+            return
+        }
         if isCapturing == false {
             prepareCapture()
         }
         let token = lastCaptureToken ?? .snapshot()
         let isCLI = ProcessInfo.processInfo.arguments.contains("--capture")
         if isCLI == false {
-            let decision = PageAdmit.decide(token: token)
+            let decision = await PageAdmit.decideOffMain(token: token)
             if decision.proceed == false {
                 if decision.promptAccessibility {
                     PageAdmit.requestTrustIfNeeded()
@@ -52,7 +56,7 @@ extension AppSession {
             offerCaptureRetry = false
             aiTab = .work
         } catch {
-            let failed = PageAdmit.failure(token: token)
+            let failed = await PageAdmit.failureOffMain(token: token)
             errorText = captureCopy(failed.message)
             offerPrivacySettings = failed.offerPrivacySettings
             offerCaptureRetry = true

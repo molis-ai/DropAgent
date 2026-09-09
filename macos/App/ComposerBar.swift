@@ -5,46 +5,52 @@ struct ComposerBar: View {
     @State private var composerFocused = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label(Copy.t("发给 \(session.tuiTitle)", "Send to \(session.tuiTitle)"), systemImage: "terminal")
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(Palette.text)
-                Spacer(minLength: 0)
-                Text(Copy.t("\(session.selectedItems.count) 份材料", "\(session.selectedItems.count) materials"))
-                    .font(.system(size: 11).monospacedDigit())
+        HStack(alignment: .bottom, spacing: 10) {
+            Text(session.selectedItems.isEmpty ? "" : "\(session.selectedItems.count)")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Palette.muted)
+                .frame(minWidth: 16, alignment: .leading)
+                .padding(.bottom, 10)
+                .accessibilityHidden(session.selectedItems.isEmpty)
+            ComposerField(
+                text: $session.promptText,
+                focused: $composerFocused,
+                placeholder: session.composerPlaceholder,
+                enabled: session.canSendToTUI,
+                onSubmit: { session.sendToTUI() }
+            )
+            .frame(height: 36)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(composerFocused ? Palette.text : Palette.line)
+                    .frame(height: 1)
+            }
+            Button { session.pasteFromClipboard() } label: {
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Palette.faint)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("float-paste")
+            .accessibilityLabel(Copy.t("从剪贴板加入", "Paste from clipboard"))
+            .help(session.prefs.pasteHotKey.label)
+            Button { session.sendToTUI() } label: {
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Palette.muted)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
-            HStack(spacing: 8) {
-                ComposerField(
-                    text: $session.promptText,
-                    focused: $composerFocused,
-                    placeholder: session.composerPlaceholder,
-                    enabled: session.canSendToTUI,
-                    onSubmit: { session.sendToTUI() }
-                )
-                .frame(height: 38)
-                .padding(.leading, 12)
-                .layoutPriority(1)
-                Button { session.sendToTUI() } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .frame(width: 34, height: 34)
-                .disabled(!session.canSendToTUI)
-                .accessibilityIdentifier("send")
-                .accessibilityLabel(Copy.t("发送到 \(session.tuiTitle) 终端", "Send to the \(session.tuiTitle) terminal"))
-                .padding(.trailing, 4)
-            }
-            .background(Palette.field)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(composerFocused ? Palette.accent.opacity(0.65) : Palette.line))
+            .buttonStyle(.plain)
+            .disabled(!session.canSendToTUI)
+            .accessibilityIdentifier("send")
+            .accessibilityLabel(Copy.t("发送到 \(session.tuiTitle) 终端", "Send to the \(session.tuiTitle) terminal"))
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 8)
-        .overlay(alignment: .top) { Divider().overlay(Palette.line) }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
         .onAppear { if session.otherOpen { composerFocused = true } }
         .onChange(of: session.otherOpen) { _, open in if open { composerFocused = true } }
     }

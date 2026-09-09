@@ -21,35 +21,16 @@ public enum AutomationAccess {
         silentState(determine(bundleIdentifier: bundleIdentifier, ask: false))
     }
 
-    /// Silent TCC reads often return denied before the app is in the list.
-    public static func silentState(_ state: AutomationState) -> AutomationState {
-        switch state {
-        case .allowed:
-            return .allowed
-        case .denied, .notDetermined:
-            return .notDetermined
-        case .unavailable:
-            return .unavailable
-        }
-    }
+    /// Preserve OS results. A denial is not proof the user explicitly refused.
+    public static func silentState(_ state: AutomationState) -> AutomationState { state }
 
-    /// In-process TCC prompt. Do not spawn osascript to trigger this.
-    public static func requestIfNeeded(bundleIdentifier: String) -> AutomationState {
-        let live = resolvedBundleIdentifier(bundleIdentifier)
-        if probe(bundleIdentifier: live) == .allowed { return .allowed }
-        let asked = determine(bundleIdentifier: live, ask: true)
-        if asked == .allowed { return .allowed }
-        guard runningRegularApp(live) != nil else { return asked }
-        sendConsentPing(bundleIdentifier: live)
-        return probe(bundleIdentifier: live)
-    }
-
-    /// Blocking prompt after the panel is hidden. TCC must run on the main thread.
+    /// Keep the request in this process so consent belongs to DropAgent.
     public static func requestIfNeededOffMain(bundleIdentifier: String) async -> AutomationState {
-        let live = resolvedBundleIdentifier(bundleIdentifier)
-        if probe(bundleIdentifier: live) == .allowed { return .allowed }
-        return await MainActor.run {
-            requestIfNeeded(bundleIdentifier: live)
+        await PermissionWork.run {
+            let live = resolvedBundleIdentifier(bundleIdentifier)
+            guard runningRegularApp(live) != nil else { return .unavailable }
+            if probe(bundleIdentifier: live) == .allowed { return .allowed }
+            return determine(bundleIdentifier: live, ask: true)
         }
     }
 
@@ -81,20 +62,6 @@ public enum AutomationAccess {
             }
         }
         return NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
-    }
-
-    /// One in-process read-only event so TCC records the running app.
-    /// Do not spawn /usr/bin/osascript — that would own the consent.
-    private static func sendConsentPing(bundleIdentifier: String) {
-        let live = resolvedBundleIdentifier(bundleIdentifier)
-        let escaped = live
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        guard let script = NSAppleScript(source: "tell application id \"\(escaped)\" to get name") else {
-            return
-        }
-        var error: NSDictionary?
-        _ = script.executeAndReturnError(&error)
     }
 
     private static func runningRegularApp(_ bundleIdentifier: String) -> NSRunningApplication? {
