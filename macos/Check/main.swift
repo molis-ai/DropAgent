@@ -35,6 +35,7 @@ enum DropAgentCheck {
             try appDoesNotImportCapture()
             try agent()
             try await job()
+            try await imageText()
             try await printCLIOutput()
             try await hideAndDelete()
             try tui()
@@ -82,6 +83,26 @@ private func raster(_ format: NSBitmapImageRep.FileType) -> Data {
     let tiff = image.tiffRepresentation!
     let rep = NSBitmapImageRep(data: tiff)!
     return rep.representation(using: format, properties: [:])!
+}
+
+private func pngWithText(_ text: String) -> Data {
+    let image = NSImage(size: NSSize(width: 920, height: 240), flipped: false) { rect in
+        NSColor.white.setFill()
+        rect.fill()
+        let drawn = NSAttributedString(
+            string: text,
+            attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 42, weight: .bold),
+                .foregroundColor: NSColor.black,
+            ]
+        )
+        let size = drawn.size()
+        drawn.draw(at: NSPoint(x: (rect.width - size.width) / 2, y: (rect.height - size.height) / 2))
+        return true
+    }
+    let tiff = image.tiffRepresentation!
+    let rep = NSBitmapImageRep(data: tiff)!
+    return rep.representation(using: .png, properties: [:])!
 }
 
 private func fail(_ message: String, file: String = #fileID, line: Int = #line) {
@@ -967,6 +988,10 @@ private func ingest() throws {
     expect(!RecipeCatalog.spec(.summarize).acceptedKinds.contains(.file), "summarize no generic file")
     expect(!RecipeCatalog.spec(.translate).acceptedKinds.contains(.file), "translate no generic file")
     expect(RecipeCatalog.spec(.brief).acceptedKinds.contains(.file), "brief takes files")
+    expectEqual(RecipeCatalog.spec(.imageText).acceptedKinds, [.image])
+    expectEqual(RecipeCatalog.spec(.imageText).outputFileName, "ocr.md")
+    expectEqual(RecipeCatalog.spec(.imageText).requiresAgent, false)
+    expectEqual(RecipeCatalog.spec(.imageText).needsNetwork, false)
 
     let rtfFile = root.appendingPathComponent("note.rtf")
     try Data("{\\rtf1 hello}".utf8).write(to: rtfFile)
@@ -1108,6 +1133,9 @@ private func ingestPasteboard() throws {
     expectEqual(ClipboardPayload.from(pasteboard: board), .text("渠道折扣收到 9%"))
     let clip = try ingest.admitClipboard(PasteboardClipboard(board))
     expectEqual(clip.first?.kind, .clip)
+    expectEqual(clip.first?.title, "渠道折扣收到 9%")
+    expectEqual(IngestService.clipTitle(from: "标题行\n正文第二行"), "标题行")
+    expectEqual(IngestService.clipTitle(from: "   \n正文"), "正文")
 
     board.clearContents()
     expectEqual(PasteboardClipboard(board).read(), .empty)
@@ -1839,7 +1867,9 @@ private func job() async throws {
     expectEqual(RecipeOutput.finalize("hello", fileName: "summary.md"), "hello")
     expectEqual(RecipeOutput.finalize("{\"a\":1}", fileName: "extracted.json"), "{\"a\":1}")
 
-    for recipe in RecipeID.allCases where recipe != .summarize && recipe != .extract && recipe != .brief {
+    for recipe in RecipeID.allCases
+        where recipe != .summarize && recipe != .extract && recipe != .brief && recipe != .imageText
+    {
         let env = try setup()
         let agent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
         _ = try await JobService(shelf: env.0, agent: agent, jobsRoot: env.1)
@@ -1948,6 +1978,9 @@ private func job() async throws {
     expectEqual(RecipeID.fromStored("新交付"), .brief)
     expectEqual(RecipeID.fromStored("根据多份材料生成一个新交付"), .brief)
     expectEqual(RecipeID.fromStored("把几份材料整合成一份"), .brief)
+    expectEqual(RecipeID.fromStored("OCR"), .imageText)
+    expectEqual(RecipeID.fromStored("文字提取"), .imageText)
+    expectEqual(RecipeID.fromStored("提取图片文字"), .imageText)
 
     let briefRoot = try tempDir()
     let originalA = briefRoot.appendingPathComponent("a.md")
@@ -2031,6 +2064,121 @@ private func job() async throws {
     _ = try await streamTask.value
     expectEqual(streamEnv.0.item(id: streamEnv.3.id)?.status, .idle)
     expectEqual(streamEnv.0.results().first?.status, .done)
+}
+
+private func imageText() async throws {
+    expectEqual(
+        ImageText.markdown(pages: [
+            ("a.png", [
+                ImageTextLine(text: "Hello", confidence: 1),
+                ImageTextLine(text: "?", confidence: 0.2),
+            ])
+        ]),
+        "Hello\n?（待确认）\n"
+    )
+    expectEqual(
+        ImageText.markdown(pages: [
+            ("a.png", [ImageTextLine(text: "A", confidence: 1)]),
+            ("b.png", []),
+        ]),
+        "## a.png\n\nA\n\n## b.png\n\n没有识别到文字。\n"
+    )
+    expectEqual(ImageText.languages(choiceID: "zh-en"), ["zh-Hans", "en-US"])
+    expectEqual(ImageText.languages(choiceID: "zh"), ["zh-Hans"])
+    expectEqual(ImageText.languages(choiceID: "en"), ["en-US"])
+
+    let root = try tempDir()
+    let original = root.appendingPathComponent("shot.png")
+    let marker = "DROPAGENT-OCR-OK"
+    try pngWithText(marker).write(to: original)
+    let before = try Data(contentsOf: original)
+    let inbox = root.appendingPathComponent("Inbox/img", isDirectory: true)
+    try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+    let copy = inbox.appendingPathComponent("shot.png")
+    try FileManager.default.copyItem(at: original, to: copy)
+    let shelf = ShelfStore(fileURL: root.appendingPathComponent("shelf.json"))
+    let item = try shelf.add(Item(
+        kind: .image,
+        title: "shot.png",
+        sourceURL: original,
+        parts: [ItemPart(name: "shot.png", url: copy)],
+        sourceChecksum: digest(original)
+    ))
+    let agent = FakeAgent(presence: .none)
+    let job = JobService(shelf: shelf, agent: agent, jobsRoot: root.appendingPathComponent("Jobs"))
+    let jobID = try await job.start(itemIDs: [item.id], recipe: .imageText)
+    expect(agent.lastRequest == nil, "image text must not call agent")
+    expectEqual(try Data(contentsOf: original), before, "ocr original bytes")
+    expectEqual(shelf.item(id: item.id)?.status, .idle)
+    expectEqual(shelf.results().first?.title, "ocr.md")
+    expectEqual(shelf.results().first?.status, .done)
+    expectEqual(shelf.results().first?.isolationShown, .safeCopy)
+    expectEqual(job.job(id: jobID)?.recipe, .imageText)
+    let body = try String(contentsOf: shelf.results().first!.output!, encoding: .utf8)
+    expect(body.contains(marker), "ocr body \(body)")
+    let dirs = try FileManager.default.contentsOfDirectory(
+        at: root.appendingPathComponent("Jobs"),
+        includingPropertiesForKeys: nil,
+        options: [.skipsHiddenFiles]
+    )
+    let manifest = try JSONSerialization.jsonObject(
+        with: Data(contentsOf: dirs[0].appendingPathComponent("manifest.json"))
+    ) as? [String: Any]
+    expectEqual(manifest?["agent"] as? String, "vision")
+    expect(!FileManager.default.fileExists(atPath: dirs[0].appendingPathComponent("prompt.txt").path), "no prompt for local ocr")
+
+    let pdfEnv = try tempDir()
+    let pdf = pdfEnv.appendingPathComponent("source.pdf")
+    try Data("original-bytes".utf8).write(to: pdf)
+    let pdfInbox = pdfEnv.appendingPathComponent("Inbox/item1", isDirectory: true)
+    try FileManager.default.createDirectory(at: pdfInbox, withIntermediateDirectories: true)
+    let pdfCopy = pdfInbox.appendingPathComponent("source.pdf")
+    try FileManager.default.copyItem(at: pdf, to: pdfCopy)
+    let pdfShelf = ShelfStore(fileURL: pdfEnv.appendingPathComponent("shelf.json"))
+    let pdfItem = try pdfShelf.add(Item(
+        kind: .pdf,
+        title: "source.pdf",
+        sourceURL: pdf,
+        parts: [ItemPart(name: "source.pdf", url: pdfCopy)],
+        sourceChecksum: digest(pdf)
+    ))
+    do {
+        _ = try await JobService(
+            shelf: pdfShelf,
+            agent: FakeAgent(presence: .none),
+            jobsRoot: pdfEnv.appendingPathComponent("Jobs")
+        ).start(itemIDs: [pdfItem.id], recipe: .imageText)
+        fail("pdf image text should be rejected")
+    } catch let error as JobError {
+        expectEqual(error, .notStartable)
+    }
+
+    let badRoot = try tempDir()
+    let badOriginal = badRoot.appendingPathComponent("broken.jpg")
+    try Data("jpeg-bytes".utf8).write(to: badOriginal)
+    let badInbox = badRoot.appendingPathComponent("Inbox/bad", isDirectory: true)
+    try FileManager.default.createDirectory(at: badInbox, withIntermediateDirectories: true)
+    let badCopy = badInbox.appendingPathComponent("broken.jpg")
+    try FileManager.default.copyItem(at: badOriginal, to: badCopy)
+    let badShelf = ShelfStore(fileURL: badRoot.appendingPathComponent("shelf.json"))
+    let badItem = try badShelf.add(Item(
+        kind: .image,
+        title: "broken.jpg",
+        sourceURL: badOriginal,
+        parts: [ItemPart(name: "broken.jpg", url: badCopy)],
+        sourceChecksum: digest(badOriginal)
+    ))
+    do {
+        _ = try await JobService(
+            shelf: badShelf,
+            agent: FakeAgent(presence: .none),
+            jobsRoot: badRoot.appendingPathComponent("Jobs")
+        ).start(itemIDs: [badItem.id], recipe: .imageText)
+        fail("unreadable image should fail")
+    } catch ImageTextError.unreadable {
+        expectEqual(badShelf.results().first?.failureReason, "打不开这张图")
+        expectEqual(try Data(contentsOf: badOriginal), Data("jpeg-bytes".utf8))
+    }
 }
 
 private func hideAndDelete() async throws {

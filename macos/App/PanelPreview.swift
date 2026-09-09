@@ -288,10 +288,10 @@ enum PanelPreview {
             session.aiTab = .work
 
             let clipFile = DropAgentPaths.inbox.appendingPathComponent("clip.txt")
-            try? Data("渠道折扣从 14% 收到 9%，不要对外讲具体数字。".utf8).write(to: clipFile)
+            try? Data("渠道折扣从 14% 收到 9%\n不要对外讲具体数字。".utf8).write(to: clipFile)
             if let clip = try? session.shelf.add(Item(
                 kind: .clip,
-                title: "剪贴板",
+                title: "渠道折扣从 14% 收到 9%",
                 sourceURL: clipFile,
                 parts: [ItemPart(name: "clip.txt", url: clipFile)]
             )) {

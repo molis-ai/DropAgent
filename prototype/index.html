@@ -1817,9 +1817,6 @@
       <form class="composer" id="composer">
         <span class="count" id="composeMeta"></span>
         <input id="prompt" type="text" placeholder="写给 Grok" autocomplete="off" />
-        <button class="clip-btn" id="pasteBtn" type="button" title="从剪贴板加入" aria-label="从剪贴板加入">
-          <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="2" width="8" height="12" rx="1.5"/><path d="M3 5h2m6 0h2v9H5"/></svg>
-        </button>
         <button class="go" id="send" type="button" aria-label="发送">
           <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4.5 13.5 8 9 11.5"/></svg>
         </button>
@@ -1866,6 +1863,7 @@
       ["转 MD", "转换为 Markdown", "转成可编辑的 Markdown"],
       ["整合", "把几份材料整合成一份", "选几份，合成一份新稿"]
     ];
+    const imageTextRecipe = ["文字提取", "提取图片文字", "本机认出图里的字，不发送"];
     const kinds = {
       pdf: { tag: "PDF", word: "文档", tone: "pdf" },
       image: { tag: "PNG", word: "图片", tone: "image" },
@@ -1877,6 +1875,7 @@
     };
     const previews = {
       "总结文件": "北美上调 8%，渠道折扣从 Q2 的 14% 收到 9%。附件里的三档套餐都还在，没有砍 SKU。\n\n不能对外讲具体折扣数字。",
+      "提取图片文字": "Q3 Pricing\n北美 +8%\n渠道折扣 9%（待确认）",
       "提取结构化信息": "region: NA\ndelta: +8%\ndiscount: 9%\nsku_cut: false",
       "翻译并保留格式": "North America +8%.\nChannel discount tightened from 14% to 9%.",
       "敏感信息脱敏": "客户名、金额、内部代号已替换为 [REDACTED]。",
@@ -1885,6 +1884,7 @@
     };
     const outputs = {
       "总结文件": "summary.md",
+      "提取图片文字": "ocr.md",
       "提取结构化信息": "extracted.json",
       "翻译并保留格式": "Q3-pricing.zh.md",
       "敏感信息脱敏": "Q3-pricing.redacted.pdf",
@@ -1894,6 +1894,7 @@
 
     const recipeOpts = {
       "总结文件": { label: "篇幅", hint: "", items: ["短 · 200 字", "中 · 500 字", "长 · 1000 字", "提纲"], def: "中 · 500 字" },
+      "提取图片文字": { label: "语言", hint: "本机识别，不发送", items: ["中英", "中文", "English"], def: "中英" },
       "提取结构化信息": { label: "抽取", hint: "", items: ["要点", "待办", "引用与数据", "全量 JSON"], def: "全量 JSON" },
       "翻译并保留格式": { label: "译成", hint: "源语言自动识别", items: ["中文", "English", "日本語", "한국어"], def: "中文" },
       "敏感信息脱敏": { label: "范围", hint: "", items: ["联系方式", "金额证件", "全套"], def: "全套" },
@@ -2000,6 +2001,14 @@
     }
 
     function facts(count, recipe) {
+      if (recipe === "提取图片文字") {
+        return [
+          ["读", count > 1 ? `${count} 份材料的副本` : "这份材料的副本"],
+          ["写", "仅任务目录"],
+          ["网络", "关"],
+          ["隔离", "本机识别，不发送"]
+        ];
+      }
       if (!state.hasRecipe) return [["读", "不能运行"], ["写", "—"], ["网络", "—"], ["隔离", "无执行入口"]];
       const net = recipe === "翻译并保留格式" ? "开" : "关";
       return [
@@ -2022,6 +2031,7 @@
     const recipeIcons = {
       "总结": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h6"/></svg>',
       "抽取": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3 3 8l3 5M10 3l3 5-3 5"/></svg>',
+      "文字提取": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5"/><path d="M5 11V5h2.2c1.3 0 2.2.7 2.2 1.8S8.5 8.6 7.2 8.6H5M9.5 11 8 8.6"/></svg>',
       "翻译": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M3 8h10M8 2.5c-2 2-2 9 0 11M8 2.5c2 2 2 9 0 11"/></svg>',
       "脱敏": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4Z"/><path d="M3 13 13 3"/></svg>',
       "转 MD": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v9H3zM5 7v4M8 6v5M11 8v3"/></svg>',
@@ -2042,10 +2052,16 @@
     };
     function recipeButtons() {
       const id = state.anchor || state.selected[0] || "";
+      const picked = (state.selected || []).map((sid) => state.items.find((it) => it.id === sid)).filter(Boolean);
+      const allImage = picked.length > 0 && picked.every((it) => it.kind === "image");
       const recipeOff = !state.hasRecipe || !state.selected.length;
       const cmds = recipes.map(([short, full]) =>
         `<button type="button" class="act" data-act="recipe" data-id="${id}" data-recipe="${full}" ${recipeOff ? "disabled" : ""}>${recipeIcons[short] || ""}<span>${short}</span></button>`
       );
+      if (allImage) {
+        const [short, full] = imageTextRecipe;
+        cmds.push(`<button type="button" class="act" data-act="recipe" data-id="${id}" data-recipe="${full}">${recipeIcons[short] || ""}<span>${short}</span></button>`);
+      }
       cmds.push(`<button type="button" class="act ghost ${state.otherOpen ? "on" : ""}" data-act="other" ${state.hasTui ? "" : "disabled"}>${recipeIcons["其他"]}<span>其他</span></button>`);
       return cmds.join("");
     }
@@ -2166,7 +2182,7 @@
           ${optionRow(recipe)}
           <dl class="review facts">${facts(idle.length, recipe).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>
           <div class="work-actions">
-            <button class="run text-action" data-act="run" data-id="${idle[0].id}" ${state.hasRecipe ? "" : "disabled"}>在副本中运行${ico.arrow}</button>
+            <button class="run text-action" data-act="run" data-id="${idle[0].id}" ${state.hasRecipe || idle[0].recipe === "提取图片文字" ? "" : "disabled"}>在副本中运行${ico.arrow}</button>
             <button class="quiet" data-act="cancel" data-id="${idle[0].id}">取消</button>
           </div>`;
         return;
@@ -2176,7 +2192,7 @@
         view.innerHTML = `<div class="working">
           <div class="working-line" aria-hidden="true"></div>
           <p class="working-title">正在副本里运行</p>
-          <p class="working-copy">${running.event}<br>${state.hasRecipe ? `${state.tui} 只读任务目录，原件不动。` : `${state.tui} 没有无界面执行入口，动作不能跑。`}</p>
+          <p class="working-copy">${running.event}<br>${running.recipe === "提取图片文字" ? "本机识别，不发送。原件不动。" : (state.hasRecipe ? `${state.tui} 只读任务目录，原件不动。` : `${state.tui} 没有无界面执行入口，动作不能跑。`)}</p>
           <button class="quiet" data-act="cancel" data-id="${running.id}">取消</button>
         </div>`;
         return;
@@ -2283,7 +2299,8 @@
       render();
     }
     function startRun(batch) {
-      if (!state.hasRecipe || !batch.length) return;
+      if (!batch.length) return;
+      if (!state.hasRecipe && batch[0].recipe !== "提取图片文字") return;
       const job = { cancelled: false, timers: [] };
       const recipeName = batch[0].recipe;
       batch.forEach((it) => {
@@ -2294,7 +2311,7 @@
       render();
       job.timers.push(setTimeout(() => {
         if (job.cancelled) return;
-        batch.forEach((it) => { it.event = `${state.tui} 读取 work/ 中的材料`; });
+        batch.forEach((it) => { it.event = recipeName === "提取图片文字" ? "识别图片" : `${state.tui} 读取 work/ 中的材料`; });
         render();
       }, 700));
       job.timers.push(setTimeout(() => {
@@ -2442,7 +2459,6 @@
     $("send").addEventListener("click", () => {
       sendFromComposer();
     });
-    $("pasteBtn").addEventListener("click", pasteClip);
     $("shelfPasteBtn").addEventListener("click", (e) => {
       e.stopPropagation();
       state.clipHistoryOpen = !state.clipHistoryOpen;
@@ -2563,8 +2579,7 @@
       const panelBox = $("panel").getBoundingClientRect();
       const width = 276;
       const gap = 8;
-      let left = panelBox.left - gap - width;
-      if (left < 18) left = panelBox.right + gap;
+      let left = Math.max(18, panelBox.left - gap - width);
       pv.style.left = left + "px";
       pv.style.top = panelBox.top + "px";
       pv.classList.add("show");
@@ -2703,8 +2718,9 @@
         render();
         return;
       }
-      if (act === "run" && state.hasRecipe) {
-        startRun(selectedItems().filter((x) => x.status === "confirm"));
+      if (act === "run") {
+        const batch = selectedItems().filter((x) => x.status === "confirm");
+        startRun(batch);
       }
       if (act === "cancel") {
         const target = it || selectedItems().find((x) => x.status === "running" || x.status === "confirm");

@@ -39,6 +39,17 @@ extension RecipeCatalog {
                 ],
                 defaultID: "json"
             )
+        case .imageText:
+            return RecipeChoiceGroup(
+                label: "语言",
+                hint: "本机识别，不发送",
+                choices: [
+                    RecipeChoice(id: "zh-en", title: "中英"),
+                    RecipeChoice(id: "zh", title: "中文"),
+                    RecipeChoice(id: "en", title: "English")
+                ],
+                defaultID: "zh-en"
+            )
         case .translate:
             return RecipeChoiceGroup(
                 label: "译成",
@@ -127,6 +138,8 @@ extension RecipeCatalog {
             default:
                 return "提取结构化信息，最终回复必须是 JSON 对象。"
             }
+        case .imageText:
+            return "用本机识别图片中的文字，不要调用终端 Agent，不要补写图里没有的内容。"
         case .translate:
             let target: String
             switch choiceID {

@@ -50,17 +50,17 @@ extension AppSession {
     }
 
     func confirmRun() async {
-        guard hasRecipe else {
+        let batch = selectedItems.filter { $0.status == .confirm }
+        guard let first = batch.first, let recipe = RecipeID.fromStored(first.recipe) else {
+            return
+        }
+        if RecipeCatalog.spec(recipe).requiresAgent && hasRecipe == false {
             errorText = hasAgent
                 ? Copy.t(
                     "\(tuiTitle) 没有无界面执行入口。终端仍可发送给 \(tuiTitle)。",
                     "\(tuiTitle) has no headless entry. You can still send to \(tuiTitle) in the terminal."
                 )
                 : Copy.t("未发现终端 Agent。", "No terminal agent found.")
-            return
-        }
-        let batch = selectedItems.filter { $0.status == .confirm }
-        guard let first = batch.first, let recipe = RecipeID.fromStored(first.recipe) else {
             return
         }
         guard runningItems.isEmpty, batch.count >= recipe.minimumCount,

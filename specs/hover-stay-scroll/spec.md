@@ -11,7 +11,7 @@
 - `HoverPreviewWindow`：`ignoresMouseEvents = true`。
 - `HoverPreview`：`allowsHitTesting(false)`，正文 `maxHeight: 220` 后 `.clipped()`。
 - 文件卡 `onHover(false)` 立刻 `hideHover`。
-- 预览贴在面板纸面左侧（不够则右侧），与纸面有 8pt 空隙。
+- 预览贴在面板纸面左侧，与纸面有 8pt 空隙。不够出屏幕时夹在屏幕内，不翻边。
 
 `specs/hover-readable/spec.md` 里「窗口仍忽略鼠标 / 过长截断」和 `specs/hover-left-of-panel/spec.md` 里「不让预览可点」由本 spec 覆盖。
 
@@ -20,7 +20,7 @@
 - 指针进入预览卡：预览保持显示，可滚动看完全文（仍受 `ItemPeek` 字数上限）。
 - 指针离开预览卡、也不在对应文件/结果卡上：预览关掉。
 - 关面板、开设置、打开文件、进货：立刻关掉，不等延迟。
-- 位置仍贴纸面左侧（不够则右侧）。视觉卡宽不变；窗口向纸面伸出一条透明桥，盖住 8pt 空隙，避免穿过空隙时提前关掉。
+- 位置仍贴纸面左侧。视觉卡宽不变；窗口向纸面伸出一条透明桥，盖住 8pt 空隙，避免穿过空隙时提前关掉。
 - 仍不打开链接、不嵌网页、不拉远程图。
 
 ## 非目标

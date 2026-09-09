@@ -46,7 +46,12 @@ let package = Package(
         .target(
             name: "DropAgentJob",
             dependencies: ["DropAgentShelf", "DropAgentAgent"],
-            path: "Packages/DropAgentJob/Sources"
+            path: "Packages/DropAgentJob/Sources",
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .linkedFramework("ImageIO"),
+                .linkedFramework("Vision"),
+            ]
         ),
         .target(
             name: "DropAgentTUI",

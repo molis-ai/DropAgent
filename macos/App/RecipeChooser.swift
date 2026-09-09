@@ -7,11 +7,11 @@ struct RecipeChooser: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                ForEach(RecipeID.allCases, id: \.self) { recipe in
+                ForEach(visibleRecipes, id: \.self) { recipe in
                     recipeButton(
                         title: Copy.recipeShort(recipe),
                         symbol: RecipeGlyph.symbol(recipe),
-                        enabled: session.hasRecipe && session.recipeFitsSelection(recipe),
+                        enabled: session.canRunRecipe(recipe),
                         selected: false,
                         help: session.recipeFitsSelection(recipe) ? Copy.recipeBlurb(recipe) : session.recipeHelp(recipe),
                         identifier: "recipe-\(recipe.rawValue)"
@@ -33,6 +33,16 @@ struct RecipeChooser: View {
             .padding(.leading, 2)
         }
         .accessibilityIdentifier("acts")
+    }
+
+    private var visibleRecipes: [RecipeID] {
+        RecipeID.allCases.filter { recipe in
+            if recipe == .imageText {
+                let batch = session.recipeBatch
+                return batch.isEmpty == false && batch.allSatisfy { $0.kind == .image }
+            }
+            return true
+        }
     }
 
     private func recipeButton(
@@ -115,6 +125,7 @@ enum RecipeGlyph {
         switch id {
         case .summarize: return "text.alignleft"
         case .extract: return "curlybraces"
+        case .imageText: return "text.viewfinder"
         case .translate: return "globe"
         case .redact: return "eye.slash"
         case .toMarkdown: return "doc.richtext"

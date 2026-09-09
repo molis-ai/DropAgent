@@ -37,9 +37,11 @@ public struct JobService: Sendable {
 
     public func start(itemIDs: [ItemID], recipe: RecipeID, optionID: String? = nil) async throws -> JobID {
         guard !itemIDs.isEmpty else { throw JobError.emptySelection }
-        let presence = agent.discover(settings: agent.settings)
-        guard presence.executable != nil else { throw JobError.noAgent }
         let spec = RecipeCatalog.spec(recipe)
+        let presence = agent.discover(settings: agent.settings)
+        if spec.requiresAgent {
+            guard presence.executable != nil else { throw JobError.noAgent }
+        }
 
         var items: [Item] = []
         for id in itemIDs {
@@ -61,6 +63,7 @@ public struct JobService: Sendable {
         let work = dir.appendingPathComponent("work", isDirectory: true)
         let output = dir.appendingPathComponent("output", isDirectory: true)
         let outputFile = output.appendingPathComponent(spec.outputFileName)
+        let shown = spec.requiresAgent ? Self.shown(for: presence.isolation) : .safeCopy
         do {
             try FileManager.default.createDirectory(at: input, withIntermediateDirectories: true)
             try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
@@ -79,53 +82,62 @@ public struct JobService: Sendable {
                     live.status = .running
                     live.recipe = spec.fullTitle
                     live.event = "复制到 input/ 与 work/"
-                    live.isolationShown = Self.shown(for: presence.isolation)
+                    live.isolationShown = shown
                     live.failureReason = nil
                 }
             }
             try JobWorkspace.freezeReadOnly(at: input)
-
-            let promptFile = dir.appendingPathComponent("prompt.txt")
-            let listed = relativeNames.map { "- \($0)" }.joined(separator: "\n")
-            let prompt = RecipeCatalog.prompt(for: recipe, choiceID: optionID) + "\n材料：\n" + listed + "\n"
-            try Data(prompt.utf8).write(to: promptFile)
             try JobWorkspace.appendEvent(dir: dir, message: "复制到 input/ 与 work/")
             try JobWorkspace.writeManifest(
                 dir: dir,
                 jobID: jobID,
                 recipe: recipe,
-                agent: presence.engine?.rawValue ?? "none",
-                isolation: presence.isolation,
+                agent: spec.requiresAgent ? (presence.engine?.rawValue ?? "none") : "vision",
+                isolation: spec.requiresAgent ? presence.isolation : .none,
                 items: items
             )
 
-            let request = AgentRunRequest(
-                workdir: work,
-                promptFile: promptFile,
-                outputFile: outputFile,
-                isolation: presence.isolation,
-                network: spec.needsNetwork
-            )
             let runningIDs = items.map(\.id)
-
             if control.isCancelled {
                 throw AgentError.cancelled
             }
-            let result = try await agent.run(request) { event in
-                let text = Self.displayEvent(event.message)
-                try? JobWorkspace.appendEvent(dir: dir, message: event.message)
-                for id in runningIDs {
-                    try? shelf.patch(id: id) { live in
-                        guard live.status == .running else { return }
-                        live.event = text
+            if spec.requiresAgent {
+                let promptFile = dir.appendingPathComponent("prompt.txt")
+                let listed = relativeNames.map { "- \($0)" }.joined(separator: "\n")
+                let prompt = RecipeCatalog.prompt(for: recipe, choiceID: optionID) + "\n材料：\n" + listed + "\n"
+                try Data(prompt.utf8).write(to: promptFile)
+                let request = AgentRunRequest(
+                    workdir: work,
+                    promptFile: promptFile,
+                    outputFile: outputFile,
+                    isolation: presence.isolation,
+                    network: spec.needsNetwork
+                )
+                let result = try await agent.run(request) { event in
+                    let text = Self.displayEvent(event.message)
+                    try? JobWorkspace.appendEvent(dir: dir, message: event.message)
+                    for id in runningIDs {
+                        try? shelf.patch(id: id) { live in
+                            guard live.status == .running else { return }
+                            live.event = text
+                        }
                     }
                 }
+                if control.isCancelled { throw AgentError.cancelled }
+                if result.lastMessage.isEmpty == false, FileManager.default.fileExists(atPath: outputFile.path) == false {
+                    try result.lastMessage.write(to: outputFile, atomically: true, encoding: .utf8)
+                }
+                try RecipeOutput.finalizeFile(outputFile)
+            } else {
+                try await runImageText(
+                    names: relativeNames,
+                    work: work,
+                    outputFile: outputFile,
+                    dir: dir,
+                    choiceID: optionID,
+                    runningIDs: runningIDs
+                )
             }
-            if control.isCancelled { throw AgentError.cancelled }
-            if result.lastMessage.isEmpty == false, FileManager.default.fileExists(atPath: outputFile.path) == false {
-                try result.lastMessage.write(to: outputFile, atomically: true, encoding: .utf8)
-            }
-            try RecipeOutput.finalizeFile(outputFile)
             let mismatch = items.contains(where: hashMismatch)
             try restoreInputs(items)
             _ = shelf.addResult(
@@ -135,7 +147,7 @@ public struct JobService: Sendable {
                     title: spec.outputFileName,
                     kind: spec.outputKind,
                     output: outputFile,
-                    isolationShown: Self.shown(for: presence.isolation),
+                    isolationShown: shown,
                     status: mismatch ? .failed : .done,
                     failureReason: mismatch ? "原件中途变了，结果按副本做的" : nil
                 )
@@ -154,7 +166,7 @@ public struct JobService: Sendable {
                     title: spec.outputFileName,
                     kind: spec.outputKind,
                     output: existing,
-                    isolationShown: Self.shown(for: presence.isolation),
+                    isolationShown: shown,
                     status: .failed,
                     failureReason: reason
                 )
@@ -217,6 +229,39 @@ public struct JobService: Sendable {
         }
     }
 
+    private func runImageText(
+        names: [String],
+        work: URL,
+        outputFile: URL,
+        dir: URL,
+        choiceID: String?,
+        runningIDs: [ItemID]
+    ) async throws {
+        let languages = ImageText.languages(
+            choiceID: RecipeCatalog.resolvedChoiceID(.imageText, optionID: choiceID)
+        )
+        var pages: [(name: String, lines: [ImageTextLine])] = []
+        for name in names {
+            if control.isCancelled { throw AgentError.cancelled }
+            let event = "识别 \(name)"
+            try JobWorkspace.appendEvent(dir: dir, message: event)
+            for id in runningIDs {
+                try? shelf.patch(id: id) { live in
+                    guard live.status == .running else { return }
+                    live.event = event
+                }
+            }
+            let lines = try await ImageText.recognize(
+                url: work.appendingPathComponent(name),
+                languages: languages
+            )
+            pages.append((name, lines))
+        }
+        if control.isCancelled { throw AgentError.cancelled }
+        try ImageText.markdown(pages: pages).write(to: outputFile, atomically: true, encoding: .utf8)
+        try JobWorkspace.appendEvent(dir: dir, message: "写入 output/")
+    }
+
 }
 
 private extension JobService {
@@ -233,6 +278,8 @@ private extension JobService {
         switch error {
         case AgentError.notFound:
             return "没找到 Codex"
+        case ImageTextError.unreadable:
+            return "打不开这张图"
         default:
             return "任务失败"
         }

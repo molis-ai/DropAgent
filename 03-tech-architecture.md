@@ -75,7 +75,8 @@ B. 副本 Recipe
    选 Recipe → 确认
      → Job.start(itemIDs, recipe)
      → 复制到 Jobs/<id>/{input,work}
-     → Agent.run(workdir: work/, isolation)
+     → CLI Recipe：Agent.run(workdir: work/, isolation)
+       文字提取：本机 Vision 识别 work/ 里的图
      → 写 output/ → Hash 校验原件
      → Shelf.patch(id, .done, output)
      → 面板切到「结果」
@@ -150,7 +151,7 @@ Shelf 列表存 Application Support 下的 `shelf.json`。不进 iCloud、不做
 | Shelf | 增删改、多选、查询 | 跑 Agent、抓网页 |
 | Ingest | 把外部东西变成 Item | 决定跑 Recipe 还是 TUI |
 | Capture | URL+标题、md、截图 | 加入架子 |
-| Job | 副本、Recipe、Hash、事件 | 画 UI、发 TUI |
+| Job | 副本、Recipe、Hash、事件；图片文字提取用 Vision | 画 UI、发 TUI |
 | Agent | 发现二进制、档位文案、执行配置 | 选 Recipe |
 | TUI | 投递进已有或新拉起的会话 | 解析 TUI 画面 |
 | Pasteboard | 按 kind 填多种 UTI；记下最近剪贴板 | 删除架子条目、改系统当前剪贴板 |
@@ -192,9 +193,10 @@ Shelf 列表存 Application Support 下的 `shelf.json`。不进 iCloud、不做
 | 路径 | 对外文案 | 实现要点 |
 |------|---------|----------|
 | Recipe | Workspace（该 CLI 官方工作区限制，探测到才这么写） | 芯片对应 CLI 的官方无界面入口，cwd=`work/`，不加载用户全局 MCP/Hooks |
+| 文字提取 | 本机识别，不发送 | Vision 读任务副本里的图，写 `ocr.md`；不调 CLI |
 | 发给 TUI | 「在终端执行，不是副本沙箱」 | 把**副本**路径和文本送进所选 TUI（Grok / Claude / Gemini / OpenCode / Cursor CLI / Codex）；纯 CLI 则在默认 shell 里发出译好的命令。仍不把原件路径塞进会话；隔离 home，不加载用户 MCP/Hooks |
-| 无 TUI | 未发现终端 Agent | 禁止 send；没有芯片，也禁止 Job.start |
-| 芯片 CLI 无执行入口 | 说明该 CLI 没有无界面执行入口 | 禁止 Job.start；有 TUI 时仍可发送 |
+| 无 TUI | 未发现终端 Agent | 禁止 send；CLI Recipe 禁止 Job.start；文字提取仍可跑 |
+| 芯片 CLI 无执行入口 | 说明该 CLI 没有无界面执行入口 | CLI Recipe 禁止 Job.start；有 TUI 时仍可发送；文字提取仍可跑 |
 
 Recipe 跑完：对 `sourceURL` 若是本地文件，再读一遍 Hash，必须与 admit 时一致。
 

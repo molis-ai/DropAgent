@@ -22,7 +22,9 @@ struct FileCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let snippet = ItemPeek.cardText(for: item), ItemPeek.showsTextCard(item) {
+            if item.kind == .clip, let clip = ItemPeek.clipLines(for: item) {
+                clipCopy(clip)
+            } else if let snippet = ItemPeek.cardText(for: item), ItemPeek.showsTextCard(item) {
                 Text(snippet)
                     .font(.system(size: 12))
                     .foregroundStyle(Palette.text)
@@ -57,6 +59,7 @@ struct FileCard: View {
                 .stroke(selected ? Color(red: 168 / 255, green: 185 / 255, blue: 238 / 255) : Color.clear, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: LivePanelChrome.cardRadius, style: .continuous))
+        .background(ExpansionTooltipOff())
         .shadow(color: Color.black.opacity(0.05), radius: 8, y: 4)
         .overlay(alignment: .topTrailing) {
             if let onHide, let onDelete, item.status != .running, hovering || selected {
@@ -110,6 +113,27 @@ struct FileCard: View {
         .accessibilityLabel("\(item.displayTag) \(item.title)")
         .accessibilityIdentifier(isResult ? "result-\(item.id.rawValue)" : "item-\(item.id.rawValue)")
         .accessibilityAction(.default) { onSelect(false) }
+    }
+
+    @ViewBuilder
+    private func clipCopy(_ clip: (title: String, body: String)) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(clip.title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Palette.text)
+                .lineLimit(1)
+            if clip.body.isEmpty == false {
+                Text(clip.body)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.muted)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                Spacer(minLength: 0)
+            }
+            FileKindMark(item: item, compact: true)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var caption: String {
@@ -169,6 +193,49 @@ struct FileCard: View {
             }
             clickCount = 0
         }
+    }
+}
+
+/// Truncated SwiftUI `Text` turns on AppKit expansion tooltips, which pop above the
+/// card and get clipped by the menu bar. Full text belongs on the left hover preview.
+private struct ExpansionTooltipOff: NSViewRepresentable {
+    func makeNSView(context: Context) -> StripExpansionTooltipsView {
+        StripExpansionTooltipsView()
+    }
+
+    func updateNSView(_ nsView: StripExpansionTooltipsView, context: Context) {
+        nsView.strip()
+    }
+}
+
+private final class StripExpansionTooltipsView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentHuggingPriority(.defaultLow, for: .vertical)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        strip()
+    }
+
+    override func layout() {
+        super.layout()
+        strip()
+    }
+
+    func strip() {
+        guard let root = superview else { return }
+        Self.clear(root)
+    }
+
+    private static func clear(_ view: NSView) {
+        view.toolTip = nil
+        (view as? NSControl)?.allowsExpansionToolTips = false
+        view.subviews.forEach(clear)
     }
 }
 

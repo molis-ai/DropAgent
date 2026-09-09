@@ -52,12 +52,13 @@ extension AppSession {
             } else {
                 clipSelection.insert(id)
             }
-            return
-        }
-        if clipSelection == [id] {
+        } else if clipSelection == [id] {
             clipSelection = []
         } else {
             clipSelection = [id]
+        }
+        if clipHistoryOpen {
+            clipMenu.relayout()
         }
     }
 

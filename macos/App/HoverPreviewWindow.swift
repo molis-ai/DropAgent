@@ -7,6 +7,7 @@ enum HoverPlacement {
     static let gap: CGFloat = 8
     static let maxHeight: CGFloat = 320
     static let minHeight: CGFloat = 72
+    static let minWidth: CGFloat = 168
     static let screenInset: CGFloat = 8
     static let cardPadding: CGFloat = 14
     static var innerWidth: CGFloat { width - cardPadding * 2 }
@@ -45,13 +46,10 @@ enum HoverPlacement {
     ) -> CGRect {
         let paper = paperRect(panel: panel, paperInset: paperInset)
         var x = paper.minX - gap - size.width
-        if x < screen.minX + screenInset {
-            x = paper.maxX + gap
-        }
-        if x + size.width > screen.maxX - screenInset {
-            x = screen.maxX - screenInset - size.width
-        }
         x = max(screen.minX + screenInset, x)
+        if x + size.width > screen.maxX - screenInset {
+            x = max(screen.minX + screenInset, screen.maxX - screenInset - size.width)
+        }
 
         var y = paper.maxY - size.height
         if y + size.height > screen.maxY - screenInset {
@@ -118,19 +116,20 @@ final class HoverPreviewWindow {
             screen: screen,
             paperInset: paperInset
         )
-        let onLeft = HoverPlacement.sitsLeft(visual: visual, panel: target, paperInset: paperInset)
+        let onLeft = true
         let windowRect = HoverPlacement.windowFrame(visual: visual, sitsLeft: onLeft)
 
         let root = HoverPreview(
             item: item,
             scrolling: scrolling,
             cardHeight: visualSize.height,
-            bridgeOnTrailing: onLeft
+            bridgeOnTrailing: onLeft,
+            lockCardWidth: true
         )
         let host = self.host ?? NSHostingView(rootView: root)
         host.safeAreaRegions = []
         host.rootView = root
-        host.sizingOptions = scrolling ? [] : [.intrinsicContentSize]
+        host.sizingOptions = []
         host.frame = NSRect(origin: .zero, size: windowRect.size)
 
         let panel = self.panel ?? makePanel()
@@ -145,6 +144,7 @@ final class HoverPreviewWindow {
         host.autoresizingMask = [.width, .height]
         panel.contentView = hit
         panel.ignoresMouseEvents = false
+        panel.setContentSize(windowRect.size)
         panel.setFrame(windowRect, display: true)
         panel.orderFrontRegardless()
         self.host = host
@@ -193,16 +193,17 @@ final class HoverPreviewWindow {
 
     private func measure(_ item: Item) -> CGSize {
         let probe = NSHostingView(
-            rootView: HoverPreview(item: item, lockCardWidth: false, includeBridge: false)
+            rootView: HoverPreview(item: item, lockCardWidth: true, includeBridge: false, unconstrained: true)
         )
         probe.safeAreaRegions = []
         probe.sizingOptions = [.intrinsicContentSize]
+        probe.frame.size = NSSize(width: HoverPlacement.width, height: 10_000)
+        probe.layoutSubtreeIfNeeded()
         var size = probe.fittingSize
         if size.width < 40 || size.height < 40 {
-            probe.frame.size = NSSize(width: HoverPlacement.width, height: HoverPlacement.maxHeight)
-            probe.layoutSubtreeIfNeeded()
-            size = probe.fittingSize
+            size = CGSize(width: HoverPlacement.width, height: HoverPlacement.minHeight)
         }
+        size.width = HoverPlacement.width
         return size
     }
 

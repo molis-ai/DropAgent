@@ -95,39 +95,49 @@ private struct ClipHistoryRow: View {
     private var selected: Bool { session.clipSelection.contains(record.id) }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(isCurrent ? Palette.text : Color.clear)
-                .overlay(Circle().stroke(isCurrent ? Palette.text : Palette.line, lineWidth: 1))
-                .frame(width: 7, height: 7)
-                .accessibilityLabel(isCurrent ? Copy.t("当前剪贴板", "Current clipboard") : "")
-                .accessibilityHidden(isCurrent == false)
-            FileKindMark(kind: markKind, tag: markTag, compact: true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(record.title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Palette.text)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.faint)
-                    .lineLimit(1)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(isCurrent ? Palette.text : Color.clear)
+                    .overlay(Circle().stroke(isCurrent ? Palette.text : Palette.line, lineWidth: 1))
+                    .frame(width: 7, height: 7)
+                    .accessibilityLabel(isCurrent ? Copy.t("当前剪贴板", "Current clipboard") : "")
+                    .accessibilityHidden(isCurrent == false)
+                thumb
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(record.title)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Palette.text)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.faint)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    session.deleteClip(record.id)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Palette.faint)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .opacity(hovering ? 1 : 0)
+                .accessibilityLabel(Copy.t("删除", "Delete"))
+                .accessibilityIdentifier("clip-delete")
             }
-            Spacer(minLength: 0)
-            Button {
-                session.deleteClip(record.id)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Palette.faint)
-                    .frame(width: 18, height: 18)
-                    .contentShape(Rectangle())
+            if selected, let image = previewImage {
+                let size = fittedSize(for: image)
+                Image(nsImage: image)
+                    .resizable()
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
-            .opacity(hovering ? 1 : 0)
-            .accessibilityLabel(Copy.t("删除", "Delete"))
-            .accessibilityIdentifier("clip-delete")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -139,6 +149,38 @@ private struct ClipHistoryRow: View {
         .accessibilityIdentifier("clip-row")
         .accessibilityLabel(record.title)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private var thumb: some View {
+        if let image = previewImage {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 32, height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityHidden(true)
+        } else {
+            FileKindMark(kind: markKind, tag: markTag, compact: true)
+        }
+    }
+
+    private func fittedSize(for image: NSImage) -> CGSize {
+        let maxWidth = ClipHistoryWindow.width - 20
+        let width = max(image.size.width, 1)
+        let height = max(image.size.height, 1)
+        let scale = min(1, min(maxWidth / width, 140 / height))
+        return CGSize(width: (width * scale).rounded(), height: (height * scale).rounded())
+    }
+
+    private var previewImage: NSImage? {
+        if record.kind == .image {
+            return session.clipHistory.imageData(for: record.id).flatMap { NSImage(data: $0) }
+        }
+        guard record.kind == .files, let path = record.filePaths.first else { return nil }
+        let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
+        guard ["png", "jpg", "jpeg", "gif", "webp", "heic", "tif", "tiff"].contains(ext) else { return nil }
+        return NSImage(contentsOfFile: path)
     }
 
     private var markKind: ItemKind {

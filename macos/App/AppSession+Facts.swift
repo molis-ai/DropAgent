@@ -43,18 +43,30 @@ extension AppSession {
         SetupCardPolicy.gearNeedsAttention(hasAgent: hasAgent, setup: setup)
     }
     var recipeActorLine: String {
-        HotKeyCopy.recipeActorLine(hasRecipe: hasRecipe, hasAgent: hasAgent, tuiTitle: tuiTitle)
+        if isLocalRecipe(activeRecipeID) {
+            return Copy.t("本机识别，不发送。", "On-device recognition, not sent.")
+        }
+        return HotKeyCopy.recipeActorLine(hasRecipe: hasRecipe, hasAgent: hasAgent, tuiTitle: tuiTitle)
     }
     var recipeIsolationFact: String {
+        if isLocalRecipe(confirmRecipeID) {
+            return Copy.t("本机识别，不发送", "On-device, not sent")
+        }
         guard hasRecipe else { return Copy.t("无执行入口", "No exec entry") }
         return agent.isolationCopy(for: recipePresence)
     }
     var recipeWriteFact: String {
+        if isLocalRecipe(confirmRecipeID) {
+            return Copy.t("仅任务目录", "Job folder only")
+        }
         guard hasRecipe else { return Copy.t("无执行入口", "No exec entry") }
         if recipePresence.isolation == .workspace { return Copy.t("仅任务目录", "Job folder only") }
         return Copy.t("未确认仅任务目录", "Job-folder limit unconfirmed")
     }
     var recipeNetworkFact: String {
+        if isLocalRecipe(confirmRecipeID) {
+            return Copy.t("关", "Off")
+        }
         guard hasRecipe else { return Copy.t("无执行入口", "No exec entry") }
         if recipePresence.isolation != .workspace { return Copy.t("未确认", "Unconfirmed") }
         let wants = confirmRecipeID.map { RecipeCatalog.spec($0).needsNetwork } ?? false
@@ -87,8 +99,29 @@ extension AppSession {
         return batch.allSatisfy { spec.acceptedKinds.contains($0.kind) }
     }
 
+    func canRunRecipe(_ recipe: RecipeID) -> Bool {
+        guard recipeFitsSelection(recipe) else { return false }
+        if RecipeCatalog.spec(recipe).requiresAgent { return hasRecipe }
+        return true
+    }
+
+    var canConfirmRun: Bool {
+        guard let recipe = confirmRecipeID else { return false }
+        return canRunRecipe(recipe)
+    }
+
+    var activeRecipeID: RecipeID? {
+        confirmRecipeID
+            ?? selectedItems.first(where: { $0.status == .running }).flatMap { RecipeID.fromStored($0.recipe) }
+    }
+
+    func isLocalRecipe(_ recipe: RecipeID?) -> Bool {
+        guard let recipe else { return false }
+        return RecipeCatalog.spec(recipe).requiresAgent == false
+    }
+
     func recipeHelp(_ recipe: RecipeID) -> String {
-        if hasRecipe == false {
+        if RecipeCatalog.spec(recipe).requiresAgent && hasRecipe == false {
             return hasAgent ? HotKeyCopy.missingJobLine(tuiTitle: tuiTitle) : "未发现终端 Agent"
         }
         if recipeFitsSelection(recipe) { return Copy.recipeFull(recipe) }
@@ -109,9 +142,15 @@ extension AppSession {
 
     var recipeChooserHint: String {
         if hasAgent == false {
+            if canRunRecipe(.imageText) {
+                return "这张图可以提取文字。其他动作需要终端 Agent。"
+            }
             return "安装终端 Agent 后可发送。现在只能暂存，或点右上角选择已装的 TUI。"
         }
         if hasRecipe == false {
+            if canRunRecipe(.imageText) {
+                return "\(tuiTitle) 没有无界面执行入口。这张图仍可提取文字。"
+            }
             return "\(tuiTitle) 没有无界面执行入口，动作不能跑。点「其他」可发给 \(tuiTitle)。"
         }
         if RecipeID.allCases.contains(where: recipeFitsSelection) {
@@ -131,8 +170,11 @@ extension AppSession {
     }
 
     var failedRetryLine: String? {
-        guard selectedFailureReason != nil, hasRecipe else { return nil }
-        return "再点一个动作可以重试。"
+        guard selectedFailureReason != nil else { return nil }
+        if hasRecipe || canRunRecipe(.imageText) {
+            return "再点一个动作可以重试。"
+        }
+        return nil
     }
 
     var isDoneTakeaway: Bool {
@@ -150,9 +192,10 @@ extension AppSession {
     }
 
     var failedOutputRetryRecipe: RecipeID? {
-        guard isFailedOutputTakeaway, hasRecipe else { return nil }
-        guard let title = selectedItems.first?.recipe else { return nil }
-        return RecipeID.fromStored(title)
+        guard isFailedOutputTakeaway else { return nil }
+        guard let recipe = selectedItems.first.flatMap({ RecipeID.fromStored($0.recipe) }) else { return nil }
+        if RecipeCatalog.spec(recipe).requiresAgent && hasRecipe == false { return nil }
+        return recipe
     }
 
     var doneActionHint: String {

@@ -37,13 +37,30 @@ enum ItemPeek {
         case .pdf:
             guard let text = pdfText(item) else { return nil }
             return .plain(clipPreservingBreaks(text))
-        case .clip, .markdown, .file:
+        case .clip:
+            guard let text = fileText(item) else { return nil }
+            return .plain(text)
+        case .markdown, .file:
             return fileHover(item)
         }
     }
 
     static func showsTextCard(_ item: Item) -> Bool {
-        item.kind != .image && cardText(for: item) != nil
+        item.kind != .image && item.kind != .clip && cardText(for: item) != nil
+    }
+
+    static func clipLines(for item: Item) -> (title: String, body: String)? {
+        guard item.kind == .clip, let raw = rawText(for: item) else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        let lines = trimmed.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init)
+        guard let index = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).isEmpty == false }) else {
+            return (item.title, "")
+        }
+        let title = lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = lines.dropFirst(index + 1).joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (title, body)
     }
 
     static func image(for item: Item) -> NSImage? {

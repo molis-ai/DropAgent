@@ -26,6 +26,8 @@ struct ResultPane: View {
                 Text(item.output?.lastPathComponent ?? item.title)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Palette.text)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let reason = item.failureReason {
                     Text(reason)
                         .font(.system(size: 11))

@@ -188,11 +188,19 @@ public struct IngestService: Sendable {
         let item = Item(
             id: id,
             kind: kind,
-            title: title ?? (kind == .url ? (URL(string: trimmed)?.host ?? "链接") : "剪贴板"),
+            title: title ?? (kind == .url ? (URL(string: trimmed)?.host ?? "链接") : Self.clipTitle(from: trimmed)),
             sourceURL: kind == .url ? (URL(string: trimmed) ?? dest) : sourceURL,
             parts: [ItemPart(name: filename, url: dest)]
         )
         return try shelf.add(item)
+    }
+
+    public static func clipTitle(from text: String) -> String {
+        for raw in text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
+            let line = String(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+            if line.isEmpty == false { return line }
+        }
+        return "剪贴板"
     }
 
     public static func kind(for url: URL, isDirectory: Bool) -> ItemKind {

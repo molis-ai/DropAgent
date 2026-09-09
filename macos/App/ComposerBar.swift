@@ -25,17 +25,6 @@ struct ComposerBar: View {
                     .fill(composerFocused ? Palette.text : Palette.line)
                     .frame(height: 1)
             }
-            Button { session.pasteFromClipboard() } label: {
-                Image(systemName: "doc.on.clipboard")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Palette.faint)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("float-paste")
-            .accessibilityLabel(Copy.t("从剪贴板加入", "Paste from clipboard"))
-            .help(session.prefs.pasteHotKey.label)
             Button { session.sendToTUI() } label: {
                 Image(systemName: "arrow.right")
                     .font(.system(size: 13, weight: .semibold))

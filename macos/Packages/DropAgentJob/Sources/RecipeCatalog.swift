@@ -4,6 +4,7 @@ import Foundation
 public enum RecipeID: String, Codable, Sendable, CaseIterable {
     case summarize
     case extract
+    case imageText
     case translate
     case redact
     case toMarkdown
@@ -13,6 +14,7 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
         switch self {
         case .summarize: return "总结"
         case .extract: return "抽取"
+        case .imageText: return "文字提取"
         case .translate: return "翻译"
         case .redact: return "脱敏"
         case .toMarkdown: return "转 MD"
@@ -24,6 +26,7 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
         switch self {
         case .summarize: return "总结文件"
         case .extract: return "提取结构化信息"
+        case .imageText: return "提取图片文字"
         case .translate: return "翻译并保留格式"
         case .redact: return "敏感信息脱敏"
         case .toMarkdown: return "转换为 Markdown"
@@ -41,6 +44,8 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
         switch stored {
         case "新交付", "根据多份材料生成一个新交付", "Brief", "Combine":
             return .brief
+        case "OCR", "文字提取", "提取图片文字":
+            return .imageText
         default:
             return allCases.first { $0.fullTitle == stored || $0.shortTitle == stored }
         }
@@ -52,10 +57,27 @@ public struct RecipeSpec: Equatable, Sendable {
     public var acceptedKinds: Set<ItemKind>
     public var outputFileName: String
     public var needsNetwork: Bool
+    public var requiresAgent: Bool
     public var prompt: String
 
     public var shortTitle: String { id.shortTitle }
     public var fullTitle: String { id.fullTitle }
+
+    public init(
+        id: RecipeID,
+        acceptedKinds: Set<ItemKind>,
+        outputFileName: String,
+        needsNetwork: Bool,
+        requiresAgent: Bool = true,
+        prompt: String
+    ) {
+        self.id = id
+        self.acceptedKinds = acceptedKinds
+        self.outputFileName = outputFileName
+        self.needsNetwork = needsNetwork
+        self.requiresAgent = requiresAgent
+        self.prompt = prompt
+    }
 
     public var outputKind: ItemKind {
         switch URL(fileURLWithPath: outputFileName).pathExtension.lowercased() {
@@ -88,6 +110,15 @@ public enum RecipeCatalog {
                 acceptedKinds: [.pdf, .image, .markdown, .clip, .web],
                 outputFileName: "extracted.json",
                 needsNetwork: false,
+                prompt: prompt(for: id)
+            )
+        case .imageText:
+            return RecipeSpec(
+                id: id,
+                acceptedKinds: [.image],
+                outputFileName: "ocr.md",
+                needsNetwork: false,
+                requiresAgent: false,
                 prompt: prompt(for: id)
             )
         case .translate:

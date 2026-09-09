@@ -35,7 +35,7 @@ struct RecipeConfirmationView: View {
                     .font(.system(size: 12, weight: .semibold))
                 }
                 .buttonStyle(.plain)
-                .disabled(!session.hasRecipe || !session.runningItems.isEmpty)
+                .disabled(!session.canConfirmRun || !session.runningItems.isEmpty)
                 .accessibilityIdentifier("confirm-run")
                 Button { session.cancelConfirm() } label: {
                     Text(Copy.t("取消", "Cancel"))

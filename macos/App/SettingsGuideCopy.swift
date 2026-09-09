@@ -36,8 +36,8 @@ enum SettingsGuideCopy {
     static var readsTitle: String { Copy.t("读什么", "What It Reads") }
     static var reads: String {
         Copy.t(
-            "抓页会读前台浏览器的地址、标题、正文和窗口截图，需要辅助功能和自动化授权。Recipe 只读任务副本，Prompt 里不写原件路径，也不加载你的全局 MCP / Hooks。",
-            "Capture reads the front browser’s URL, title, body, and a window screenshot. Accessibility and Automation permission are required. Recipes read the job copy only; prompts never include original paths, and your global MCP / Hooks are not loaded."
+            "抓页会读前台浏览器的地址、标题、正文和窗口截图，需要辅助功能和自动化授权。Recipe 只读任务副本，Prompt 里不写原件路径，也不加载你的全局 MCP / Hooks。图片「文字提取」在本机识别副本，不发送。",
+            "Capture reads the front browser’s URL, title, body, and a window screenshot. Accessibility and Automation permission are required. Recipes read the job copy only; prompts never include original paths, and your global MCP / Hooks are not loaded. Image text extraction runs on-device and is not sent."
         )
     }
 

@@ -108,6 +108,7 @@ enum AppE2E {
             await verifyPresenceGates()
             await verifyRecipeLoop()
             await verifyExtractLoop()
+            await verifyImageTextLoop()
             await verifyBriefLoop()
             await verifyFolderLoop()
             await verifyZipLoop()
@@ -550,6 +551,17 @@ enum AppE2E {
             guard session.recipeFitsSelection(.summarize) else {
                 fail("image summarize disabled")
             }
+            guard session.recipeFitsSelection(.imageText) else {
+                fail("image text disabled")
+            }
+            session.recipePresence = .none
+            guard session.canRunRecipe(.imageText) else {
+                fail("image text needs agent")
+            }
+            guard session.canRunRecipe(.summarize) == false else {
+                fail("summarize without agent")
+            }
+            session.recipePresence = .grok(path: path, isolation: .workspace)
             guard session.recipeFitsSelection(.translate) == false else {
                 fail("image translate enabled")
             }
@@ -910,6 +922,64 @@ enum AppE2E {
             session.refreshPresence()
         }
 
+        private func verifyImageTextLoop() async {
+            try? DropAgentPaths.ensure()
+            let png = DropAgentPaths.inbox.appendingPathComponent("ocr-source.png")
+            let marker = "DROPAGENT-OCR-OK"
+            try? pngWithText(marker).write(to: png)
+            let before = hash(png)
+            session.admit(urls: [png])
+            await settle()
+            session.presence = .none
+            session.recipePresence = .none
+            guard session.canRunRecipe(.imageText) else {
+                fail("ocr blocked without agent")
+            }
+            session.chooseRecipe(.imageText)
+            guard session.recipeWriteFact == "仅任务目录" else {
+                fail("ocr write fact \(session.recipeWriteFact)")
+            }
+            guard session.recipeNetworkFact == "关" else {
+                fail("ocr network \(session.recipeNetworkFact)")
+            }
+            guard session.recipeIsolationFact.contains("本机识别") else {
+                fail("ocr isolation \(session.recipeIsolationFact)")
+            }
+            await session.confirmRun()
+            await settle()
+            guard let source = session.items.first(where: { $0.title == "ocr-source.png" }) else {
+                fail(session.errorText ?? "ocr source missing")
+            }
+            guard source.status == .idle else {
+                fail("ocr status \(source.status) \(session.errorText ?? "")")
+            }
+            guard let result = session.results.first(where: { $0.title == "ocr.md" }), result.output != nil else {
+                fail("ocr missing result \(session.results.map(\.title)) \(session.errorText ?? "")")
+            }
+            guard hash(png) == before else {
+                fail("ocr changed original")
+            }
+            let body = (try? String(contentsOf: result.output!, encoding: .utf8)) ?? ""
+            guard body.contains(marker) else {
+                fail("ocr body \(body)")
+            }
+            session.selectResult(result.id)
+            await settle()
+            snapshot("e2e-ocr-result")
+            do {
+                let landed = try await land(result.takeawayItem())
+                guard landed.lastPathComponent == "ocr.md" else {
+                    fail("ocr landed \(landed.lastPathComponent)")
+                }
+            } catch {
+                fail("ocr drag land \(error)")
+            }
+            session.removeResult(result.id)
+            session.remove(id: source.id)
+            session.aiTab = .work
+            session.refreshPresence()
+        }
+
         private func verifyBriefLoop() async {
             try? DropAgentPaths.ensure()
             let first = DropAgentPaths.inbox.appendingPathComponent("brief-a.md")
@@ -1059,8 +1129,11 @@ enum AppE2E {
             }
             session.pasteFromClipboard(PasteboardClipboard(textBoard))
             await settle()
-            guard let clip = session.items.first(where: { $0.kind == .clip && $0.title == "剪贴板" }) else {
+            guard let clip = session.items.first(where: { $0.kind == .clip && $0.title == "e2e-clip-body" }) else {
                 fail("clip admit missing")
+            }
+            guard ItemPeek.clipLines(for: clip)?.title == "e2e-clip-body" else {
+                fail("clip card title \(ItemPeek.clipLines(for: clip)?.title ?? "nil")")
             }
             session.aiTab = .result
             await settle()
@@ -1301,6 +1374,30 @@ enum AppE2E {
             return png
         }
 
+        private func pngWithText(_ text: String) -> Data {
+            let image = NSImage(size: NSSize(width: 920, height: 240), flipped: false) { rect in
+                NSColor.white.setFill()
+                rect.fill()
+                let drawn = NSAttributedString(
+                    string: text,
+                    attributes: [
+                        .font: NSFont.monospacedSystemFont(ofSize: 42, weight: .bold),
+                        .foregroundColor: NSColor.black,
+                    ]
+                )
+                let size = drawn.size()
+                drawn.draw(at: NSPoint(x: (rect.width - size.width) / 2, y: (rect.height - size.height) / 2))
+                return true
+            }
+            guard let tiff = image.tiffRepresentation,
+                  let rep = NSBitmapImageRep(data: tiff),
+                  let png = rep.representation(using: .png, properties: [:])
+            else {
+                fail("text png")
+            }
+            return png
+        }
+
         private func verifyCaptureLoop() async {
             let beforeWeb = session.items.filter { $0.kind == .web }.count
             await session.captureCurrentPage(token: .none)
@@ -1532,10 +1629,16 @@ enum AppE2E {
                 fail("hover not top-aligned \(left)")
             }
             let tight = CGRect(x: 8, y: 400, width: 1040, height: 640)
-            let right = HoverPlacement.frame(panel: tight, size: size, screen: screen, paperInset: pad)
+            let pinned = HoverPlacement.frame(panel: tight, size: size, screen: screen, paperInset: pad)
             let tightPaper = tight.insetBy(dx: pad, dy: pad)
-            guard abs(right.minX - (tightPaper.maxX + HoverPlacement.gap)) < 0.5 else {
-                fail("hover did not flip to right \(right)")
+            guard HoverPlacement.sitsLeft(visual: pinned, panel: tight, paperInset: pad) else {
+                fail("tight hover flipped right \(pinned)")
+            }
+            guard pinned.minX >= screen.minX + HoverPlacement.screenInset - 0.5 else {
+                fail("tight hover off screen \(pinned)")
+            }
+            guard abs(pinned.minX - (tightPaper.maxX + HoverPlacement.gap)) > 1 else {
+                fail("tight hover used the right slot \(pinned)")
             }
             let leftWindow = HoverPlacement.windowFrame(visual: left, sitsLeft: true)
             guard abs(leftWindow.maxX - paper.minX) < 0.5 else {
@@ -1543,10 +1646,6 @@ enum AppE2E {
             }
             guard abs(leftWindow.minX - left.minX) < 0.5 else {
                 fail("left hover outer edge moved \(leftWindow)")
-            }
-            let rightWindow = HoverPlacement.windowFrame(visual: right, sitsLeft: false)
-            guard abs(rightWindow.minX - tightPaper.maxX) < 0.5 else {
-                fail("right hover bridge should touch paper \(rightWindow)")
             }
             guard HoverPlacement.needsScroll(contentHeight: HoverPlacement.maxHeight + 40) else {
                 fail("tall hover should scroll")

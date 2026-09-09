@@ -151,8 +151,10 @@ struct ResultPreview: View {
         if let body = stagedText {
             Text(body)
                 .font(.system(size: 12))
-                .foregroundStyle(Palette.muted)
+                .foregroundStyle(Palette.text)
                 .textSelection(.enabled)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 4)
         }

@@ -30,6 +30,7 @@ enum Copy {
         switch id {
         case .summarize: return t("总结", "Summarize")
         case .extract: return t("抽取", "Extract")
+        case .imageText: return t("文字提取", "Get Text")
         case .translate: return t("翻译", "Translate")
         case .redact: return t("脱敏", "Redact")
         case .toMarkdown: return t("转 MD", "To Markdown")
@@ -41,6 +42,7 @@ enum Copy {
         switch id {
         case .summarize: return t("总结文件", "Summarize the file")
         case .extract: return t("提取结构化信息", "Extract structured data")
+        case .imageText: return t("提取图片文字", "Get text from the image")
         case .translate: return t("翻译并保留格式", "Translate and keep formatting")
         case .redact: return t("敏感信息脱敏", "Redact sensitive information")
         case .toMarkdown: return t("转换为 Markdown", "Convert to Markdown")
@@ -52,6 +54,7 @@ enum Copy {
         switch id {
         case .summarize: return t("收成一篇短文，原件不动", "A short note. Original stays put.")
         case .extract: return t("抽出要点、待办或数据", "Pull out points, todos, or data.")
+        case .imageText: return t("本机认出图里的字，不发送", "Read the words on-device. Nothing is sent.")
         case .translate: return t("译成指定语言，尽量留版式", "Translate and keep the layout.")
         case .redact: return t("去掉联系方式、证件等敏感信息", "Strip contacts, IDs, and similar private bits.")
         case .toMarkdown: return t("转成可编辑的 Markdown", "Turn it into editable Markdown.")

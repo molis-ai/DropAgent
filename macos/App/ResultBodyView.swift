@@ -38,7 +38,9 @@ enum ResultBodyView {
                     wrapped(
                         Text(inlineMarkdown(text))
                             .font(headingFont(level, compact: compact))
-                            .foregroundStyle(Palette.text),
+                            .foregroundStyle(Palette.text)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true),
                         width: wrapWidth
                     )
                 case .item(let text):
@@ -50,7 +52,9 @@ enum ResultBodyView {
                         Text(inlineMarkdown(text))
                             .font(.system(size: compact ? 12 : 13))
                             .foregroundStyle(Palette.text)
-                            .lineSpacing(compact ? 2 : 4),
+                            .lineSpacing(compact ? 2 : 4)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true),
                         width: wrapWidth
                     )
                 case .code(let text):
@@ -60,6 +64,8 @@ enum ResultBodyView {
                         Text(inlineMarkdown(text))
                             .font(.system(size: compact ? 12 : 13).italic())
                             .foregroundStyle(Palette.muted)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: wrapWidth ?? .infinity, alignment: .leading)
                             .padding(.leading, 12)
                             .overlay(alignment: .leading) {
