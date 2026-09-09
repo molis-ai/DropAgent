@@ -12,13 +12,10 @@ struct FileCard: View {
     var onOpen: (() -> Void)?
     var onHide: (() -> Void)?
     var onDelete: (() -> Void)?
-    var onHoverPreview: ((Bool, CGRect) -> Void)?
     var onBeginDrag: (() -> Void)?
     @State private var hovering = false
-    @State private var hoverTask: Task<Void, Never>?
     @State private var clickTask: Task<Void, Never>?
     @State private var clickCount = 0
-    @State private var screenRect: CGRect = .zero
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -77,7 +74,6 @@ struct FileCard: View {
             }
         }
         .contentShape(Rectangle())
-        .background(ScreenRectProbe { screenRect = $0 })
         .onTapGesture {
             handleTap(command: ClickModifiers.command)
         }
@@ -88,24 +84,10 @@ struct FileCard: View {
             }
         }
         .modifier(RowDrag(item: item, group: dragGroup, onBegin: onBeginDrag))
-        .onHover { on in
-            hovering = on
-            hoverTask?.cancel()
-            if on {
-                hoverTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 140_000_000)
-                    guard !Task.isCancelled else { return }
-                    onHoverPreview?(true, screenRect)
-                }
-            } else {
-                onHoverPreview?(false, .zero)
-            }
-        }
+        .onHover { hovering = $0 }
         .onDisappear {
-            hoverTask?.cancel()
             clickTask?.cancel()
             clickCount = 0
-            onHoverPreview?(false, .zero)
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
@@ -197,7 +179,7 @@ struct FileCard: View {
 }
 
 /// Truncated SwiftUI `Text` turns on AppKit expansion tooltips, which pop above the
-/// card and get clipped by the menu bar. Full text belongs on the left hover preview.
+/// card and get clipped by the menu bar. Full text belongs on the content stage.
 private struct ExpansionTooltipOff: NSViewRepresentable {
     func makeNSView(context: Context) -> StripExpansionTooltipsView {
         StripExpansionTooltipsView()

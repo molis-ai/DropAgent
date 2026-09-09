@@ -40,7 +40,6 @@ final class AppSession: ObservableObject {
     var onPanelInteraction: (() -> Void)?
     var onFinishExternalDrag: (() -> Void)?
     var onApplyHotKeys: (() -> Void)?
-    let hoverPreview = HoverPreviewWindow()
     let clipMenu = ClipHistoryWindow()
     let clipHistory: ClipHistoryStore
     @Published var clipHistoryOpen = false
@@ -253,6 +252,13 @@ final class AppSession: ObservableObject {
         selectedItems.isEmpty == false && settingsOpen == false && showsSetupCard == false
     }
 
+    var stagedItem: Item? {
+        if paneFocus == .result, let record = selectedResult {
+            return record.takeawayItem()
+        }
+        return selectedItems.first
+    }
+
     func choiceID(for recipe: RecipeID) -> String {
         RecipeCatalog.resolvedChoiceID(recipe, optionID: recipeOptions[recipe])
     }
@@ -283,19 +289,6 @@ final class AppSession: ObservableObject {
         multiSelect = on
     }
 
-    func showHover(item: Item, screenRect: CGRect) {
-        guard settingsOpen == false, showsSetupCard == false else { return }
-        hoverPreview.show(item: item, cardInScreen: screenRect)
-    }
-
-    func hideHover(of id: ItemID? = nil) {
-        if let id {
-            hoverPreview.hide(ifMatching: id)
-        } else {
-            hoverPreview.hide()
-        }
-    }
-
     func human(_ error: Error) -> String {
         switch error {
         case IngestError.emptyClipboard: return Copy.t("剪贴板是空的", "Clipboard is empty")
@@ -311,6 +304,8 @@ final class AppSession: ObservableObject {
         case AgentError.cancelled: return ""
         case JobError.notStartable: return Copy.t("这项现在不能跑这个动作", "This item cannot run that action now")
         case JobError.emptySelection, TUIError.empty: return Copy.t("先选文件，或写一句话再发送", "Select a file, or write something and send")
+        case PDFTextError.unreadable: return Copy.t("打不开这份 PDF", "This PDF cannot be opened")
+        case PDFTextError.locked: return Copy.t("这份 PDF 有密码，抽不出文字", "This PDF is password-protected")
         default: return Copy.t("没能完成这一步", "Could not finish this step")
         }
     }

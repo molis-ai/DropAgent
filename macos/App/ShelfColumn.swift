@@ -11,6 +11,9 @@ struct ShelfColumn: View {
         VStack(spacing: 0) {
             columnHead
             listSection
+            if let item = session.stagedItem {
+                ContentStage(item: item)
+            }
             if session.showsActionBar {
                 RecipeChooser(session: session)
                     .padding(.horizontal, 10)
@@ -100,10 +103,6 @@ struct ShelfColumn: View {
                                 onOpen: { session.openItem(item) },
                                 onHide: { session.hideItem(item.id) },
                                 onDelete: { session.deleteItem(item.id) },
-                                onHoverPreview: { on, rect in
-                                    if on { session.showHover(item: item, screenRect: rect) }
-                                    else { session.hideHover(of: item.id) }
-                                },
                                 onBeginDrag: {
                                     let ids = PasteboardService.exportGroup(
                                         starting: item,

@@ -45,6 +45,7 @@ enum LivePanelChrome {
     static let cardRadius: CGFloat = 12
     static let fileCardWidth: CGFloat = 168
     static let fileCardHeight: CGFloat = 80
+    static let previewStageHeight: CGFloat = 280
     static let floatMaxHeight: CGFloat = 360
     static let floatExpandDuration: TimeInterval = 0.28
     static let scrollGutter: CGFloat = 12

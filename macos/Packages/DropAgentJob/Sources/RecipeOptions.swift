@@ -50,6 +50,13 @@ extension RecipeCatalog {
                 ],
                 defaultID: "zh-en"
             )
+        case .pdfText:
+            return RecipeChoiceGroup(
+                label: "",
+                hint: "",
+                choices: [],
+                defaultID: ""
+            )
         case .translate:
             return RecipeChoiceGroup(
                 label: "译成",
@@ -140,6 +147,8 @@ extension RecipeCatalog {
             }
         case .imageText:
             return "用本机识别图片中的文字，不要调用终端 Agent，不要补写图里没有的内容。"
+        case .pdfText:
+            return "抽出 PDF 里已经嵌着的文字，不要调用终端 Agent，不要做扫描件 OCR。"
         case .translate:
             let target: String
             switch choiceID {

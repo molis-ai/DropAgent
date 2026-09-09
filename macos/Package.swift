@@ -50,6 +50,7 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("ImageIO"),
+                .linkedFramework("PDFKit"),
                 .linkedFramework("Vision"),
             ]
         ),

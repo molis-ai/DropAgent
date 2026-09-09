@@ -43,12 +43,18 @@ extension AppSession {
         SetupCardPolicy.gearNeedsAttention(hasAgent: hasAgent, setup: setup)
     }
     var recipeActorLine: String {
+        if activeRecipeID == .pdfText {
+            return Copy.t("本机抽字，不发送。", "On-device extract, not sent.")
+        }
         if isLocalRecipe(activeRecipeID) {
             return Copy.t("本机识别，不发送。", "On-device recognition, not sent.")
         }
         return HotKeyCopy.recipeActorLine(hasRecipe: hasRecipe, hasAgent: hasAgent, tuiTitle: tuiTitle)
     }
     var recipeIsolationFact: String {
+        if confirmRecipeID == .pdfText {
+            return Copy.t("本机抽字，不发送", "On-device extract, not sent")
+        }
         if isLocalRecipe(confirmRecipeID) {
             return Copy.t("本机识别，不发送", "On-device, not sent")
         }
@@ -145,11 +151,17 @@ extension AppSession {
             if canRunRecipe(.imageText) {
                 return "这张图可以提取文字。其他动作需要终端 Agent。"
             }
+            if canRunRecipe(.pdfText) {
+                return "这份 PDF 可以抽出文字。其他动作需要终端 Agent。"
+            }
             return "安装终端 Agent 后可发送。现在只能暂存，或点右上角选择已装的 TUI。"
         }
         if hasRecipe == false {
             if canRunRecipe(.imageText) {
                 return "\(tuiTitle) 没有无界面执行入口。这张图仍可提取文字。"
+            }
+            if canRunRecipe(.pdfText) {
+                return "\(tuiTitle) 没有无界面执行入口。这份 PDF 仍可抽出文字。"
             }
             return "\(tuiTitle) 没有无界面执行入口，动作不能跑。点「其他」可发给 \(tuiTitle)。"
         }
@@ -171,7 +183,7 @@ extension AppSession {
 
     var failedRetryLine: String? {
         guard selectedFailureReason != nil else { return nil }
-        if hasRecipe || canRunRecipe(.imageText) {
+        if hasRecipe || canRunRecipe(.imageText) || canRunRecipe(.pdfText) {
             return "再点一个动作可以重试。"
         }
         return nil

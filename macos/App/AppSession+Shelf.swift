@@ -76,7 +76,6 @@ extension AppSession {
 
     func openItem(_ item: Item) {
         onPanelInteraction?()
-        hideHover()
         guard let url = openURL(for: item) else {
             errorText = Copy.t("打不开这个文件。", "This file cannot be opened.")
             return

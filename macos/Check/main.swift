@@ -10,6 +10,7 @@ import DropAgentPasteboard
 import DropAgentShelf
 import DropAgentTUI
 import Foundation
+import CoreText
 import UniformTypeIdentifiers
 
 @main
@@ -36,6 +37,7 @@ enum DropAgentCheck {
             try agent()
             try await job()
             try await imageText()
+            try await pdfText()
             try await printCLIOutput()
             try await hideAndDelete()
             try tui()
@@ -103,6 +105,42 @@ private func pngWithText(_ text: String) -> Data {
     let tiff = image.tiffRepresentation!
     let rep = NSBitmapImageRep(data: tiff)!
     return rep.representation(using: .png, properties: [:])!
+}
+
+private func pdfWithText(_ text: String, pages: Int = 1) -> Data {
+    let data = NSMutableData()
+    var box = CGRect(x: 0, y: 0, width: 612, height: 792)
+    guard let consumer = CGDataConsumer(data: data as CFMutableData),
+          let ctx = CGContext(consumer: consumer, mediaBox: &box, nil)
+    else { return Data() }
+    for index in 0..<max(pages, 1) {
+        ctx.beginPDFPage(nil)
+        let lineText = pages > 1 ? "\(text) page-\(index + 1)" : text
+        let drawn = NSAttributedString(
+            string: lineText,
+            attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 18, weight: .bold),
+                .foregroundColor: NSColor.black,
+            ]
+        )
+        ctx.textPosition = CGPoint(x: 72, y: 720)
+        CTLineDraw(CTLineCreateWithAttributedString(drawn), ctx)
+        ctx.endPDFPage()
+    }
+    ctx.closePDF()
+    return data as Data
+}
+
+private func emptyPDF() -> Data {
+    let data = NSMutableData()
+    var box = CGRect(x: 0, y: 0, width: 612, height: 792)
+    guard let consumer = CGDataConsumer(data: data as CFMutableData),
+          let ctx = CGContext(consumer: consumer, mediaBox: &box, nil)
+    else { return Data() }
+    ctx.beginPDFPage(nil)
+    ctx.endPDFPage()
+    ctx.closePDF()
+    return data as Data
 }
 
 private func fail(_ message: String, file: String = #fileID, line: Int = #line) {
@@ -992,6 +1030,10 @@ private func ingest() throws {
     expectEqual(RecipeCatalog.spec(.imageText).outputFileName, "ocr.md")
     expectEqual(RecipeCatalog.spec(.imageText).requiresAgent, false)
     expectEqual(RecipeCatalog.spec(.imageText).needsNetwork, false)
+    expectEqual(RecipeCatalog.spec(.pdfText).acceptedKinds, [.pdf])
+    expectEqual(RecipeCatalog.spec(.pdfText).outputFileName, "pdf.md")
+    expectEqual(RecipeCatalog.spec(.pdfText).requiresAgent, false)
+    expectEqual(RecipeCatalog.spec(.pdfText).needsNetwork, false)
 
     let rtfFile = root.appendingPathComponent("note.rtf")
     try Data("{\\rtf1 hello}".utf8).write(to: rtfFile)
@@ -1868,7 +1910,7 @@ private func job() async throws {
     expectEqual(RecipeOutput.finalize("{\"a\":1}", fileName: "extracted.json"), "{\"a\":1}")
 
     for recipe in RecipeID.allCases
-        where recipe != .summarize && recipe != .extract && recipe != .brief && recipe != .imageText
+        where recipe != .summarize && recipe != .extract && recipe != .brief && recipe != .imageText && recipe != .pdfText
     {
         let env = try setup()
         let agent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
@@ -1981,6 +2023,8 @@ private func job() async throws {
     expectEqual(RecipeID.fromStored("OCR"), .imageText)
     expectEqual(RecipeID.fromStored("文字提取"), .imageText)
     expectEqual(RecipeID.fromStored("提取图片文字"), .imageText)
+    expectEqual(RecipeID.fromStored("提取 PDF 文字"), .pdfText)
+    expectEqual(RecipeID.fromStored("pdfText"), .pdfText)
 
     let briefRoot = try tempDir()
     let originalA = briefRoot.appendingPathComponent("a.md")
@@ -2178,6 +2222,142 @@ private func imageText() async throws {
     } catch ImageTextError.unreadable {
         expectEqual(badShelf.results().first?.failureReason, "打不开这张图")
         expectEqual(try Data(contentsOf: badOriginal), Data("jpeg-bytes".utf8))
+    }
+}
+
+private func pdfText() async throws {
+    expectEqual(
+        PDFText.markdown(files: [("a.pdf", ["Hello"])]),
+        "Hello\n"
+    )
+    expectEqual(
+        PDFText.markdown(files: [("a.pdf", ["One", "Two"])]),
+        "## 第 1 页\n\nOne\n\n## 第 2 页\n\nTwo\n"
+    )
+    expectEqual(
+        PDFText.markdown(files: [
+            ("a.pdf", ["A"]),
+            ("b.pdf", []),
+        ]),
+        "## a.pdf\n\nA\n\n## b.pdf\n\n这份 PDF 没有可选中的文字。\n"
+    )
+    expectEqual(PDFText.markdown(files: [("blank.pdf", [])]), "这份 PDF 没有可选中的文字。\n")
+
+    let root = try tempDir()
+    let original = root.appendingPathComponent("note.pdf")
+    let marker = "DROPAGENT-PDF-OK"
+    try pdfWithText(marker).write(to: original)
+    let before = try Data(contentsOf: original)
+    let inbox = root.appendingPathComponent("Inbox/pdf", isDirectory: true)
+    try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+    let copy = inbox.appendingPathComponent("note.pdf")
+    try FileManager.default.copyItem(at: original, to: copy)
+    let shelf = ShelfStore(fileURL: root.appendingPathComponent("shelf.json"))
+    let item = try shelf.add(Item(
+        kind: .pdf,
+        title: "note.pdf",
+        sourceURL: original,
+        parts: [ItemPart(name: "note.pdf", url: copy)],
+        sourceChecksum: digest(original)
+    ))
+    let agent = FakeAgent(presence: .none)
+    let job = JobService(shelf: shelf, agent: agent, jobsRoot: root.appendingPathComponent("Jobs"))
+    let jobID = try await job.start(itemIDs: [item.id], recipe: .pdfText)
+    expect(agent.lastRequest == nil, "pdf text must not call agent")
+    expectEqual(try Data(contentsOf: original), before, "pdf original bytes")
+    expectEqual(shelf.item(id: item.id)?.status, .idle)
+    expectEqual(shelf.results().first?.title, "pdf.md")
+    expectEqual(shelf.results().first?.status, .done)
+    expectEqual(shelf.results().first?.isolationShown, .safeCopy)
+    expectEqual(job.job(id: jobID)?.recipe, .pdfText)
+    let body = try String(contentsOf: shelf.results().first!.output!, encoding: .utf8)
+    expect(body.contains(marker), "pdf body \(body)")
+    let dirs = try FileManager.default.contentsOfDirectory(
+        at: root.appendingPathComponent("Jobs"),
+        includingPropertiesForKeys: nil,
+        options: [.skipsHiddenFiles]
+    )
+    let manifest = try JSONSerialization.jsonObject(
+        with: Data(contentsOf: dirs[0].appendingPathComponent("manifest.json"))
+    ) as? [String: Any]
+    expectEqual(manifest?["agent"] as? String, "pdfkit")
+    expect(!FileManager.default.fileExists(atPath: dirs[0].appendingPathComponent("prompt.txt").path), "no prompt for pdf extract")
+
+    let blankRoot = try tempDir()
+    let blankOriginal = blankRoot.appendingPathComponent("blank.pdf")
+    try emptyPDF().write(to: blankOriginal)
+    let blankInbox = blankRoot.appendingPathComponent("Inbox/blank", isDirectory: true)
+    try FileManager.default.createDirectory(at: blankInbox, withIntermediateDirectories: true)
+    let blankCopy = blankInbox.appendingPathComponent("blank.pdf")
+    try FileManager.default.copyItem(at: blankOriginal, to: blankCopy)
+    let blankShelf = ShelfStore(fileURL: blankRoot.appendingPathComponent("shelf.json"))
+    let blankItem = try blankShelf.add(Item(
+        kind: .pdf,
+        title: "blank.pdf",
+        sourceURL: blankOriginal,
+        parts: [ItemPart(name: "blank.pdf", url: blankCopy)],
+        sourceChecksum: digest(blankOriginal)
+    ))
+    _ = try await JobService(
+        shelf: blankShelf,
+        agent: FakeAgent(presence: .none),
+        jobsRoot: blankRoot.appendingPathComponent("Jobs")
+    ).start(itemIDs: [blankItem.id], recipe: .pdfText)
+    let blankBody = try String(contentsOf: blankShelf.results().first!.output!, encoding: .utf8)
+    expectEqual(blankBody, "这份 PDF 没有可选中的文字。\n")
+    expectEqual(blankShelf.results().first?.status, .done)
+
+    let imageRoot = try tempDir()
+    let png = imageRoot.appendingPathComponent("shot.png")
+    try pngWithText("no").write(to: png)
+    let imageInbox = imageRoot.appendingPathComponent("Inbox/img", isDirectory: true)
+    try FileManager.default.createDirectory(at: imageInbox, withIntermediateDirectories: true)
+    let imageCopy = imageInbox.appendingPathComponent("shot.png")
+    try FileManager.default.copyItem(at: png, to: imageCopy)
+    let imageShelf = ShelfStore(fileURL: imageRoot.appendingPathComponent("shelf.json"))
+    let imageItem = try imageShelf.add(Item(
+        kind: .image,
+        title: "shot.png",
+        sourceURL: png,
+        parts: [ItemPart(name: "shot.png", url: imageCopy)],
+        sourceChecksum: digest(png)
+    ))
+    do {
+        _ = try await JobService(
+            shelf: imageShelf,
+            agent: FakeAgent(presence: .none),
+            jobsRoot: imageRoot.appendingPathComponent("Jobs")
+        ).start(itemIDs: [imageItem.id], recipe: .pdfText)
+        fail("image pdf text should be rejected")
+    } catch let error as JobError {
+        expectEqual(error, .notStartable)
+    }
+
+    let badRoot = try tempDir()
+    let badOriginal = badRoot.appendingPathComponent("broken.pdf")
+    try Data("not-a-pdf".utf8).write(to: badOriginal)
+    let badInbox = badRoot.appendingPathComponent("Inbox/bad", isDirectory: true)
+    try FileManager.default.createDirectory(at: badInbox, withIntermediateDirectories: true)
+    let badCopy = badInbox.appendingPathComponent("broken.pdf")
+    try FileManager.default.copyItem(at: badOriginal, to: badCopy)
+    let badShelf = ShelfStore(fileURL: badRoot.appendingPathComponent("shelf.json"))
+    let badItem = try badShelf.add(Item(
+        kind: .pdf,
+        title: "broken.pdf",
+        sourceURL: badOriginal,
+        parts: [ItemPart(name: "broken.pdf", url: badCopy)],
+        sourceChecksum: digest(badOriginal)
+    ))
+    do {
+        _ = try await JobService(
+            shelf: badShelf,
+            agent: FakeAgent(presence: .none),
+            jobsRoot: badRoot.appendingPathComponent("Jobs")
+        ).start(itemIDs: [badItem.id], recipe: .pdfText)
+        fail("unreadable pdf should fail")
+    } catch PDFTextError.unreadable {
+        expectEqual(badShelf.results().first?.failureReason, "打不开这份 PDF")
+        expectEqual(try Data(contentsOf: badOriginal), Data("not-a-pdf".utf8))
     }
 }
 

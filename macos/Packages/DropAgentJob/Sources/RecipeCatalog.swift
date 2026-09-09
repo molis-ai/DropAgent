@@ -5,6 +5,7 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
     case summarize
     case extract
     case imageText
+    case pdfText
     case translate
     case redact
     case toMarkdown
@@ -15,6 +16,7 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
         case .summarize: return "总结"
         case .extract: return "抽取"
         case .imageText: return "文字提取"
+        case .pdfText: return "文字提取"
         case .translate: return "翻译"
         case .redact: return "脱敏"
         case .toMarkdown: return "转 MD"
@@ -27,6 +29,7 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
         case .summarize: return "总结文件"
         case .extract: return "提取结构化信息"
         case .imageText: return "提取图片文字"
+        case .pdfText: return "提取 PDF 文字"
         case .translate: return "翻译并保留格式"
         case .redact: return "敏感信息脱敏"
         case .toMarkdown: return "转换为 Markdown"
@@ -46,6 +49,8 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
             return .brief
         case "OCR", "文字提取", "提取图片文字":
             return .imageText
+        case "提取 PDF 文字":
+            return .pdfText
         default:
             return allCases.first { $0.fullTitle == stored || $0.shortTitle == stored }
         }
@@ -117,6 +122,15 @@ public enum RecipeCatalog {
                 id: id,
                 acceptedKinds: [.image],
                 outputFileName: "ocr.md",
+                needsNetwork: false,
+                requiresAgent: false,
+                prompt: prompt(for: id)
+            )
+        case .pdfText:
+            return RecipeSpec(
+                id: id,
+                acceptedKinds: [.pdf],
+                outputFileName: "pdf.md",
                 needsNetwork: false,
                 requiresAgent: false,
                 prompt: prompt(for: id)

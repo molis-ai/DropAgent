@@ -17,7 +17,9 @@ struct RecipeConfirmationView: View {
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            if let recipe = session.confirmRecipeID {
+            if let recipe = session.confirmRecipeID,
+               RecipeCatalog.choices(for: recipe).choices.isEmpty == false
+            {
                 RecipeOptionChips(session: session, recipe: recipe)
             }
             RecipeFacts(

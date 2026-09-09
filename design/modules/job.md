@@ -36,7 +36,7 @@ Application Support/DropAgent/Jobs/<id>/
 
 ## Recipe（第一版六个 CLI 名字 + 本机文字提取）
 
-每个 Recipe 声明：要哪些 kind、最少几份（「整合」为 2，其余 1）、产出文件名、是否需要网络、是否需要 Agent。CLI Recipe 默认按 Agent 配置。`imageText`（文字提取）只接受图片，`requiresAgent = false`，用本机 Vision 写 `ocr.md`。
+每个 Recipe 声明：要哪些 kind、最少几份（「整合」为 2，其余 1）、产出文件名、是否需要网络、是否需要 Agent。CLI Recipe 默认按 Agent 配置。`imageText` 只接受图片，`requiresAgent = false`，用本机 Vision 写 `ocr.md`。`pdfText` 只接受 PDF，同样不需要 Agent，用 PDFKit 抽内嵌文字写 `pdf.md`。
 
 禁止开放「任意 shell 一行」。新 Recipe = 新声明，不是用户贴脚本。
 
@@ -46,4 +46,4 @@ Application Support/DropAgent/Jobs/<id>/
 
 ## 调用
 
-CLI Recipe：`Agent.run(config)`（执行者是 `recipePresence` 那家 CLI，不是写死 Codex）。`imageText` 不调 Agent，识别任务副本里的图。`Shelf.patch` 把输入拉回 idle；`Shelf.addResult` 追加产出。取消不写结果。需要 Agent 的 Recipe 在没有 `recipePresence` 时 `start` 失败，条目保持 idle。
+CLI Recipe：`Agent.run(config)`（执行者是 `recipePresence` 那家 CLI，不是写死 Codex）。`imageText` / `pdfText` 不调 Agent：前者识别任务副本里的图，后者抽 PDF 内嵌文字。`Shelf.patch` 把输入拉回 idle；`Shelf.addResult` 追加产出。取消不写结果。需要 Agent 的 Recipe 在没有 `recipePresence` 时 `start` 失败，条目保持 idle。

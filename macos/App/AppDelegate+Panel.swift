@@ -56,7 +56,6 @@ extension AppDelegate {
     }
 
     func hidePanel() {
-        session.hideHover()
         session.closeClipHistory()
         cancelRecess()
         guard let panel, panel.isVisible else { return }
@@ -138,7 +137,6 @@ extension AppDelegate {
         guard let panel else { return }
         let mouse = NSEvent.mouseLocation
         let mouseInside = PanelIdle.dragHitsPanel(mouse: mouse, frame: panel.frame)
-            || session.hoverPreview.containsPointer(mouse)
             || session.clipMenu.containsPointer(mouse)
         guard PanelIdle.shouldRecess(
             visible: panel.isVisible,
@@ -211,9 +209,8 @@ extension AppDelegate {
         panel.delegate = self
         panel.onMouseInsideChange = { [weak self] inside in
             guard let self else { return }
-            let overHover = self.session.hoverPreview.containsPointer(NSEvent.mouseLocation)
-                || self.session.clipMenu.containsPointer(NSEvent.mouseLocation)
-            if inside || overHover {
+            let overClip = self.session.clipMenu.containsPointer(NSEvent.mouseLocation)
+            if inside || overClip {
                 if self.panelRecessed == false {
                     self.cancelRecess()
                 }

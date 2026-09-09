@@ -1,5 +1,3 @@
-import AppKit
-import DropAgentPasteboard
 import DropAgentShelf
 import SwiftUI
 
@@ -61,11 +59,6 @@ struct ResultStack: View {
                             onOpen: { session.openItem(record.takeawayItem()) },
                             onHide: { session.hideResult(record.id) },
                             onDelete: { session.deleteResult(record.id) },
-                            onHoverPreview: { on, rect in
-                                let item = record.takeawayItem()
-                                if on { session.showHover(item: item, screenRect: rect) }
-                                else { session.hideHover(of: item.id) }
-                            }
                         )
                         .id(record.id)
                     }

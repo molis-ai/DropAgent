@@ -17,7 +17,6 @@ extension AppSession {
             closeClipHistory()
             return
         }
-        hideHover()
         if spotlight.isActive {
             spotlight.setText("")
         }

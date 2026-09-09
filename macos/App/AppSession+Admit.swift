@@ -12,7 +12,6 @@ extension AppSession {
     }
 
     func pickFilesToAdmit() {
-        hideHover()
         onPanelInteraction?()
         let panel = NSOpenPanel()
         panel.canChooseFiles = true

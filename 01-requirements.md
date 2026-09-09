@@ -81,7 +81,7 @@ DropAgent 给这些 Agent 一个**项目之外的投递口**。
 - 发现的是本机已装的 Agent。面板左文件列表、右 AI 区（内嵌该 Agent 的 TUI）。拖到列表是加入；拖到 AI 区是连同输入打进 TUI。
 - 结果在工具内可点开查看；文件可拖到其他窗口，也可复制到剪贴板或从剪贴板贴入。剪贴板是进出通道，不是产品表面。
 - 不是去解析、看懂或模拟操作任意终端画面。没有开着的会话时，拉起该 Agent 的 TUI。
-- 六个 CLI Recipe 在副本任务里跑，执行者是当前芯片那家 CLI（有 Workspace 才写 Workspace，否则按探测结果写未确认 / Safe Copy）。图片「文字提取」走本机 Vision，不调用终端 Agent，不联网。TUI 投递走终端自己的权限，界面必须写明「不是副本沙箱」。
+- 六个 CLI Recipe 在副本任务里跑，执行者是当前芯片那家 CLI（有 Workspace 才写 Workspace，否则按探测结果写未确认 / Safe Copy）。本机「文字提取」：图片走 Vision，PDF 抽内嵌文字（不是扫描件 OCR），都不调用终端 Agent，不联网。TUI 投递走终端自己的权限，界面必须写明「不是副本沙箱」。
 - 不加载用户全局 MCP、Hooks、项目规则。
 - 不自动覆盖原文件；不自动「应用修改到原件」。
 - 第一版用 Developer ID 签名分发，不上 Mac App Store。
@@ -101,7 +101,7 @@ DropAgent 给这些 Agent 一个**项目之外的投递口**。
 - 不为某一家 App 做插件。拖出只交系统认的货（文件 / 文字 / 图 / 链接）。
 - 每次任务用独立目录：`input/` 快照、`work/` 副本、`output/` 交付。
 - 第一批：快捷动作和终端都跟芯片。预置 TUI：Grok / Claude / Gemini / OpenCode / Cursor CLI / Codex。预置纯 CLI：llm / aichat / sgpt。设置里可添加自定义 Runtime，芯片列表立刻出现。没有可收口 Job 入口的 TUI 不能跑动作；纯 CLI 用一条常规命令。
-- 六个默认 CLI Recipe，外加图片「文字提取」（见第 6 节）：只列能力，第一版不开放任意 Shell 脚本。
+- 六个默认 CLI Recipe，外加本机「文字提取」（图片 Vision、PDF 抽字，见第 6 节）：只列能力，第一版不开放任意 Shell 脚本。
 - 结果只回到右栏结果区，由用户预览、复制、拖出。左列输入不被换成产出，还可以再跑。
 - 执行前展示权限条：读什么、写什么、是否联网、当前是哪一档隔离。
 - 执行中展示：工具调用、等待授权、失败原因。
@@ -116,7 +116,7 @@ DropAgent 给这些 Agent 一个**项目之外的投递口**。
 - 默认加载用户所有 MCP 和 Hooks。
 - 对未验证的自定义 CLI 宣称「严格沙箱」。
 - 第一版就上 Container / VM。
-- 去背景、转录、把 OCR / AI 摘要当产品主功能（那是 Stash 的活）。图片「文字提取」只是本机认字，不是摘要产品。
+- 去背景、转录、把 OCR / AI 摘要当产品主功能（那是 Stash 的活）。本机「文字提取」只是认字或抽 PDF 里已有的字，不是摘要产品。
 - 给没装 CLI 的人提供「开箱即用的云端模型」。
 - 承诺搬运 Figma 图层、Photoshop 图层、Notion Block、时间线片段等私有对象。
 - 为 Office / IM / AI 桌面单独做适配或自动点发送。
@@ -125,13 +125,14 @@ DropAgent 给这些 Agent 一个**项目之外的投递口**。
 
 ## 6. Recipe（仅名称与输入输出）
 
-Recipe 是带权限和输入输出声明的执行单元，不是一个 Prompt 文本框。第一版做六个 CLI 动作，外加一个本机「文字提取」。Prompt 正文不在本文范围。
+Recipe 是带权限和输入输出声明的执行单元，不是一个 Prompt 文本框。第一版做六个 CLI 动作，外加本机「文字提取」（图片 / PDF）。Prompt 正文不在本文范围。
 
 | Recipe | 接受 | 产出（新文件，不改原件） |
 |--------|------|--------------------------|
 | 总结文件 | PDF、图片、文本、URL | `summary.md` |
 | 提取结构化信息 | PDF、图片、文本 | `extracted.json`（另附可读的 `extracted.md` 可选） |
 | 提取图片文字 | 图片 | `ocr.md`（本机 Vision，不走 CLI） |
+| 提取 PDF 文字 | PDF | `pdf.md`（本机 PDFKit 抽可选中文字，不走 CLI；扫描件会空） |
 | 翻译并保留格式 | 文本、Markdown、PDF | 同类型或 Markdown 的译稿 |
 | 敏感信息脱敏 | 文本、Markdown、PDF | 脱敏后的新文件 |
 | 转换为 Markdown | PDF、图片、网页 URL、文本 | `converted.md` |

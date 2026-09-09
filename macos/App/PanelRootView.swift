@@ -43,7 +43,6 @@ struct PanelRootView: View {
         .onPreferenceChange(DockHeightKey.self) { session.setDockHeight($0) }
         .onChange(of: session.settingsOpen) { _, open in
             if open {
-                session.hideHover()
                 session.closeClipHistory()
             }
             session.refreshSetup()

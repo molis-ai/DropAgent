@@ -92,7 +92,7 @@ public struct JobService: Sendable {
                 dir: dir,
                 jobID: jobID,
                 recipe: recipe,
-                agent: spec.requiresAgent ? (presence.engine?.rawValue ?? "none") : "vision",
+                agent: localAgentName(recipe, presence: presence),
                 isolation: spec.requiresAgent ? presence.isolation : .none,
                 items: items
             )
@@ -129,14 +129,27 @@ public struct JobService: Sendable {
                 }
                 try RecipeOutput.finalizeFile(outputFile)
             } else {
-                try await runImageText(
-                    names: relativeNames,
-                    work: work,
-                    outputFile: outputFile,
-                    dir: dir,
-                    choiceID: optionID,
-                    runningIDs: runningIDs
-                )
+                switch recipe {
+                case .imageText:
+                    try await runImageText(
+                        names: relativeNames,
+                        work: work,
+                        outputFile: outputFile,
+                        dir: dir,
+                        choiceID: optionID,
+                        runningIDs: runningIDs
+                    )
+                case .pdfText:
+                    try await runPdfText(
+                        names: relativeNames,
+                        work: work,
+                        outputFile: outputFile,
+                        dir: dir,
+                        runningIDs: runningIDs
+                    )
+                default:
+                    throw JobError.notStartable
+                }
             }
             let mismatch = items.contains(where: hashMismatch)
             try restoreInputs(items)
@@ -262,6 +275,42 @@ public struct JobService: Sendable {
         try JobWorkspace.appendEvent(dir: dir, message: "写入 output/")
     }
 
+    private func runPdfText(
+        names: [String],
+        work: URL,
+        outputFile: URL,
+        dir: URL,
+        runningIDs: [ItemID]
+    ) async throws {
+        var files: [(name: String, pages: [String])] = []
+        for name in names {
+            if control.isCancelled { throw AgentError.cancelled }
+            let event = "抽出 \(name)"
+            try JobWorkspace.appendEvent(dir: dir, message: event)
+            for id in runningIDs {
+                try? shelf.patch(id: id) { live in
+                    guard live.status == .running else { return }
+                    live.event = event
+                }
+            }
+            let pages = try await PDFText.pages(url: work.appendingPathComponent(name))
+            files.append((name, pages))
+        }
+        if control.isCancelled { throw AgentError.cancelled }
+        try PDFText.markdown(files: files).write(to: outputFile, atomically: true, encoding: .utf8)
+        try JobWorkspace.appendEvent(dir: dir, message: "写入 output/")
+    }
+
+    private func localAgentName(_ recipe: RecipeID, presence: AgentPresence) -> String {
+        if RecipeCatalog.spec(recipe).requiresAgent {
+            return presence.engine?.rawValue ?? "none"
+        }
+        switch recipe {
+        case .pdfText: return "pdfkit"
+        default: return "vision"
+        }
+    }
+
 }
 
 private extension JobService {
@@ -280,6 +329,10 @@ private extension JobService {
             return "没找到 Codex"
         case ImageTextError.unreadable:
             return "打不开这张图"
+        case PDFTextError.unreadable:
+            return "打不开这份 PDF"
+        case PDFTextError.locked:
+            return "这份 PDF 有密码，抽不出文字"
         default:
             return "任务失败"
         }

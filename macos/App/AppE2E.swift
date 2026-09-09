@@ -5,6 +5,7 @@ import DropAgentIngest
 import DropAgentJob
 import DropAgentPasteboard
 import DropAgentShelf
+import CoreText
 import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
@@ -50,8 +51,6 @@ enum AppE2E {
             window.makeKeyAndOrderFront(nil)
             self.window = window
             self.hosting = host
-            session.hoverPreview.panelFrame = { [weak self] in self?.window?.frame ?? .zero }
-
             DispatchQueue.main.asyncAfter(deadline: .now() + 240) {
                 fputs("e2e: timeout\n", stderr)
                 NSApp.terminate(nil)
@@ -85,10 +84,7 @@ enum AppE2E {
             await verifyShelfAddSearch()
             verifyStatusHover()
             verifyResultMarkdown()
-            verifyHoverReadable()
-            verifyHoverPlacement()
-            await verifyHoverStay()
-            verifyHoverPan()
+            verifyContentStage()
             verifyFileKindGlyph()
             verifyTtyTheme()
             verifyIsolationFact()
@@ -98,6 +94,7 @@ enum AppE2E {
             verifyEmptyWorkHint()
             verifyRecipeChooserHint()
             verifyImageRecipeGates()
+            verifyPdfRecipeGates()
             verifyFailedActionRetry()
             verifyFailedOutputTakeaway()
             verifyDoneTakeaway()
@@ -109,6 +106,7 @@ enum AppE2E {
             await verifyRecipeLoop()
             await verifyExtractLoop()
             await verifyImageTextLoop()
+            await verifyPdfTextLoop()
             await verifyBriefLoop()
             await verifyFolderLoop()
             await verifyZipLoop()
@@ -577,6 +575,35 @@ enum AppE2E {
             session.refreshPresence()
         }
 
+        private func verifyPdfRecipeGates() {
+            try? DropAgentPaths.ensure()
+            let path = URL(fileURLWithPath: "/usr/bin/true")
+            session.recipePresence = .grok(path: path, isolation: .workspace)
+            let pdf = DropAgentPaths.inbox.appendingPathComponent("gate.pdf")
+            try? pdfWithText("gate").write(to: pdf)
+            session.admit(urls: [pdf])
+            guard session.items.contains(where: { $0.kind == .pdf && $0.title == "gate.pdf" }) else {
+                fail("no pdf item")
+            }
+            guard session.recipeFitsSelection(.pdfText) else {
+                fail("pdf text disabled")
+            }
+            guard session.recipeFitsSelection(.imageText) == false else {
+                fail("pdf opened image text")
+            }
+            session.recipePresence = .none
+            guard session.canRunRecipe(.pdfText) else {
+                fail("pdf text needs agent")
+            }
+            guard session.canRunRecipe(.summarize) == false else {
+                fail("summarize without agent")
+            }
+            if let id = session.items.first(where: { $0.title == "gate.pdf" })?.id {
+                session.remove(id: id)
+            }
+            session.refreshPresence()
+        }
+
         private func verifyFailedActionRetry() {
             try? DropAgentPaths.ensure()
             let note = DropAgentPaths.inbox.appendingPathComponent("fail.md")
@@ -980,6 +1007,64 @@ enum AppE2E {
             session.refreshPresence()
         }
 
+        private func verifyPdfTextLoop() async {
+            try? DropAgentPaths.ensure()
+            let pdf = DropAgentPaths.inbox.appendingPathComponent("pdf-source.pdf")
+            let marker = "DROPAGENT-PDF-OK"
+            try? pdfWithText(marker).write(to: pdf)
+            let before = hash(pdf)
+            session.admit(urls: [pdf])
+            await settle()
+            session.presence = .none
+            session.recipePresence = .none
+            guard session.canRunRecipe(.pdfText) else {
+                fail("pdf extract blocked without agent")
+            }
+            session.chooseRecipe(.pdfText)
+            guard session.recipeWriteFact == "仅任务目录" else {
+                fail("pdf write fact \(session.recipeWriteFact)")
+            }
+            guard session.recipeNetworkFact == "关" else {
+                fail("pdf network \(session.recipeNetworkFact)")
+            }
+            guard session.recipeIsolationFact.contains("本机抽字") else {
+                fail("pdf isolation \(session.recipeIsolationFact)")
+            }
+            await session.confirmRun()
+            await settle()
+            guard let source = session.items.first(where: { $0.title == "pdf-source.pdf" }) else {
+                fail(session.errorText ?? "pdf source missing")
+            }
+            guard source.status == .idle else {
+                fail("pdf status \(source.status) \(session.errorText ?? "")")
+            }
+            guard let result = session.results.first(where: { $0.title == "pdf.md" }), result.output != nil else {
+                fail("pdf missing result \(session.results.map(\.title)) \(session.errorText ?? "")")
+            }
+            guard hash(pdf) == before else {
+                fail("pdf extract changed original")
+            }
+            let body = (try? String(contentsOf: result.output!, encoding: .utf8)) ?? ""
+            guard body.contains(marker) else {
+                fail("pdf body \(body)")
+            }
+            session.selectResult(result.id)
+            await settle()
+            snapshot("e2e-pdf-result")
+            do {
+                let landed = try await land(result.takeawayItem())
+                guard landed.lastPathComponent == "pdf.md" else {
+                    fail("pdf landed \(landed.lastPathComponent)")
+                }
+            } catch {
+                fail("pdf drag land \(error)")
+            }
+            session.removeResult(result.id)
+            session.remove(id: source.id)
+            session.aiTab = .work
+            session.refreshPresence()
+        }
+
         private func verifyBriefLoop() async {
             try? DropAgentPaths.ensure()
             let first = DropAgentPaths.inbox.appendingPathComponent("brief-a.md")
@@ -1374,6 +1459,29 @@ enum AppE2E {
             return png
         }
 
+        private func pdfWithText(_ text: String) -> Data {
+            let data = NSMutableData()
+            var box = CGRect(x: 0, y: 0, width: 612, height: 792)
+            guard let consumer = CGDataConsumer(data: data as CFMutableData),
+                  let ctx = CGContext(consumer: consumer, mediaBox: &box, nil)
+            else {
+                fail("text pdf")
+            }
+            ctx.beginPDFPage(nil)
+            let drawn = NSAttributedString(
+                string: text,
+                attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 18, weight: .bold),
+                    .foregroundColor: NSColor.black,
+                ]
+            )
+            ctx.textPosition = CGPoint(x: 72, y: 720)
+            CTLineDraw(CTLineCreateWithAttributedString(drawn), ctx)
+            ctx.endPDFPage()
+            ctx.closePDF()
+            return data as Data
+        }
+
         private func pngWithText(_ text: String) -> Data {
             let image = NSImage(size: NSSize(width: 920, height: 240), flipped: false) { rect in
                 NSColor.white.setFill()
@@ -1563,213 +1671,26 @@ enum AppE2E {
             verifyMarkdownImageBounds()
         }
 
-        private func verifyHoverReadable() {
+        private func verifyContentStage() {
             try? DropAgentPaths.ensure()
-            let note = DropAgentPaths.inbox.appendingPathComponent("hover-keep.md")
-            try? Data("# Keep\n\n- one\n- two\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n".utf8).write(to: note)
+            let note = DropAgentPaths.inbox.appendingPathComponent("stage-me.md")
+            try? Data("# Stage\n\nFull body for the content stage.\n".utf8).write(to: note)
             session.admit(urls: [note])
-            guard let md = session.items.first(where: { $0.title == "hover-keep.md" }) else {
-                fail("no hover-keep.md")
+            guard let item = session.items.first(where: { $0.title == "stage-me.md" }) else {
+                fail("no stage-me.md")
             }
-            guard case .markdown(let mdBody, _, false) = ItemPeek.hoverBody(for: md) else {
-                fail("hover md \(String(describing: ItemPeek.hoverBody(for: md)))")
+            guard session.stagedItem?.id == item.id else {
+                fail("stage empty after admit \(session.stagedItem?.title ?? "nil")")
             }
-            guard mdBody.contains("\n") else { fail("hover md collapsed newlines") }
-            let mdBlocks = ResultMarkdown.blocks(mdBody)
-            guard mdBlocks.contains(.heading(1, "Keep")) else { fail("hover md heading \(mdBlocks)") }
-            guard mdBlocks.contains(.item("one")) else { fail("hover md list \(mdBlocks)") }
-            guard mdBlocks.contains(.table(header: ["A", "B"], rows: [["1", "2"]])) else {
-                fail("hover md table \(mdBlocks)")
+            session.toggleSelect(id: item.id, command: false)
+            guard session.stagedItem == nil else {
+                fail("stage still open after deselect")
             }
-
-            let page = DropAgentPaths.inbox.appendingPathComponent("hover-quote.html")
-            try? Data("<html><body><h1>报价</h1><script>alert(1)</script><p>第一段。</p></body></html>".utf8).write(to: page)
-            session.admit(urls: [page])
-            guard let html = session.items.first(where: { $0.title == "hover-quote.html" }) else {
-                fail("no hover-quote.html")
+            session.toggleSelect(id: item.id, command: false)
+            guard session.stagedItem?.id == item.id else {
+                fail("stage empty after select")
             }
-            guard html.kind == .file else { fail("html kind \(html.kind)") }
-            guard case .markdown(let htmlBody, _, true) = ItemPeek.hoverBody(for: html) else {
-                fail("hover html \(String(describing: ItemPeek.hoverBody(for: html)))")
-            }
-            guard htmlBody.contains("报价") else { fail("hover html missing heading \(htmlBody)") }
-            guard htmlBody.contains("alert") == false else { fail("hover html kept script") }
-            guard ResultMarkdown.blocks(htmlBody).contains(.heading(1, "报价")) else {
-                fail("hover html not rendered as heading \(ResultMarkdown.blocks(htmlBody))")
-            }
-
-            let json = DropAgentPaths.inbox.appendingPathComponent("hover.json")
-            try? Data("{\"b\":1,\"a\":2}".utf8).write(to: json)
-            session.admit(urls: [json])
-            guard let jsonItem = session.items.first(where: { $0.title == "hover.json" }) else {
-                fail("no hover.json")
-            }
-            guard case .json(let pretty) = ItemPeek.hoverBody(for: jsonItem), pretty.contains("\n") else {
-                fail("hover json \(String(describing: ItemPeek.hoverBody(for: jsonItem)))")
-            }
-
-            for title in ["hover-keep.md", "hover-quote.html", "hover.json"] {
-                if let id = session.items.first(where: { $0.title == title })?.id {
-                    session.remove(id: id)
-                }
-            }
-        }
-
-        private func verifyHoverPlacement() {
-            let size = CGSize(width: HoverPlacement.width, height: 180)
-            let screen = CGRect(x: 0, y: 0, width: 1800, height: 1169)
-            let panel = CGRect(x: 700, y: 400, width: 1040, height: 640)
-            let pad = LivePanelChrome.dockShadowPad
-            let left = HoverPlacement.frame(panel: panel, size: size, screen: screen, paperInset: pad)
-            let paper = panel.insetBy(dx: pad, dy: pad)
-            guard abs(left.maxX - (paper.minX - HoverPlacement.gap)) < 0.5 else {
-                fail("hover not left of panel \(left)")
-            }
-            guard abs(left.maxY - paper.maxY) < 0.5 else {
-                fail("hover not top-aligned \(left)")
-            }
-            let tight = CGRect(x: 8, y: 400, width: 1040, height: 640)
-            let pinned = HoverPlacement.frame(panel: tight, size: size, screen: screen, paperInset: pad)
-            let tightPaper = tight.insetBy(dx: pad, dy: pad)
-            guard HoverPlacement.sitsLeft(visual: pinned, panel: tight, paperInset: pad) else {
-                fail("tight hover flipped right \(pinned)")
-            }
-            guard pinned.minX >= screen.minX + HoverPlacement.screenInset - 0.5 else {
-                fail("tight hover off screen \(pinned)")
-            }
-            guard abs(pinned.minX - (tightPaper.maxX + HoverPlacement.gap)) > 1 else {
-                fail("tight hover used the right slot \(pinned)")
-            }
-            let leftWindow = HoverPlacement.windowFrame(visual: left, sitsLeft: true)
-            guard abs(leftWindow.maxX - paper.minX) < 0.5 else {
-                fail("left hover bridge should touch paper \(leftWindow)")
-            }
-            guard abs(leftWindow.minX - left.minX) < 0.5 else {
-                fail("left hover outer edge moved \(leftWindow)")
-            }
-            guard HoverPlacement.needsScroll(contentHeight: HoverPlacement.maxHeight + 40) else {
-                fail("tall hover should scroll")
-            }
-            guard HoverPlacement.needsScroll(contentHeight: 120) == false else {
-                fail("short hover should not scroll")
-            }
-            guard HoverPlacement.needsScroll(contentHeight: 120, contentWidth: HoverPlacement.width + 40) else {
-                fail("wide hover should scroll")
-            }
-            guard HoverPlacement.needsScroll(contentHeight: 120, contentWidth: HoverPlacement.width) == false else {
-                fail("narrow short hover should not scroll")
-            }
-        }
-
-        private func verifyHoverStay() async {
-            let note = DropAgentPaths.inbox.appendingPathComponent("hover-stay.md")
-            var lines = ["# Stay", ""]
-            lines.append(contentsOf: (1...40).map { "- line \($0) extra words for height" })
-            try? Data(lines.joined(separator: "\n").utf8).write(to: note)
-            session.admit(urls: [note])
-            guard let item = session.items.first(where: { $0.title == "hover-stay.md" }) else {
-                fail("no hover-stay.md")
-            }
-            session.showHover(item: item, screenRect: .zero)
-            guard session.hoverPreview.itemID == item.id else {
-                fail("hover did not show")
-            }
-            guard session.hoverPreview.ignoresMouseEvents == false else {
-                fail("hover must receive mouse")
-            }
-
-            session.hideHover(of: item.id)
-            guard session.hoverPreview.itemID == item.id else {
-                fail("leaving the card hid hover immediately")
-            }
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            guard session.hoverPreview.itemID == item.id else {
-                fail("hover hid before the linger elapsed")
-            }
-            guard HoverPreviewWindow.hideDelayNanos >= 2_000_000_000 else {
-                fail("hover linger should be about two seconds, got \(HoverPreviewWindow.hideDelayNanos)")
-            }
-
-            session.hoverPreview.setPointerInside(true)
-            try? await Task.sleep(nanoseconds: HoverPreviewWindow.hideDelayNanos + 80_000_000)
-            guard session.hoverPreview.itemID == item.id else {
-                fail("hover hid while pointer was inside the preview")
-            }
-
-            session.hoverPreview.isolateFromMouse()
-            session.hoverPreview.setPointerInside(false)
-            session.hideHover()
-            guard session.hoverPreview.itemID == nil else {
-                fail("immediate hideHover left preview visible")
-            }
-
             session.remove(id: item.id)
-        }
-
-        private func verifyHoverPan() {
-            let wide = DropAgentPaths.inbox.appendingPathComponent("hover-wide.md")
-            let header = (1...8).map { "Col\($0)" }.joined(separator: " | ")
-            let rule = (1...8).map { _ in "---" }.joined(separator: " | ")
-            let cells = (1...8).map { "value \($0) extra" }.joined(separator: " | ")
-            try? Data("# Wide\n\n| \(header) |\n| \(rule) |\n| \(cells) |\n".utf8).write(to: wide)
-            session.admit(urls: [wide])
-            guard let table = session.items.first(where: { $0.title == "hover-wide.md" }) else {
-                fail("no hover-wide.md")
-            }
-            let tableSize = hoverNaturalSize(table)
-            guard tableSize.width > HoverPlacement.width + 0.5 else {
-                fail("wide hover table should overflow \(tableSize)")
-            }
-            guard HoverPlacement.needsScroll(contentHeight: tableSize.height, contentWidth: tableSize.width) else {
-                fail("wide hover table should enable scroll \(tableSize)")
-            }
-            session.remove(id: table.id)
-
-            let codeFile = DropAgentPaths.inbox.appendingPathComponent("hover-wide.py")
-            let line = "print(\"" + String(repeating: "abcdefghij", count: 12) + "\")\n"
-            try? Data(line.utf8).write(to: codeFile)
-            session.admit(urls: [codeFile])
-            guard let code = session.items.first(where: { $0.title == "hover-wide.py" }) else {
-                fail("no hover-wide.py")
-            }
-            guard case .code = ItemPeek.hoverBody(for: code) else {
-                fail("hover-wide.py should be code")
-            }
-            let codeSize = hoverNaturalSize(code)
-            guard codeSize.width > HoverPlacement.width + 0.5 else {
-                fail("long hover code should overflow \(codeSize)")
-            }
-            session.remove(id: code.id)
-
-            let note = DropAgentPaths.inbox.appendingPathComponent("hover-narrow.md")
-            try? Data("# Hi\n\nA short paragraph.\n".utf8).write(to: note)
-            session.admit(urls: [note])
-            guard let short = session.items.first(where: { $0.title == "hover-narrow.md" }) else {
-                fail("no hover-narrow.md")
-            }
-            let shortSize = hoverNaturalSize(short)
-            guard shortSize.width <= HoverPlacement.width + 1 else {
-                fail("short hover should stay card width \(shortSize)")
-            }
-            guard HoverPlacement.needsScroll(contentHeight: shortSize.height, contentWidth: shortSize.width) == false else {
-                fail("short hover should not scroll \(shortSize)")
-            }
-            session.remove(id: short.id)
-        }
-
-        private func hoverNaturalSize(_ item: Item) -> CGSize {
-            let probe = NSHostingView(
-                rootView: HoverPreview(item: item, lockCardWidth: false, includeBridge: false)
-            )
-            probe.safeAreaRegions = []
-            probe.sizingOptions = [.intrinsicContentSize]
-            var size = probe.fittingSize
-            if size.width < 40 || size.height < 40 {
-                probe.frame.size = NSSize(width: HoverPlacement.width, height: HoverPlacement.maxHeight)
-                probe.layoutSubtreeIfNeeded()
-                size = probe.fittingSize
-            }
-            return size
         }
 
         private func verifyFileKindGlyph() {

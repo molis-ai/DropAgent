@@ -5,6 +5,7 @@ import SwiftUI
 
 struct ResultPreview: View {
     let item: Item
+    var expanded = false
 
     @ViewBuilder
     var body: some View {
@@ -106,7 +107,7 @@ struct ResultPreview: View {
             Image(nsImage: image)
                 .resizable()
                 .scaledToFit()
-                .frame(maxHeight: 220)
+                .frame(maxHeight: expanded ? 480 : 220)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Palette.line))

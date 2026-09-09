@@ -437,29 +437,6 @@
       padding: 6px 16px 10px; background: var(--panel-2);
     }
     .float.has-log .log { display: block; }
-    .hover-preview {
-      position: fixed; z-index: 40; width: 276px;
-      padding: 12px 14px 14px; border-radius: 12px;
-      background: var(--panel); color: var(--text);
-      box-shadow: 0 18px 44px rgba(15, 18, 22, .22);
-      opacity: 0; transform: translateX(-6px); pointer-events: none;
-      transition: opacity 160ms ease, transform 180ms var(--ease);
-      max-height: 320px; overflow: auto; overflow-x: auto; overflow-y: auto;
-      overscroll-behavior: contain;
-    }
-    .hover-preview.show { opacity: 1; transform: none; pointer-events: auto; }
-    .hover-preview .pv-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
-    .hover-preview .pv-head strong { font-size: 13px; font-weight: 620; }
-    .hover-preview .pv-head span { font-size: 11px; color: var(--muted); }
-    .hover-preview .pv-page { padding: 12px; border-radius: 8px; background: #f4f5f8; font-size: 12px; line-height: 1.55; }
-    .hover-preview .pv-page p { margin: 0 0 8px; }
-    .hover-preview .pv-page h3 { font-size: 14px; font-weight: 620; margin: 0 0 6px; color: var(--text); }
-    .hover-preview .pv-page h4 { font-size: 12px; font-weight: 620; margin: 0 0 6px; color: var(--text); }
-    .hover-preview .pv-page ul { margin: 0 0 8px; padding-left: 1.15em; }
-    .hover-preview .pv-page li { margin: 0 0 2px; }
-    .hover-preview .pv-page p:last-child, .hover-preview .pv-page ul:last-child, .hover-preview .pv-page h3:last-child, .hover-preview .pv-page h4:last-child { margin-bottom: 0; }
-    .hover-preview .pv-hint { font-size: 10px; color: var(--muted); margin: 0 0 6px; }
-    .hover-preview .pv-shot { height: 120px; border-radius: 8px; background: #e7ebf3; position: relative; overflow: hidden; }
     .shelf-bar, .list-toolbar {
       display: flex !important; align-items: center; gap: 10px;
       min-height: 28px; padding: 6px 16px 0;
@@ -1824,7 +1801,6 @@
       <div class="foot-hint" id="footHint">发给终端是会话，不是副本沙箱。</div>
     </div>
     </div>
-    <div class="hover-preview" id="hoverPreview"></div>
     <span id="aiHintText" hidden></span>
     <div id="ai" hidden data-drop="tui"></div>
     <div id="listWrap" hidden></div>
@@ -1864,6 +1840,7 @@
       ["整合", "把几份材料整合成一份", "选几份，合成一份新稿"]
     ];
     const imageTextRecipe = ["文字提取", "提取图片文字", "本机认出图里的字，不发送"];
+    const pdfTextRecipe = ["文字提取", "提取 PDF 文字", "抽出 PDF 里可选中的字，不发送"];
     const kinds = {
       pdf: { tag: "PDF", word: "文档", tone: "pdf" },
       image: { tag: "PNG", word: "图片", tone: "image" },
@@ -1876,6 +1853,7 @@
     const previews = {
       "总结文件": "北美上调 8%，渠道折扣从 Q2 的 14% 收到 9%。附件里的三档套餐都还在，没有砍 SKU。\n\n不能对外讲具体折扣数字。",
       "提取图片文字": "Q3 Pricing\n北美 +8%\n渠道折扣 9%（待确认）",
+      "提取 PDF 文字": "## 第 1 页\n\nQ3 Pricing\n北美 +8%。渠道折扣从 14% 收到 9%。",
       "提取结构化信息": "region: NA\ndelta: +8%\ndiscount: 9%\nsku_cut: false",
       "翻译并保留格式": "North America +8%.\nChannel discount tightened from 14% to 9%.",
       "敏感信息脱敏": "客户名、金额、内部代号已替换为 [REDACTED]。",
@@ -1885,6 +1863,7 @@
     const outputs = {
       "总结文件": "summary.md",
       "提取图片文字": "ocr.md",
+      "提取 PDF 文字": "pdf.md",
       "提取结构化信息": "extracted.json",
       "翻译并保留格式": "Q3-pricing.zh.md",
       "敏感信息脱敏": "Q3-pricing.redacted.pdf",
@@ -2009,6 +1988,15 @@
           ["隔离", "本机识别，不发送"]
         ];
       }
+      const local = recipe === "提取图片文字" || recipe === "提取 PDF 文字";
+      if (local) {
+        return [
+          ["读", count > 1 ? `${count} 份材料的副本` : "这份材料的副本"],
+          ["写", "仅任务目录"],
+          ["网络", "关"],
+          ["隔离", recipe === "提取 PDF 文字" ? "本机抽字，不发送" : "本机识别，不发送"]
+        ];
+      }
       if (!state.hasRecipe) return [["读", "不能运行"], ["写", "—"], ["网络", "—"], ["隔离", "无执行入口"]];
       const net = recipe === "翻译并保留格式" ? "开" : "关";
       return [
@@ -2054,12 +2042,16 @@
       const id = state.anchor || state.selected[0] || "";
       const picked = (state.selected || []).map((sid) => state.items.find((it) => it.id === sid)).filter(Boolean);
       const allImage = picked.length > 0 && picked.every((it) => it.kind === "image");
+      const allPdf = picked.length > 0 && picked.every((it) => it.kind === "pdf");
       const recipeOff = !state.hasRecipe || !state.selected.length;
       const cmds = recipes.map(([short, full]) =>
         `<button type="button" class="act" data-act="recipe" data-id="${id}" data-recipe="${full}" ${recipeOff ? "disabled" : ""}>${recipeIcons[short] || ""}<span>${short}</span></button>`
       );
       if (allImage) {
         const [short, full] = imageTextRecipe;
+        cmds.push(`<button type="button" class="act" data-act="recipe" data-id="${id}" data-recipe="${full}">${recipeIcons[short] || ""}<span>${short}</span></button>`);
+      } else if (allPdf) {
+        const [short, full] = pdfTextRecipe;
         cmds.push(`<button type="button" class="act" data-act="recipe" data-id="${id}" data-recipe="${full}">${recipeIcons[short] || ""}<span>${short}</span></button>`);
       }
       cmds.push(`<button type="button" class="act ghost ${state.otherOpen ? "on" : ""}" data-act="other" ${state.hasTui ? "" : "disabled"}>${recipeIcons["其他"]}<span>其他</span></button>`);
@@ -2536,88 +2528,9 @@
     });
     $("composer").addEventListener("submit", (e) => { e.preventDefault(); sendFromComposer(); });
 
-    let previewTimer = 0;
     function escapeHTML(s) {
       return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
     }
-    function mdPreview(src) {
-      return String(src).trim().split(/\n{2,}/).map((block) => {
-        const lines = block.split("\n").filter((l) => l.length);
-        if (!lines.length) return "";
-        const first = lines[0].trim();
-        const heading = first.match(/^(#{1,3})\s+(.*)$/);
-        if (heading && lines.length === 1) {
-          const tag = heading[1].length === 1 ? "h3" : "h4";
-          return `<${tag}>${escapeHTML(heading[2])}</${tag}>`;
-        }
-        if (lines.every((l) => /^[-*]\s+/.test(l.trim()))) {
-          return `<ul>${lines.map((l) => `<li>${escapeHTML(l.trim().replace(/^[-*]\s+/, ""))}</li>`).join("")}</ul>`;
-        }
-        return `<p>${escapeHTML(block).replace(/\n/g, "<br>")}</p>`;
-      }).join("");
-    }
-    function previewHTML(it, asResult) {
-      if (!it) return "";
-      const title = it.output || it.name;
-      const htmlFile = /\.html?$/i.test(title);
-      if (asResult || it.kind === "md" || htmlFile) {
-        const body = previews[it.recipe] || snippetFor(it);
-        const hint = htmlFile ? `<p class="pv-hint">从 HTML 抽出的正文，不是网页预览。</p>` : "";
-        return `<div class="pv-head"><strong>${escapeHTML(title)}</strong><span>${asResult ? "结果" : htmlFile ? "文件" : "文稿"}</span></div><div class="pv-page">${hint}${mdPreview(body)}</div>`;
-      }
-      if (it.kind === "image") return `<div class="pv-head"><strong>${escapeHTML(title)}</strong><span>PNG 图片</span></div><div class="pv-shot"></div>`;
-      if (it.kind === "pdf") return `<div class="pv-head"><strong>${escapeHTML(title)}</strong><span>PDF · 文档</span></div><div class="pv-page">${escapeHTML(snippetFor(it))}</div>`;
-      return `<div class="pv-head"><strong>${escapeHTML(title)}</strong><span>${kindOf(it.kind).word}</span></div><div class="pv-page">${escapeHTML(snippetFor(it) || "").replace(/\n/g, "<br>")}</div>`;
-    }
-    function showHover(el) {
-      const id = el.dataset.id;
-      const asResult = el.dataset.act === "pick-result";
-      const it = asResult ? state.results.find((x) => x.id === id) : itemById(id);
-      const pv = $("hoverPreview");
-      if (!it) return;
-      pv.innerHTML = previewHTML(it, asResult);
-      const panelBox = $("panel").getBoundingClientRect();
-      const width = 276;
-      const gap = 8;
-      let left = Math.max(18, panelBox.left - gap - width);
-      pv.style.left = left + "px";
-      pv.style.top = panelBox.top + "px";
-      pv.classList.add("show");
-    }
-    function hideHover() { $("hoverPreview").classList.remove("show"); }
-    let hoverPinned = false;
-    function hideHoverSoon() {
-      clearTimeout(previewTimer);
-      previewTimer = setTimeout(() => {
-        if (hoverPinned) return;
-        hideHover();
-      }, 2000);
-    }
-    function bindHover(root) {
-      root.addEventListener("pointerover", (e) => {
-        const el = e.target.closest(".file-card");
-        if (!el || !root.contains(el)) return;
-        clearTimeout(previewTimer);
-        previewTimer = setTimeout(() => showHover(el), 180);
-      });
-      root.addEventListener("pointerout", (e) => {
-        const el = e.target.closest(".file-card");
-        if (!el) return;
-        const next = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".file-card");
-        if (next === el) return;
-        hideHoverSoon();
-      });
-    }
-    bindHover($("list"));
-    bindHover($("resultStack"));
-    $("hoverPreview").addEventListener("pointerenter", () => {
-      hoverPinned = true;
-      clearTimeout(previewTimer);
-    });
-    $("hoverPreview").addEventListener("pointerleave", () => {
-      hoverPinned = false;
-      hideHoverSoon();
-    });
     const engineMenu = $("engineMenu");
     const agentPill = $("agentPill");
     agentPill.addEventListener("click", (e) => {

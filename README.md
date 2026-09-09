@@ -47,7 +47,7 @@ DropAgent 给它们一个项目之外的投递口：
 | 转 Markdown | `converted.md` |
 | 整合（至少两份材料） | `brief.md` |
 
-选中图片时还有「文字提取」：本机 Vision 写出 `ocr.md`，不需要终端 Agent，也不上网。
+选中图片或 PDF 时还有「文字提取」：图片用本机 Vision 写出 `ocr.md`，PDF 抽出可选中文字写出 `pdf.md`。都不需要终端 Agent，也不上网。扫描件 PDF 会标明没有可选中的文字。
 
 没装可用 CLI 时，不会偷偷调云端。架子仍可用来暂存和拖出。
 

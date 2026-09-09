@@ -37,9 +37,8 @@ struct RecipeChooser: View {
 
     private var visibleRecipes: [RecipeID] {
         RecipeID.allCases.filter { recipe in
-            if recipe == .imageText {
-                let batch = session.recipeBatch
-                return batch.isEmpty == false && batch.allSatisfy { $0.kind == .image }
+            if RecipeCatalog.spec(recipe).requiresAgent == false {
+                return session.recipeFitsSelection(recipe)
             }
             return true
         }
@@ -126,6 +125,7 @@ enum RecipeGlyph {
         case .summarize: return "text.alignleft"
         case .extract: return "curlybraces"
         case .imageText: return "text.viewfinder"
+        case .pdfText: return "doc.text"
         case .translate: return "globe"
         case .redact: return "eye.slash"
         case .toMarkdown: return "doc.richtext"
