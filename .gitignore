@@ -9,3 +9,6 @@ macos/.build/
 macos/.swiftpm/
 macos/dist/
 dist/
+
+# 验收原始日志保留在本地，仓库只保留结论与复现说明
+/docs/验收/**/*.log
