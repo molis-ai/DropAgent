@@ -173,6 +173,7 @@ extension AppDelegate {
         if type == .leftMouseUp {
             session.endShelfDrag()
             session.endClipDrag()
+            session.endActionDrag()
             if exportingFromPanel {
                 exportingFromPanel = false
                 scheduleRecess()

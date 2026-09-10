@@ -28,6 +28,7 @@ enum DropAgentCheck {
             try await captureService()
             try await liveWebAdmit()
             try ingest()
+            try folderListing()
             try stageEdit()
             try await ingestDropURLCapture()
             try ingestPasteboard()
@@ -1073,6 +1074,29 @@ private func ingest() throws {
     let noteItem = ingest.admit(urls: [noteFile]).admitted.first
     expectEqual(noteItem?.kind, .markdown)
     expectEqual(noteItem?.displayTag, "MD")
+}
+
+private func folderListing() throws {
+    let root = try tempDir()
+    let folder = root.appendingPathComponent("pack", isDirectory: true)
+    let nested = folder.appendingPathComponent("sub", isDirectory: true)
+    try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+    try Data("# notes\n".utf8).write(to: folder.appendingPathComponent("notes.md"))
+    try Data("inner\n".utf8).write(to: nested.appendingPathComponent("inner.txt"))
+    let outside = root.appendingPathComponent("secret.txt")
+    try Data("nope\n".utf8).write(to: outside)
+    let link = folder.appendingPathComponent("escape.txt")
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outside)
+
+    let kids = FolderListing.children(of: folder, stayingInside: folder)
+    expectEqual(kids.map(\.name), ["sub", "notes.md"])
+    expect(kids[0].isDirectory, "sub is directory")
+    expect(kids[1].isDirectory == false, "notes is file")
+    expectEqual(FolderListing.firstFile(in: folder, stayingInside: folder)?.lastPathComponent ?? "", "notes.md")
+    expect(FolderListing.contains(folder, root: folder), "folder contains itself")
+    expect(FolderListing.contains(nested, root: folder), "nested inside")
+    expect(FolderListing.contains(outside, root: folder) == false, "outside stays out")
+    expect(FolderListing.children(of: outside, stayingInside: folder).isEmpty, "do not list outside")
 }
 
 private func stageEdit() throws {

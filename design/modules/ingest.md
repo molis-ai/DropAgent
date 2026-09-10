@@ -22,6 +22,8 @@ captureDroppedPages(ids:) async          // IngestCapture
 admitCurrentPage(token:) async throws -> Item  // IngestCapture
 StageEdit.editableURL / read / schedule / flush / write
     // 只写 Inbox/Jobs 内文字副本；不写 sourceURL 原件
+FolderListing.children / firstFile
+    // 内容台文件夹树；只读副本内条目
 FrontAdmit.classify / decide / collect
 PageAdmit.freezeFrontBrowser / snapshot / decide / failure
 PageAdmit.setupStatus / requestTrustIfNeeded / requestAutomation / privacyTarget

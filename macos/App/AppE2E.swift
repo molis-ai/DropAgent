@@ -618,6 +618,38 @@ enum AppE2E {
             guard session.actionSlots.contains(.recipe(.redact)) == false else {
                 fail("redact still on bar")
             }
+            let sizes: [String: CGFloat] = [
+                RecipeID.summarize.rawValue: 80,
+                RecipeID.extract.rawValue: 70,
+                RecipeID.translate.rawValue: 90,
+            ]
+            let start = [RecipeID.summarize.rawValue, RecipeID.extract.rawValue, RecipeID.translate.rawValue]
+            let insert = ActionBarReorder.insertIndex(
+                dragging: RecipeID.summarize.rawValue,
+                center: 200,
+                order: start,
+                sizes: sizes
+            )
+            let preview = ActionBarReorder.previewOrder(
+                dragging: RecipeID.summarize.rawValue,
+                insert: insert,
+                order: start
+            )
+            guard preview == [RecipeID.extract.rawValue, RecipeID.translate.rawValue, RecipeID.summarize.rawValue] else {
+                fail("live reorder preview \(preview)")
+            }
+            session.moveSlot(id: RecipeID.summarize.rawValue, to: RecipeID.translate.rawValue)
+            let order = session.actionSlots.map(\.id)
+            guard let translateAt = order.firstIndex(of: RecipeID.translate.rawValue),
+                  order.indices.contains(translateAt + 1),
+                  order[translateAt + 1] == RecipeID.summarize.rawValue
+            else {
+                fail("summarize did not drag after translate \(order)")
+            }
+            session.moveSlot(id: RecipeID.summarize.rawValue, to: RecipeID.extract.rawValue)
+            guard session.actionSlots.map(\.id).first == RecipeID.summarize.rawValue else {
+                fail("summarize did not drag back to front \(session.actionSlots.map(\.id))")
+            }
             session.shortcutDraft = ShortcutDraft(
                 id: nil,
                 name: "抽付款日",
@@ -1197,6 +1229,34 @@ enum AppE2E {
             }
             guard item.displayTag == "DIR" else {
                 fail("folder tag \(item.displayTag)")
+            }
+            session.settingsOpen = false
+            session.paneFocus = .input
+            session.shelf.setSelection([item.id])
+            session.refresh()
+            await settle()
+            let copyRoot = item.parts.first?.url ?? item.sourceURL
+            let listed = FolderListing.children(of: copyRoot, stayingInside: copyRoot).map(\.name)
+            guard listed.contains("notes.md") else {
+                fail("folder listing \(listed) root=\(copyRoot.path)")
+            }
+            hosting?.layoutSubtreeIfNeeded()
+            window?.displayIfNeeded()
+            guard let host = hosting else {
+                fail("no host")
+                return
+            }
+            guard viewContains(host, needle: "content-stage") else {
+                fail("folder content stage missing")
+            }
+            guard viewContains(host, needle: "folder-tree") else {
+                fail("folder tree missing")
+            }
+            guard viewContains(host, needle: "notes.md") else {
+                fail("folder tree missing notes.md")
+            }
+            guard viewContains(host, needle: "folder-notes") else {
+                fail("folder preview missing body")
             }
             session.aiTab = .result
             await settle()

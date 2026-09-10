@@ -10,9 +10,15 @@ struct ContentStage: View {
         StageEdit.editableURL(item, inboxRoot: DropAgentPaths.inbox, jobsRoot: DropAgentPaths.jobs)
     }
 
+    private var folderRoot: URL {
+        item.parts.first?.url ?? item.sourceURL
+    }
+
     var body: some View {
         Group {
-            if let url = editURL, session.stageEditing {
+            if item.kind == .folder {
+                FolderStage(root: folderRoot)
+            } else if let url = editURL, session.stageEditing {
                 editor(url)
             } else {
                 reading
@@ -30,6 +36,7 @@ struct ContentStage: View {
         .padding(.bottom, 10)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.t("内容 \(item.title)", "Content \(item.title)"))
+        .background(AccessibleID(identifier: "content-stage").frame(width: 0, height: 0).allowsHitTesting(false))
         .accessibilityIdentifier("content-stage")
         .onChange(of: item.id) { _, _ in
             session.stopStageEdit()

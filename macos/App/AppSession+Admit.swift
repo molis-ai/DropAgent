@@ -50,6 +50,10 @@ extension AppSession {
     }
 
     func admitDrop(providers: [NSItemProvider]) {
+        if draggingActionID != nil {
+            finishExternalDrag()
+            return
+        }
         if isShelfDrag || PasteboardService.isShelfDrag() {
             finishExternalDrag()
             return

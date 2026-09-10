@@ -1,3 +1,4 @@
+import AppKit
 import DropAgentJob
 import DropAgentShelf
 import Foundation
@@ -59,6 +60,50 @@ struct ShortcutDraft: Equatable {
 
     static func edit(_ action: ShortcutAction) -> ShortcutDraft {
         ShortcutDraft(id: action.id, name: action.name, kinds: action.kindSet, prompt: action.prompt)
+    }
+}
+
+enum ActionBarReorder {
+    static func origin(id: String, order: [String], sizes: [String: CGFloat]) -> CGFloat {
+        var cursor: CGFloat = 0
+        for item in order {
+            if item == id { return cursor }
+            cursor += sizes[item] ?? 0
+        }
+        return cursor
+    }
+
+    static func insertIndex(
+        dragging: String,
+        center: CGFloat,
+        order: [String],
+        sizes: [String: CGFloat]
+    ) -> Int {
+        var index = 0
+        for id in order where id != dragging {
+            let mid = origin(id: id, order: order, sizes: sizes) + (sizes[id] ?? 0) / 2
+            if center < mid { return index }
+            index += 1
+        }
+        return index
+    }
+
+    static func previewOrder(dragging: String, insert: Int, order: [String]) -> [String] {
+        var rest = order.filter { $0 != dragging }
+        rest.insert(dragging, at: min(max(insert, 0), rest.count))
+        return rest
+    }
+
+    static func offset(
+        id: String,
+        dragging: String?,
+        start: [String],
+        preview: [String],
+        sizes: [String: CGFloat]
+    ) -> CGFloat {
+        guard let dragging, start.isEmpty == false, preview.isEmpty == false else { return 0 }
+        if id == dragging { return 0 }
+        return origin(id: id, order: preview, sizes: sizes) - origin(id: id, order: start, sizes: sizes)
     }
 }
 

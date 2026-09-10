@@ -4,6 +4,14 @@ import SwiftUI
 
 struct SettingsActions: View {
     @ObservedObject var session: AppSession
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var draggingID: String?
+    @State private var dragLocation = CGPoint.zero
+    @State private var grabOffset: CGFloat = 0
+    @State private var dragOrder: [String] = []
+    @State private var previewIDs: [String] = []
+    @State private var rowFrames: [String: CGRect] = [:]
+    @State private var startFrames: [String: CGRect] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -11,8 +19,31 @@ struct SettingsActions: View {
             Text(Copy.t("「其他」一直在加号前面，不能拿掉。", "Other always sits before Add and cannot be hidden."))
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.faint)
-            ForEach(Array(session.actionSlots.enumerated()), id: \.element.id) { index, slot in
-                slotRow(slot, index: index)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(session.actionSlots) { slot in
+                    slotRow(slot)
+                        .opacity(draggingID == slot.id ? 0 : 1)
+                        .offset(y: neighborOffset(slot.id))
+                        .animation(
+                            reduceMotion || draggingID == slot.id ? nil : Palette.selectionMotion,
+                            value: previewIDs
+                        )
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.preference(
+                                    key: ActionChipFrameKey.self,
+                                    value: [slot.id: geo.frame(in: .named("settings-actions"))]
+                                )
+                            }
+                        )
+                }
+            }
+            .coordinateSpace(name: "settings-actions")
+            .overlay(alignment: .topLeading) { floatingRow }
+            .onPreferenceChange(ActionChipFrameKey.self) { frames in
+                if draggingID == nil {
+                    rowFrames = frames
+                }
             }
             if hiddenSlots.isEmpty == false {
                 SettingsForm.sectionTitle(Copy.t("已从栏上拿掉", "Hidden from the bar"))
@@ -73,6 +104,7 @@ struct SettingsActions: View {
             }
         }
         .accessibilityIdentifier("settings-actions")
+        .scrollDisabled(draggingID != nil)
     }
 
     private var hiddenSlots: [ActionSlot] {
@@ -86,28 +118,16 @@ struct SettingsActions: View {
         return slots
     }
 
-    private func slotRow(_ slot: ActionSlot, index: Int) -> some View {
+    private func slotRow(_ slot: ActionSlot) -> some View {
         HStack(spacing: 8) {
+            DragGrip()
+                .frame(width: 8, height: 22)
+                .accessibilityIdentifier("settings-handle-\(slot.id)")
+                .highPriorityGesture(settingsDrag(for: slot.id))
             Text(slotTitle(slot))
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.text)
-            Spacer()
-            Button {
-                session.moveSlot(id: slot.id, by: -1)
-            } label: {
-                Image(systemName: "chevron.up")
-            }
-            .buttonStyle(.plain)
-            .disabled(index == 0)
-            .accessibilityIdentifier("settings-up-\(slot.id)")
-            Button {
-                session.moveSlot(id: slot.id, by: 1)
-            } label: {
-                Image(systemName: "chevron.down")
-            }
-            .buttonStyle(.plain)
-            .disabled(index == session.actionSlots.count - 1)
-            .accessibilityIdentifier("settings-down-\(slot.id)")
+            Spacer(minLength: 0)
             Button(Copy.t("拿掉", "Hide")) {
                 session.hideSlot(slot)
             }
@@ -116,6 +136,89 @@ struct SettingsActions: View {
             .accessibilityIdentifier("settings-hide-\(slot.id)")
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var floatingRow: some View {
+        if let id = draggingID, let slot = session.actionSlots.first(where: { $0.id == id }) {
+            slotRow(slot)
+                .background(Palette.panel)
+                .scaleEffect(reduceMotion ? 1 : 1.02)
+                .shadow(
+                    color: Color.black.opacity(reduceMotion ? 0 : 0.12),
+                    radius: reduceMotion ? 0 : 8,
+                    y: reduceMotion ? 0 : 3
+                )
+                .offset(y: floatingY)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func settingsDrag(for id: String) -> some Gesture {
+        DragGesture(minimumDistance: 1, coordinateSpace: .named("settings-actions"))
+            .onChanged { value in
+                if draggingID == nil {
+                    let order = session.actionSlots.map(\.id)
+                    dragOrder = order
+                    previewIDs = order
+                    startFrames = rowFrames
+                    grabOffset = value.startLocation.y - (rowFrames[id]?.minY ?? 0)
+                    draggingID = id
+                    session.beginActionDrag(id: id)
+                    NSCursor.closedHand.set()
+                }
+                dragLocation = value.location
+                updateSettingsPreview()
+            }
+            .onEnded { _ in
+                commitSettingsDrag()
+            }
+    }
+
+    private func updateSettingsPreview() {
+        guard let draggingID else { return }
+        let sizes = startFrames.mapValues(\.height)
+        let height = sizes[draggingID] ?? 0
+        let origin = startFrames[dragOrder.first ?? ""]?.minY ?? 0
+        let center = floatingY + height / 2 - origin
+        let insert = ActionBarReorder.insertIndex(
+            dragging: draggingID,
+            center: center,
+            order: dragOrder,
+            sizes: sizes
+        )
+        let preview = ActionBarReorder.previewOrder(dragging: draggingID, insert: insert, order: dragOrder)
+        if preview != previewIDs {
+            previewIDs = preview
+        }
+    }
+
+    private func commitSettingsDrag() {
+        if previewIDs.isEmpty == false {
+            session.applyActionOrder(previewIDs)
+        }
+        session.endActionDrag()
+        draggingID = nil
+        dragLocation = .zero
+        grabOffset = 0
+        dragOrder = []
+        previewIDs = []
+        startFrames = [:]
+        NSCursor.arrow.set()
+    }
+
+    private var floatingY: CGFloat {
+        dragLocation.y - grabOffset
+    }
+
+    private func neighborOffset(_ id: String) -> CGFloat {
+        ActionBarReorder.offset(
+            id: id,
+            dragging: draggingID,
+            start: dragOrder,
+            preview: previewIDs,
+            sizes: startFrames.mapValues(\.height)
+        )
     }
 
     private func slotTitle(_ slot: ActionSlot) -> String {

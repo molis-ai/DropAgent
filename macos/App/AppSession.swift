@@ -64,6 +64,7 @@ final class AppSession: ObservableObject {
     @Published var dockHeight: CGFloat = LivePanelChrome.dockMinHeight
     @Published var otherOpen = false
     @Published var actionBarEditing = false
+    @Published var draggingActionID: String?
     @Published var shortcutDraft: ShortcutDraft?
     @Published var stageEditing = false
     @Published var recipeOptions: [RecipeID: String] = [:]

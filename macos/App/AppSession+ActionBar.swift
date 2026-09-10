@@ -1,3 +1,4 @@
+import AppKit
 import DropAgentJob
 import DropAgentShelf
 import Foundation
@@ -189,12 +190,58 @@ extension AppSession {
         objectWillChange.send()
     }
 
+    func beginActionDrag(id: String) {
+        draggingActionID = id
+    }
+
+    func endActionDrag() {
+        guard draggingActionID != nil else { return }
+        draggingActionID = nil
+    }
+
+    func applyActionOrder(_ ids: [String]) {
+        let visible = Set(prefs.actionOrder)
+        let next = ids.filter { visible.contains($0) }
+        guard next.isEmpty == false else { return }
+        var seen = Set(next)
+        var order = next
+        for id in prefs.actionOrder where seen.contains(id) == false {
+            order.append(id)
+            seen.insert(id)
+        }
+        guard order != prefs.actionOrder else { return }
+        prefs.actionOrder = order
+        prefs.save()
+        objectWillChange.send()
+    }
+
     func moveSlot(id: String, by offset: Int) {
         guard let index = prefs.actionOrder.firstIndex(of: id) else { return }
         let next = index + offset
         guard prefs.actionOrder.indices.contains(next) else { return }
         prefs.actionOrder.swapAt(index, next)
         prefs.save()
+        objectWillChange.send()
+    }
+
+    func moveSlot(id: String, to targetID: String) {
+        guard id != targetID else { return }
+        var order = prefs.actionOrder
+        guard let from = order.firstIndex(of: id),
+              let to = order.firstIndex(of: targetID)
+        else { return }
+        if from < to {
+            if from + 1 == to { return }
+            order.move(fromOffsets: IndexSet(integer: from), toOffset: to + 1)
+        } else {
+            if from == to + 1 { return }
+            order.move(fromOffsets: IndexSet(integer: from), toOffset: to)
+        }
+        guard order != prefs.actionOrder else { return }
+        prefs.actionOrder = order
+        if draggingActionID == nil {
+            prefs.save()
+        }
         objectWillChange.send()
     }
 
