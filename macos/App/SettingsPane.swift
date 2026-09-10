@@ -2,6 +2,7 @@ import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case setup
+    case actions
     case shortcuts
     case guide
     case machine
@@ -12,6 +13,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .setup: return Copy.t("使用准备", "Setup")
+        case .actions: return Copy.t("动作", "Actions")
         case .shortcuts: return Copy.t("快捷键", "Shortcuts")
         case .guide: return Copy.t("能做什么", "How It Works")
         case .machine: return Copy.t("本机", "This Mac")
@@ -104,6 +106,8 @@ struct SettingsPane: View {
                 SetupChecklist(session: session, includeHotKeys: false)
             }
             .accessibilityIdentifier("settings-setup")
+        case .actions:
+            SettingsActions(session: session)
         case .shortcuts:
             SettingsShortcuts(session: session)
         case .guide:

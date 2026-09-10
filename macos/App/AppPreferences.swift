@@ -64,6 +64,8 @@ struct AppPreferences: Codable, Equatable {
     var copyHotKey: HotKeyChord
     var deleteHotKey: HotKeyChord
     var showDropWheel: Bool
+    var actionOrder: [String]
+    var shortcuts: [ShortcutAction]
 
     static let `default` = AppPreferences()
 
@@ -80,7 +82,9 @@ struct AppPreferences: Codable, Equatable {
         pasteHotKey: HotKeyChord = .pasteDefault,
         copyHotKey: HotKeyChord = .copyDefault,
         deleteHotKey: HotKeyChord = .deleteDefault,
-        showDropWheel: Bool = true
+        showDropWheel: Bool = true,
+        actionOrder: [String] = ActionBarLayout.defaultOrder,
+        shortcuts: [ShortcutAction] = []
     ) {
         self.appearance = appearance
         self.language = language
@@ -95,6 +99,8 @@ struct AppPreferences: Codable, Equatable {
         self.copyHotKey = copyHotKey
         self.deleteHotKey = deleteHotKey
         self.showDropWheel = showDropWheel
+        self.actionOrder = actionOrder.isEmpty ? ActionBarLayout.defaultOrder : actionOrder
+        self.shortcuts = shortcuts
     }
 
     init(from decoder: Decoder) throws {
@@ -112,6 +118,9 @@ struct AppPreferences: Codable, Equatable {
         copyHotKey = try container.decodeIfPresent(HotKeyChord.self, forKey: .copyHotKey) ?? .copyDefault
         deleteHotKey = try container.decodeIfPresent(HotKeyChord.self, forKey: .deleteHotKey) ?? .deleteDefault
         showDropWheel = try container.decodeIfPresent(Bool.self, forKey: .showDropWheel) ?? true
+        let order = try container.decodeIfPresent([String].self, forKey: .actionOrder) ?? []
+        actionOrder = order.isEmpty ? ActionBarLayout.defaultOrder : order
+        shortcuts = try container.decodeIfPresent([ShortcutAction].self, forKey: .shortcuts) ?? []
     }
 
     enum CodingKeys: String, CodingKey {
@@ -128,6 +137,8 @@ struct AppPreferences: Codable, Equatable {
         case copyHotKey
         case deleteHotKey
         case showDropWheel
+        case actionOrder
+        case shortcuts
     }
 
     var inboxURL: URL? {

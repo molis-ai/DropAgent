@@ -76,12 +76,11 @@ extension AppSession {
         guard hasRecipe else { return Copy.t("无执行入口", "No exec entry") }
         if recipePresence.isolation != .workspace { return Copy.t("未确认", "Unconfirmed") }
         let wants = confirmRecipeID.map { RecipeCatalog.spec($0).needsNetwork } ?? false
+        if confirmRecipeID == .shortcut { return Copy.t("关", "Off") }
         return wants ? Copy.t("开", "On") : Copy.t("关", "Off")
     }
     var confirmRecipeID: RecipeID? {
-        let title = selectedItems.first(where: { $0.status == .confirm })?.recipe
-            ?? selectedItems.first?.recipe
-        return RecipeID.fromStored(title)
+        RecipeID.fromStored(confirmStoredRecipe)
     }
     var shortcutFooter: String {
         let keys = HotKeyCopy.hotkeyLine(hasAgent: hasAgent, toggleOK: hotKeyToggleOK, captureOK: hotKeyCaptureOK, filesOK: hotKeyFilesOK)
@@ -112,7 +111,10 @@ extension AppSession {
     }
 
     var canConfirmRun: Bool {
-        guard let recipe = confirmRecipeID else { return false }
+        if shortcut(stored: confirmStoredRecipe) != nil {
+            return canConfirmShortcut
+        }
+        guard let recipe = confirmRecipeID, recipe != .shortcut else { return false }
         return canRunRecipe(recipe)
     }
 
@@ -165,7 +167,7 @@ extension AppSession {
             }
             return "\(tuiTitle) 没有无界面执行入口，动作不能跑。点「其他」可发给 \(tuiTitle)。"
         }
-        if RecipeID.allCases.contains(where: recipeFitsSelection) {
+        if RecipeID.barRecipes.contains(where: recipeFitsSelection) {
             return "点「其他」写一句话，发给 \(tuiTitle) 终端。"
         }
         if recipeBatch.contains(where: { $0.kind == .file }) && recipeBatch.count < RecipeID.brief.minimumCount {

@@ -101,6 +101,8 @@ extension RecipeCatalog {
                 ],
                 defaultID: "full"
             )
+        case .shortcut:
+            return RecipeChoiceGroup(label: "", hint: "", choices: [], defaultID: "")
         }
     }
 
@@ -183,6 +185,8 @@ extension RecipeCatalog {
             default:
                 return "把这些材料整合成一份完整 Markdown，作为最终回复。"
             }
+        case .shortcut:
+            return "按用户给出的说明处理当前工作目录里的材料，最终回复为 Markdown。"
         }
     }
 }

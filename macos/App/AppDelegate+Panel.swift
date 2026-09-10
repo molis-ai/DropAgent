@@ -56,6 +56,7 @@ extension AppDelegate {
     }
 
     func hidePanel() {
+        session.stopStageEdit()
         session.closeClipHistory()
         cancelRecess()
         guard let panel, panel.isVisible else { return }

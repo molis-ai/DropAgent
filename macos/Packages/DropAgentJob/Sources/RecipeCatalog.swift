@@ -10,6 +10,7 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
     case redact
     case toMarkdown
     case brief
+    case shortcut
 
     public var shortTitle: String {
         switch self {
@@ -21,6 +22,7 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
         case .redact: return "脱敏"
         case .toMarkdown: return "转 MD"
         case .brief: return "整合"
+        case .shortcut: return "快捷"
         }
     }
 
@@ -34,6 +36,7 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
         case .redact: return "敏感信息脱敏"
         case .toMarkdown: return "转换为 Markdown"
         case .brief: return "把几份材料整合成一份"
+        case .shortcut: return "快捷动作"
         }
     }
 
@@ -51,9 +54,28 @@ public enum RecipeID: String, Codable, Sendable, CaseIterable {
             return .imageText
         case "提取 PDF 文字":
             return .pdfText
+        case "快捷动作", "快捷":
+            return .shortcut
         default:
+            if stored.hasPrefix(Self.shortcutPrefix) { return .shortcut }
             return allCases.first { $0.fullTitle == stored || $0.shortTitle == stored }
         }
+    }
+
+    public static let shortcutPrefix = "shortcut:"
+
+    public static func shortcutStoredID(_ stored: String?) -> String? {
+        guard let stored, stored.hasPrefix(shortcutPrefix) else { return nil }
+        let id = String(stored.dropFirst(shortcutPrefix.count))
+        return id.isEmpty ? nil : id
+    }
+
+    public static func storedShortcut(id: String) -> String {
+        shortcutPrefix + id
+    }
+
+    public static var barRecipes: [RecipeID] {
+        allCases.filter { $0 != .shortcut }
     }
 }
 
@@ -164,6 +186,14 @@ public enum RecipeCatalog {
                 id: id,
                 acceptedKinds: [.pdf, .image, .markdown, .clip, .url, .web, .folder, .file],
                 outputFileName: "brief.md",
+                needsNetwork: false,
+                prompt: prompt(for: id)
+            )
+        case .shortcut:
+            return RecipeSpec(
+                id: id,
+                acceptedKinds: Set(ItemKind.allCases),
+                outputFileName: "output.md",
                 needsNetwork: false,
                 prompt: prompt(for: id)
             )

@@ -28,6 +28,7 @@ enum DropAgentCheck {
             try await captureService()
             try await liveWebAdmit()
             try ingest()
+            try stageEdit()
             try await ingestDropURLCapture()
             try ingestPasteboard()
             try await ingestDropProvider()
@@ -1034,6 +1035,11 @@ private func ingest() throws {
     expectEqual(RecipeCatalog.spec(.pdfText).outputFileName, "pdf.md")
     expectEqual(RecipeCatalog.spec(.pdfText).requiresAgent, false)
     expectEqual(RecipeCatalog.spec(.pdfText).needsNetwork, false)
+    expectEqual(JobOutputName.markdown(originalTitle: "报价.pdf", action: "抽付款日"), "报价-抽付款日.md")
+    expectEqual(JobOutputName.markdown(originalTitle: "a/b:c.md", action: "总结"), "b-c-总结.md")
+    expectEqual(RecipeID.fromStored("shortcut:abc"), .shortcut)
+    expectEqual(RecipeID.shortcutStoredID("shortcut:abc"), "abc")
+    expectEqual(RecipeCatalog.spec(.shortcut).requiresAgent, true)
 
     let rtfFile = root.appendingPathComponent("note.rtf")
     try Data("{\\rtf1 hello}".utf8).write(to: rtfFile)
@@ -1067,6 +1073,143 @@ private func ingest() throws {
     let noteItem = ingest.admit(urls: [noteFile]).admitted.first
     expectEqual(noteItem?.kind, .markdown)
     expectEqual(noteItem?.displayTag, "MD")
+}
+
+private func stageEdit() throws {
+    let root = try tempDir()
+    let inbox = root.appendingPathComponent("Inbox")
+    let jobs = root.appendingPathComponent("Jobs")
+    let shelf = ShelfStore(fileURL: root.appendingPathComponent("shelf.json"))
+    let ingest = IngestService(
+        shelf: shelf,
+        inboxRoot: inbox,
+        capture: CaptureService(browser: FailBrowser(), fetcher: FailFetch(), snapshot: FailSnap())
+    )
+
+    let original = root.appendingPathComponent("note.md")
+    try Data("# keep\n".utf8).write(to: original)
+    let note = ingest.admit(urls: [original]).admitted[0]
+    let copy = StageEdit.editableURL(note, inboxRoot: inbox, jobsRoot: jobs)
+    expect(copy != nil, "markdown copy is editable")
+    expect(copy?.path != original.path, "editable url is not the original")
+    try StageEdit.write("# edited\n", to: copy!, inboxRoot: inbox, jobsRoot: jobs)
+    expectEqual(try String(contentsOf: original, encoding: .utf8), "# keep\n")
+    expectEqual(try String(contentsOf: copy!, encoding: .utf8), "# edited\n")
+    do {
+        try StageEdit.write("nope", to: original, inboxRoot: inbox, jobsRoot: jobs)
+        fail("write original")
+    } catch let error as StageEditError {
+        expectEqual(error, .notOwned)
+    }
+
+    let emptyFile = root.appendingPathComponent("empty.md")
+    try Data().write(to: emptyFile)
+    let empty = ingest.admit(urls: [emptyFile]).admitted[0]
+    let emptyCopy = StageEdit.editableURL(empty, inboxRoot: inbox, jobsRoot: jobs)
+    expect(emptyCopy != nil, "empty markdown is editable")
+    try StageEdit.write("now it has words", to: emptyCopy!, inboxRoot: inbox, jobsRoot: jobs)
+    expectEqual(try String(contentsOf: emptyCopy!, encoding: .utf8), "now it has words")
+    expectEqual(try Data(contentsOf: emptyFile), Data())
+
+    let clip = try ingest.admitClipboard(MemoryClipboard(payload: .text("剪贴板原文")))
+    let clipURL = StageEdit.editableURL(clip[0], inboxRoot: inbox, jobsRoot: jobs)
+    expect(clipURL != nil, "clip is editable")
+    try StageEdit.write("剪贴板改过", to: clipURL!, inboxRoot: inbox, jobsRoot: jobs)
+    expectEqual(try String(contentsOf: clipURL!, encoding: .utf8), "剪贴板改过")
+
+    let jsonFile = root.appendingPathComponent("data.json")
+    try Data("{\"a\":1}".utf8).write(to: jsonFile)
+    let json = ingest.admit(urls: [jsonFile]).admitted[0]
+    expect(StageEdit.editableURL(json, inboxRoot: inbox, jobsRoot: jobs) != nil, "json is editable")
+
+    let swiftFile = root.appendingPathComponent("Main.swift")
+    try Data("let x = 1\n".utf8).write(to: swiftFile)
+    let swift = ingest.admit(urls: [swiftFile]).admitted[0]
+    expect(StageEdit.editableURL(swift, inboxRoot: inbox, jobsRoot: jobs) != nil, "swift is editable")
+
+    var running = note
+    running.status = .running
+    expect(StageEdit.editableURL(running, inboxRoot: inbox, jobsRoot: jobs) == nil, "running locked")
+    var confirm = note
+    confirm.status = .confirm
+    expect(StageEdit.editableURL(confirm, inboxRoot: inbox, jobsRoot: jobs) == nil, "confirm locked")
+
+    let pdf = root.appendingPathComponent("doc.pdf")
+    try Data("pdf-bytes".utf8).write(to: pdf)
+    let pdfItem = ingest.admit(urls: [pdf]).admitted[0]
+    expect(StageEdit.editableURL(pdfItem, inboxRoot: inbox, jobsRoot: jobs) == nil, "pdf read-only")
+
+    let png = try ingest.admitImageData(Data([0x89, 0x50, 0x4E, 0x47]))
+    expect(StageEdit.editableURL(png, inboxRoot: inbox, jobsRoot: jobs) == nil, "image read-only")
+
+    let folder = root.appendingPathComponent("bundle", isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try Data("inside".utf8).write(to: folder.appendingPathComponent("a.txt"))
+    let folderItem = ingest.admit(urls: [folder]).admitted[0]
+    expect(StageEdit.editableURL(folderItem, inboxRoot: inbox, jobsRoot: jobs) == nil, "folder read-only")
+
+    let htmlFile = root.appendingPathComponent("page.html")
+    try Data("<p>hi</p>".utf8).write(to: htmlFile)
+    let html = ingest.admit(urls: [htmlFile]).admitted[0]
+    expect(StageEdit.editableURL(html, inboxRoot: inbox, jobsRoot: jobs) == nil, "html read-only")
+    if let htmlPart = html.parts.first {
+        do {
+            try StageEdit.write("x", to: htmlPart.url, inboxRoot: inbox, jobsRoot: jobs)
+            fail("write html")
+        } catch let error as StageEditError {
+            expectEqual(error, .notText)
+        }
+    }
+
+    let link = ingest.admit(urls: [URL(string: "https://example.com/a")!], capturePages: false).admitted[0]
+    expect(StageEdit.editableURL(link, inboxRoot: inbox, jobsRoot: jobs) == nil, "url read-only")
+
+    let web = ingest.admit(urls: [URL(string: "https://example.com/b")!]).admitted[0]
+    expect(StageEdit.editableURL(web, inboxRoot: inbox, jobsRoot: jobs) == nil, "web stub without page.md")
+    let webFolder = web.parts[0].url.deletingLastPathComponent()
+    let page = webFolder.appendingPathComponent("page.md")
+    try Data("page body".utf8).write(to: page)
+    var withPage = web
+    withPage.parts.append(ItemPart(name: "page.md", url: page))
+    let pageURL = StageEdit.editableURL(withPage, inboxRoot: inbox, jobsRoot: jobs)
+    expectEqual(pageURL?.lastPathComponent, "page.md")
+    expect(StageEdit.editableURL(withPage, inboxRoot: inbox, jobsRoot: jobs)?.lastPathComponent != "url.txt", "do not edit url.txt")
+
+    let outputDir = jobs.appendingPathComponent("job-1/output", isDirectory: true)
+    try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+    let summary = outputDir.appendingPathComponent("summary.md")
+    try Data("old summary".utf8).write(to: summary)
+    let result = ResultRecord(
+        sourceItemIDs: [note.id],
+        recipe: "总结文件",
+        title: "summary.md",
+        kind: .markdown,
+        output: summary
+    ).takeawayItem()
+    expectEqual(StageEdit.editableURL(result, inboxRoot: inbox, jobsRoot: jobs), summary)
+    try StageEdit.write("new summary", to: summary, inboxRoot: inbox, jobsRoot: jobs)
+    expectEqual(try String(contentsOf: summary, encoding: .utf8), "new summary")
+
+    let outside = root.appendingPathComponent("outside.md")
+    try Data("secret".utf8).write(to: outside)
+    let planted = Item(
+        kind: .markdown,
+        title: "outside.md",
+        sourceURL: outside,
+        parts: [ItemPart(name: "outside.md", url: outside)],
+        output: outside
+    )
+    expect(StageEdit.editableURL(planted, inboxRoot: inbox, jobsRoot: jobs) == nil, "output outside jobs is not editable")
+
+    let nul = root.appendingPathComponent("binary.txt")
+    try Data([0x61, 0x00, 0x62]).write(to: nul)
+    let binary = ingest.admit(urls: [nul]).admitted[0]
+    expect(StageEdit.editableURL(binary, inboxRoot: inbox, jobsRoot: jobs) == nil, "nul text is not editable")
+
+    StageEdit.schedule("from debounce", to: copy!, inboxRoot: inbox, jobsRoot: jobs)
+    StageEdit.flush()
+    expectEqual(try String(contentsOf: copy!, encoding: .utf8), "from debounce")
+    expectEqual(try String(contentsOf: original, encoding: .utf8), "# keep\n")
 }
 
 private func ingestDropURLCapture() async throws {
@@ -1910,7 +2053,7 @@ private func job() async throws {
     expectEqual(RecipeOutput.finalize("{\"a\":1}", fileName: "extracted.json"), "{\"a\":1}")
 
     for recipe in RecipeID.allCases
-        where recipe != .summarize && recipe != .extract && recipe != .brief && recipe != .imageText && recipe != .pdfText
+        where recipe != .summarize && recipe != .extract && recipe != .brief && recipe != .imageText && recipe != .pdfText && recipe != .shortcut
     {
         let env = try setup()
         let agent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
@@ -2025,6 +2168,37 @@ private func job() async throws {
     expectEqual(RecipeID.fromStored("提取图片文字"), .imageText)
     expectEqual(RecipeID.fromStored("提取 PDF 文字"), .pdfText)
     expectEqual(RecipeID.fromStored("pdfText"), .pdfText)
+    expectEqual(RecipeID.fromStored("shortcut:pay"), .shortcut)
+
+    let customEnv = try setup()
+    let customAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
+    customAgent.outputText = "付款日：下月 15 日"
+    _ = try await JobService(shelf: customEnv.0, agent: customAgent, jobsRoot: customEnv.1)
+        .start(
+            itemIDs: [customEnv.3.id],
+            recipe: .shortcut,
+            custom: CustomJobSpec(
+                title: "抽付款日",
+                prompt: "抽出付款节点",
+                outputFileName: JobOutputName.markdown(originalTitle: "source.pdf", action: "抽付款日"),
+                acceptedKinds: [.pdf]
+            )
+        )
+    expectEqual(customEnv.0.results().first?.title, "source-抽付款日.md")
+    expectEqual(customEnv.0.results().first?.recipe, "抽付款日")
+    expect(customAgent.lastPrompt.contains("抽出付款节点"), "custom prompt \(customAgent.lastPrompt)")
+    expect(customAgent.lastRequest?.network == false, "shortcut network off")
+    expectEqual(try Data(contentsOf: customEnv.2), Data("original-bytes".utf8))
+    do {
+        _ = try await JobService(
+            shelf: customEnv.0,
+            agent: customAgent,
+            jobsRoot: customEnv.1
+        ).start(itemIDs: [customEnv.3.id], recipe: .shortcut)
+        fail("shortcut without custom spec")
+    } catch let error as JobError {
+        expectEqual(error, .notStartable)
+    }
 
     let briefRoot = try tempDir()
     let originalA = briefRoot.appendingPathComponent("a.md")

@@ -13,6 +13,14 @@ enum Copy {
         t("从 HTML 抽出的正文，不是网页预览。", "Extracted from HTML. This is not a page preview.")
     }
 
+    static var stageEditHint: String {
+        t("改的是副本，原件不动。", "Editing the copy. The original stays put.")
+    }
+
+    static var stageReadHint: String {
+        t("点一下开始改", "Click to edit")
+    }
+
     static func kindWord(_ kind: ItemKind) -> String {
         switch kind {
         case .pdf: return t("文档", "Document")
@@ -36,6 +44,7 @@ enum Copy {
         case .redact: return t("脱敏", "Redact")
         case .toMarkdown: return t("转 MD", "To Markdown")
         case .brief: return t("整合", "Combine")
+        case .shortcut: return t("快捷", "Shortcut")
         }
     }
 
@@ -49,6 +58,7 @@ enum Copy {
         case .redact: return t("敏感信息脱敏", "Redact sensitive information")
         case .toMarkdown: return t("转换为 Markdown", "Convert to Markdown")
         case .brief: return t("把几份材料整合成一份", "Combine several items into one document")
+        case .shortcut: return t("快捷动作", "Shortcut action")
         }
     }
 
@@ -62,6 +72,7 @@ enum Copy {
         case .redact: return t("去掉联系方式、证件等敏感信息", "Strip contacts, IDs, and similar private bits.")
         case .toMarkdown: return t("转成可编辑的 Markdown", "Turn it into editable Markdown.")
         case .brief: return t("选几份，合成一份新稿", "Combine several items into one document.")
+        case .shortcut: return t("在副本里跑你写的那句话", "Run your instruction on a copy.")
         }
     }
 

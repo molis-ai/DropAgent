@@ -5,8 +5,11 @@ import Foundation
 
 extension AppSession {
     func chooseRecipe(_ recipe: RecipeID) {
+        stopStageEdit()
         onPanelInteraction?()
         otherOpen = false
+        actionBarEditing = false
+        shortcutDraft = nil
         // A new confirmation replaces the previous draft, even after switching inputs.
         // Otherwise a later multi-selection can silently run two different drafts as one.
         for item in shelf.items() where item.status == .confirm {
@@ -50,8 +53,43 @@ extension AppSession {
     }
 
     func confirmRun() async {
+        flushStageEdit()
         let batch = selectedItems.filter { $0.status == .confirm }
-        guard let first = batch.first, let recipe = RecipeID.fromStored(first.recipe) else {
+        guard let first = batch.first else { return }
+        if let action = shortcut(stored: first.recipe) {
+            if hasRecipe == false {
+                errorText = hasAgent
+                    ? Copy.t(
+                        "\(tuiTitle) 没有无界面执行入口。终端仍可发送给 \(tuiTitle)。",
+                        "\(tuiTitle) has no headless entry. You can still send to \(tuiTitle) in the terminal."
+                    )
+                    : Copy.t("未发现终端 Agent。", "No terminal agent found.")
+                return
+            }
+            guard runningItems.isEmpty, batch.allSatisfy({ $0.recipe == first.recipe }) else {
+                errorText = Copy.t("材料或任务状态已变化，请返回动作重新选择。", "The selection or job state changed. Go back and choose an action again.")
+                return
+            }
+            let previousResults = Set(shelf.results().map(\.id))
+            errorText = nil
+            do {
+                _ = try await job.start(
+                    itemIDs: batch.map(\.id),
+                    recipe: .shortcut,
+                    custom: customJobSpec(for: action, items: batch)
+                )
+                presentJobResult(sourceIDs: Set(batch.map(\.id)))
+            } catch AgentError.cancelled {
+                if paneFocus == .input, Set(selectedItems.map(\.id)) == Set(batch.map(\.id)) { aiTab = .work }
+            } catch {
+                errorText = human(error)
+                if shelf.results().contains(where: { !previousResults.contains($0.id) }) {
+                    presentJobResult(sourceIDs: Set(batch.map(\.id)))
+                }
+            }
+            return
+        }
+        guard let recipe = RecipeID.fromStored(first.recipe), recipe != .shortcut else {
             return
         }
         if RecipeCatalog.spec(recipe).requiresAgent && hasRecipe == false {
@@ -88,6 +126,7 @@ extension AppSession {
     }
 
     func startWheelRecipe(ids: [ItemID], recipe: RecipeID) async {
+        flushStageEdit()
         guard hasRecipe else {
             errorText = hasAgent
                 ? HotKeyCopy.missingJobLine(tuiTitle: tuiTitle)

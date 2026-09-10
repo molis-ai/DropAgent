@@ -11,7 +11,7 @@ struct RecipeConfirmationView: View {
                 Text(Copy.t("\(batch.count) 项", "\(batch.count) items"))
                     .font(.system(size: 11))
                     .foregroundStyle(Palette.muted)
-                Text("\(Copy.recipeStored(batch.first?.recipe))\(optionSuffix)")
+                Text("\(session.displayedActionName(batch.first?.recipe))\(optionSuffix)")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Palette.text)
                     .lineLimit(1)

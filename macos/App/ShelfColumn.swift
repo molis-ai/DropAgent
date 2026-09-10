@@ -12,7 +12,10 @@ struct ShelfColumn: View {
             columnHead
             listSection
             if let item = session.stagedItem {
-                ContentStage(item: item)
+                ContentStage(item: item, session: session)
+            }
+            if session.shortcutDraft != nil {
+                ShortcutComposer(session: session)
             }
             if session.showsActionBar {
                 RecipeChooser(session: session)

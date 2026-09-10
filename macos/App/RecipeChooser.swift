@@ -7,16 +7,64 @@ struct RecipeChooser: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                ForEach(visibleRecipes, id: \.self) { recipe in
-                    recipeButton(
-                        title: Copy.recipeShort(recipe),
-                        symbol: RecipeGlyph.symbol(recipe),
-                        enabled: session.canRunRecipe(recipe),
-                        selected: false,
-                        help: session.recipeFitsSelection(recipe) ? Copy.recipeBlurb(recipe) : session.recipeHelp(recipe),
-                        identifier: "recipe-\(recipe.rawValue)"
-                    ) {
-                        session.chooseRecipe(recipe)
+                recipeButton(
+                    title: session.actionBarEditing ? Copy.t("完成", "Done") : Copy.t("整理", "Arrange"),
+                    symbol: session.actionBarEditing ? "checkmark" : "line.3.horizontal",
+                    enabled: true,
+                    selected: session.actionBarEditing,
+                    help: Copy.t("隐藏或调整动作顺序", "Hide actions or change their order"),
+                    identifier: "recipe-arrange"
+                ) {
+                    session.setActionBarEditing(!session.actionBarEditing)
+                }
+                ForEach(session.barSlots(organizing: session.actionBarEditing)) { slot in
+                    HStack(spacing: 0) {
+                        if session.actionBarEditing {
+                            Button {
+                                session.moveSlot(id: slot.id, by: -1)
+                            } label: {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(Palette.muted)
+                                    .frame(width: 16, height: 32)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("action-left-\(slot.id)")
+                        }
+                        recipeButton(
+                            title: slotTitle(slot),
+                            symbol: slotSymbol(slot),
+                            enabled: session.actionBarEditing || session.canRunSlot(slot),
+                            selected: false,
+                            help: session.slotHelp(slot),
+                            identifier: slotButtonID(slot)
+                        ) {
+                            if session.actionBarEditing == false {
+                                session.chooseSlot(slot)
+                            }
+                        }
+                        if session.actionBarEditing {
+                            Button {
+                                session.hideSlot(slot)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(Palette.muted)
+                                    .frame(width: 16, height: 32)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("action-hide-\(slot.id)")
+                            Button {
+                                session.moveSlot(id: slot.id, by: 1)
+                            } label: {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(Palette.muted)
+                                    .frame(width: 16, height: 32)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("action-right-\(slot.id)")
+                        }
                     }
                 }
                 recipeButton(
@@ -27,7 +75,18 @@ struct RecipeChooser: View {
                     help: Copy.t("打开对话浮窗，发给当前终端", "Open the chat float and send to the current terminal"),
                     identifier: "recipe-other"
                 ) {
+                    session.setActionBarEditing(false)
                     session.toggleOther()
+                }
+                recipeButton(
+                    title: Copy.t("添加", "Add"),
+                    symbol: "plus",
+                    enabled: true,
+                    selected: session.shortcutDraft != nil,
+                    help: Copy.t("添加快捷动作", "Add a shortcut action"),
+                    identifier: "recipe-add"
+                ) {
+                    session.openShortcutComposer()
                 }
             }
             .padding(.leading, 2)
@@ -35,12 +94,30 @@ struct RecipeChooser: View {
         .accessibilityIdentifier("acts")
     }
 
-    private var visibleRecipes: [RecipeID] {
-        RecipeID.allCases.filter { recipe in
-            if RecipeCatalog.spec(recipe).requiresAgent == false {
-                return session.recipeFitsSelection(recipe)
-            }
-            return true
+    private func slotTitle(_ slot: ActionSlot) -> String {
+        switch slot {
+        case .recipe(let recipe):
+            return Copy.recipeShort(recipe)
+        case .shortcut(let id):
+            return session.shortcut(id: id)?.name ?? Copy.t("快捷", "Shortcut")
+        }
+    }
+
+    private func slotSymbol(_ slot: ActionSlot) -> String {
+        switch slot {
+        case .recipe(let recipe):
+            return RecipeGlyph.symbol(recipe)
+        case .shortcut:
+            return RecipeGlyph.symbol(.shortcut)
+        }
+    }
+
+    private func slotButtonID(_ slot: ActionSlot) -> String {
+        switch slot {
+        case .recipe(let recipe):
+            return "recipe-\(recipe.rawValue)"
+        case .shortcut(let id):
+            return "recipe-shortcut-\(id)"
         }
     }
 
@@ -130,6 +207,7 @@ enum RecipeGlyph {
         case .redact: return "eye.slash"
         case .toMarkdown: return "doc.richtext"
         case .brief: return "square.stack"
+        case .shortcut: return "bolt"
         }
     }
 }

@@ -32,6 +32,7 @@ extension AppSession {
     }
 
     func beginShelfDrag(ids: [ItemID]) {
+        flushStageEdit()
         shelfDragIDs = ids
         PasteboardService.markShelfDrag()
     }

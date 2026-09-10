@@ -63,6 +63,9 @@ final class AppSession: ObservableObject {
     @Published var aiTab: AITab = .work
     @Published var dockHeight: CGFloat = LivePanelChrome.dockMinHeight
     @Published var otherOpen = false
+    @Published var actionBarEditing = false
+    @Published var shortcutDraft: ShortcutDraft?
+    @Published var stageEditing = false
     @Published var recipeOptions: [RecipeID: String] = [:]
     @Published var multiSelect = false
     @Published var promptText: String = ""
@@ -274,6 +277,21 @@ final class AppSession: ObservableObject {
             otherOpen.toggle()
             if otherOpen { aiTab = canOpenTerminalTab ? .tty : .work }
         }
+    }
+
+    func flushStageEdit() {
+        StageEdit.flush()
+    }
+
+    func beginStageEdit() {
+        guard let item = stagedItem else { return }
+        guard StageEdit.editableURL(item, inboxRoot: DropAgentPaths.inbox, jobsRoot: DropAgentPaths.jobs) != nil else { return }
+        stageEditing = true
+    }
+
+    func stopStageEdit() {
+        StageEdit.flush()
+        if stageEditing { stageEditing = false }
     }
 
     func setDockHeight(_ height: CGFloat) {

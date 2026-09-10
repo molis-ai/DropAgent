@@ -35,11 +35,21 @@ public struct JobService: Sendable {
         }
     }
 
-    public func start(itemIDs: [ItemID], recipe: RecipeID, optionID: String? = nil) async throws -> JobID {
+    public func start(
+        itemIDs: [ItemID],
+        recipe: RecipeID,
+        optionID: String? = nil,
+        custom: CustomJobSpec? = nil
+    ) async throws -> JobID {
         guard !itemIDs.isEmpty else { throw JobError.emptySelection }
+        if recipe == .shortcut, custom == nil { throw JobError.notStartable }
         let spec = RecipeCatalog.spec(recipe)
         let presence = agent.discover(settings: agent.settings)
-        if spec.requiresAgent {
+        let requiresAgent = custom != nil || spec.requiresAgent
+        let accepted = custom?.acceptedKinds ?? spec.acceptedKinds
+        let outputName = custom?.outputFileName ?? spec.outputFileName
+        let displayTitle = custom?.title ?? spec.fullTitle
+        if requiresAgent {
             guard presence.executable != nil else { throw JobError.noAgent }
         }
 
@@ -49,7 +59,7 @@ public struct JobService: Sendable {
             guard item.status == .idle || item.status == .confirm || item.status == .failed else {
                 throw JobError.notStartable
             }
-            guard spec.acceptedKinds.contains(item.kind) else {
+            guard accepted.contains(item.kind) else {
                 throw JobError.notStartable
             }
             items.append(item)
@@ -62,8 +72,8 @@ public struct JobService: Sendable {
         let input = dir.appendingPathComponent("input", isDirectory: true)
         let work = dir.appendingPathComponent("work", isDirectory: true)
         let output = dir.appendingPathComponent("output", isDirectory: true)
-        let outputFile = output.appendingPathComponent(spec.outputFileName)
-        let shown = spec.requiresAgent ? Self.shown(for: presence.isolation) : .safeCopy
+        let outputFile = output.appendingPathComponent(outputName)
+        let shown = requiresAgent ? Self.shown(for: presence.isolation) : .safeCopy
         do {
             try FileManager.default.createDirectory(at: input, withIntermediateDirectories: true)
             try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
@@ -80,7 +90,7 @@ public struct JobService: Sendable {
                 }
                 try shelf.patch(id: item.id) { live in
                     live.status = .running
-                    live.recipe = spec.fullTitle
+                    live.recipe = displayTitle
                     live.event = "复制到 input/ 与 work/"
                     live.isolationShown = shown
                     live.failureReason = nil
@@ -93,7 +103,7 @@ public struct JobService: Sendable {
                 jobID: jobID,
                 recipe: recipe,
                 agent: localAgentName(recipe, presence: presence),
-                isolation: spec.requiresAgent ? presence.isolation : .none,
+                isolation: requiresAgent ? presence.isolation : .none,
                 items: items
             )
 
@@ -101,10 +111,20 @@ public struct JobService: Sendable {
             if control.isCancelled {
                 throw AgentError.cancelled
             }
-            if spec.requiresAgent {
+            if requiresAgent {
                 let promptFile = dir.appendingPathComponent("prompt.txt")
                 let listed = relativeNames.map { "- \($0)" }.joined(separator: "\n")
-                let prompt = RecipeCatalog.prompt(for: recipe, choiceID: optionID) + "\n材料：\n" + listed + "\n"
+                let body: String
+                if let custom {
+                    let guardrail = """
+                    阅读当前工作目录里的材料。只使用相对路径，不要访问目录之外的文件。
+                    不要修改已有文件。
+                    """
+                    body = guardrail + "\n" + custom.prompt + "\n最终回复为 Markdown。\n"
+                } else {
+                    body = RecipeCatalog.prompt(for: recipe, choiceID: optionID)
+                }
+                let prompt = body + "\n材料：\n" + listed + "\n"
                 try Data(prompt.utf8).write(to: promptFile)
                 let request = AgentRunRequest(
                     workdir: work,
@@ -156,8 +176,8 @@ public struct JobService: Sendable {
             _ = shelf.addResult(
                 ResultRecord(
                     sourceItemIDs: items.map(\.id),
-                    recipe: spec.fullTitle,
-                    title: spec.outputFileName,
+                    recipe: displayTitle,
+                    title: outputName,
                     kind: spec.outputKind,
                     output: outputFile,
                     isolationShown: shown,
@@ -175,8 +195,8 @@ public struct JobService: Sendable {
             _ = shelf.addResult(
                 ResultRecord(
                     sourceItemIDs: items.map(\.id),
-                    recipe: spec.fullTitle,
-                    title: spec.outputFileName,
+                    recipe: displayTitle,
+                    title: outputName,
                     kind: spec.outputKind,
                     output: existing,
                     isolationShown: shown,

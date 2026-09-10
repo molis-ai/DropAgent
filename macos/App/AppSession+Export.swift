@@ -6,6 +6,7 @@ import Foundation
 
 extension AppSession {
     func copySelected() {
+        flushStageEdit()
         if paneFocus == .result, let record = selectedResult {
             guard record.output != nil else { return }
             copyItem(record.takeawayItem())

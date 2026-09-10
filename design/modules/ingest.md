@@ -20,6 +20,8 @@ admitProviders(_:) async -> AdmitResult
 deleteOwnedCopy(_ item: Item)            // Shelf.remove + 删 Inbox 副本；不碰 sourceURL 原件
 captureDroppedPages(ids:) async          // IngestCapture
 admitCurrentPage(token:) async throws -> Item  // IngestCapture
+StageEdit.editableURL / read / schedule / flush / write
+    // 只写 Inbox/Jobs 内文字副本；不写 sourceURL 原件
 FrontAdmit.classify / decide / collect
 PageAdmit.freezeFrontBrowser / snapshot / decide / failure
 PageAdmit.setupStatus / requestTrustIfNeeded / requestAutomation / privacyTarget

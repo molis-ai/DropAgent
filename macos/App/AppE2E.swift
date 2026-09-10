@@ -95,6 +95,7 @@ enum AppE2E {
             verifyRecipeChooserHint()
             verifyImageRecipeGates()
             verifyPdfRecipeGates()
+            await verifyActionBar()
             verifyFailedActionRetry()
             verifyFailedOutputTakeaway()
             verifyDoneTakeaway()
@@ -601,6 +602,63 @@ enum AppE2E {
             if let id = session.items.first(where: { $0.title == "gate.pdf" })?.id {
                 session.remove(id: id)
             }
+            session.refreshPresence()
+        }
+
+        private func verifyActionBar() async {
+            try? DropAgentPaths.ensure()
+            let path = URL(fileURLWithPath: "/usr/bin/true")
+            session.presence = .grok(path: path, isolation: .workspace)
+            session.recipePresence = .grok(path: path, isolation: .workspace)
+            let pdf = DropAgentPaths.inbox.appendingPathComponent("报价.pdf")
+            try? pdfWithText("pay").write(to: pdf)
+            session.admit(urls: [pdf])
+            await settle()
+            session.hideSlot(.recipe(.redact))
+            guard session.actionSlots.contains(.recipe(.redact)) == false else {
+                fail("redact still on bar")
+            }
+            session.shortcutDraft = ShortcutDraft(
+                id: nil,
+                name: "抽付款日",
+                kinds: [.pdf],
+                prompt: "抽出付款节点"
+            )
+            session.saveShortcutDraft()
+            guard let action = session.prefs.shortcuts.first(where: { $0.name == "抽付款日" }) else {
+                fail("shortcut not saved")
+            }
+            guard session.barSlots(organizing: false).contains(.shortcut(action.id)) else {
+                fail("shortcut missing on pdf bar \(session.barSlots(organizing: false).map(\.id))")
+            }
+            session.chooseShortcut(id: action.id)
+            guard session.canConfirmRun else {
+                fail("shortcut confirm blocked")
+            }
+            await session.confirmRun()
+            await settle()
+            guard let result = session.results.first(where: { $0.title == "报价-抽付款日.md" }) else {
+                fail("shortcut result \(session.results.map(\.title))")
+            }
+            guard result.recipe == "抽付款日" else {
+                fail("shortcut recipe \(result.recipe)")
+            }
+            session.removeResult(result.id)
+            if let pdfID = session.items.first(where: { $0.title == "报价.pdf" })?.id {
+                session.remove(id: pdfID)
+            }
+            let png = DropAgentPaths.inbox.appendingPathComponent("bar.png")
+            try? tinyPNG().write(to: png)
+            session.admit(urls: [png])
+            await settle()
+            guard session.barSlots(organizing: false).contains(.shortcut(action.id)) == false else {
+                fail("pdf shortcut shown for image")
+            }
+            if let pngID = session.items.first(where: { $0.title == "bar.png" })?.id {
+                session.remove(id: pngID)
+            }
+            session.deleteShortcut(id: action.id)
+            session.showSlot(.recipe(.redact))
             session.refreshPresence()
         }
 
@@ -1691,6 +1749,65 @@ enum AppE2E {
                 fail("stage empty after select")
             }
             session.remove(id: item.id)
+
+            let source = FileManager.default.temporaryDirectory.appendingPathComponent("edit-me.md")
+            try? Data("hello original\n".utf8).write(to: source)
+            session.admit(urls: [source])
+            guard let editable = session.items.first(where: { $0.title == "edit-me.md" }) else {
+                fail("no edit-me.md")
+            }
+            guard let copy = StageEdit.editableURL(
+                editable,
+                inboxRoot: DropAgentPaths.inbox,
+                jobsRoot: DropAgentPaths.jobs
+            ) else {
+                fail("edit-me.md not editable")
+            }
+            do {
+                try StageEdit.write("hello edited\n", to: copy, inboxRoot: DropAgentPaths.inbox, jobsRoot: DropAgentPaths.jobs)
+            } catch {
+                fail("write copy \(error)")
+            }
+            session.flushStageEdit()
+            guard (try? String(contentsOf: source, encoding: .utf8)) == "hello original\n" else {
+                fail("original overwritten")
+            }
+            guard (try? String(contentsOf: copy, encoding: .utf8)) == "hello edited\n" else {
+                fail("copy not written")
+            }
+            hosting?.layoutSubtreeIfNeeded()
+            window?.displayIfNeeded()
+            guard let host = hosting else {
+                fail("no host")
+                return
+            }
+            guard viewContains(host, needle: "content-stage-editor") == false else {
+                fail("editor shown before click")
+            }
+            session.beginStageEdit()
+            hosting?.layoutSubtreeIfNeeded()
+            window?.displayIfNeeded()
+            guard viewContains(host, needle: "content-stage-editor") else {
+                fail("editor missing after click")
+            }
+            session.stopStageEdit()
+            hosting?.layoutSubtreeIfNeeded()
+            window?.displayIfNeeded()
+            guard viewContains(host, needle: "content-stage-editor") == false else {
+                fail("editor stayed after leaving edit")
+            }
+
+            let picture = DropAgentPaths.inbox.appendingPathComponent("stage-pic.png")
+            try? Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).write(to: picture)
+            session.admit(urls: [picture])
+            guard let image = session.items.first(where: { $0.title == "stage-pic.png" }) else {
+                fail("no stage-pic.png")
+            }
+            guard StageEdit.editableURL(image, inboxRoot: DropAgentPaths.inbox, jobsRoot: DropAgentPaths.jobs) == nil else {
+                fail("image should stay read-only")
+            }
+            session.remove(id: editable.id)
+            session.remove(id: image.id)
         }
 
         private func verifyFileKindGlyph() {

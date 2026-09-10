@@ -50,7 +50,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reregisterHotKeys()
         session.applyChrome = { [weak self] in self?.applyPanelAppearance() }
         session.applyLayout = { [weak self] in self?.positionPanel() }
-        session.onPanelInteraction = { [weak self] in self?.wakePanel(makeKey: true) }
+        session.onPanelInteraction = { [weak self] in
+            self?.session.flushStageEdit()
+            self?.wakePanel(makeKey: true)
+        }
         session.onFinishExternalDrag = { [weak self] in
             self?.edgeDrop?.hide()
             self?.scheduleRecess()
@@ -258,6 +261,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func isTyping(in responder: NSResponder?) -> Bool {
+        if Self.isTextInput(responder) { return true }
+        if Self.isTextInput(panel?.firstResponder) { return true }
+        return false
+    }
+
+    private static func isTextInput(_ responder: NSResponder?) -> Bool {
         responder is NSTextView || responder is NSTextField || responder is TerminalView
     }
 }

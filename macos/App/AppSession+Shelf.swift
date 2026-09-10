@@ -30,6 +30,7 @@ extension AppSession {
 
     func toggleSelect(id: ItemID, command: Bool) {
         onPanelInteraction?()
+        stopStageEdit()
         NSApp.keyWindow?.makeFirstResponder(nil)
         if command {
             paneFocus = .input
@@ -55,6 +56,7 @@ extension AppSession {
 
     func selectResult(_ id: ResultID) {
         onPanelInteraction?()
+        stopStageEdit()
         NSApp.keyWindow?.makeFirstResponder(nil)
         selectedResultID = id
         paneFocus = .result
@@ -63,6 +65,7 @@ extension AppSession {
 
     func toggleResult(_ id: ResultID) {
         onPanelInteraction?()
+        stopStageEdit()
         NSApp.keyWindow?.makeFirstResponder(nil)
         if paneFocus == .result, selectedResultID == id {
             selectedResultID = nil
@@ -153,12 +156,14 @@ extension AppSession {
     }
 
     func hideItem(_ id: ItemID) {
+        flushStageEdit()
         guard let item = shelf.item(id: id), item.status != .running else { return }
         try? shelf.remove(ids: [id])
         refresh()
     }
 
     func deleteItem(_ id: ItemID) {
+        flushStageEdit()
         guard let item = shelf.item(id: id), item.status != .running else { return }
         try? ingest.deleteOwnedCopy(item)
         refresh()
@@ -176,6 +181,7 @@ extension AppSession {
     }
 
     func moveSelection(offset: Int) {
+        stopStageEdit()
         if paneFocus == .result, results.isEmpty == false {
             let current = results.firstIndex(where: { $0.id == selectedResultID }) ?? (offset > 0 ? -1 : results.count)
             let index = min(results.count - 1, max(0, current + offset))

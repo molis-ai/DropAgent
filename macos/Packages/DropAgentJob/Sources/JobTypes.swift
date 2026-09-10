@@ -21,3 +21,17 @@ public enum JobError: Error, Equatable, Sendable {
     case notStartable
     case missingItem
 }
+
+public struct CustomJobSpec: Equatable, Sendable {
+    public var title: String
+    public var prompt: String
+    public var outputFileName: String
+    public var acceptedKinds: Set<ItemKind>
+
+    public init(title: String, prompt: String, outputFileName: String, acceptedKinds: Set<ItemKind>) {
+        self.title = title
+        self.prompt = prompt
+        self.outputFileName = outputFileName
+        self.acceptedKinds = acceptedKinds
+    }
+}

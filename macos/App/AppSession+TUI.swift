@@ -6,6 +6,7 @@ import Foundation
 
 extension AppSession {
     func sendToTUI(itemIDs: [ItemID]? = nil) {
+        flushStageEdit()
         guard canSendToTUI, presence.executable != nil else {
             if hasAgent == false {
                 errorText = Copy.t("未发现终端 Agent。文件已留在架子上。", "No terminal agent found. Files stayed on the shelf.")
