@@ -37,7 +37,7 @@ struct PanelRootView: View {
         .background(Color.clear)
         .ignoresSafeArea()
         .preferredColorScheme(session.prefs.appearance.colorScheme)
-        .tint(Palette.text)
+        .tint(Palette.accent)
         .symbolRenderingMode(.monochrome)
         .onAppear { session.refreshSetup() }
         .onPreferenceChange(DockHeightKey.self) { session.setDockHeight($0) }

@@ -20,19 +20,16 @@ struct ComposerBar: View {
                 onSubmit: { session.sendToTUI() }
             )
             .frame(height: 36)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(composerFocused ? Palette.text : Palette.line)
-                    .frame(height: 1)
+            .padding(.horizontal, 10)
+            .background(Palette.field, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(composerFocused ? Palette.accent : Palette.line)
             }
             Button { session.sendToTUI() } label: {
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.muted)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
+                Label(Copy.t("发送", "Send"), systemImage: "arrow.up")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(!session.canSendToTUI)
             .accessibilityIdentifier("send")
             .accessibilityLabel(Copy.t("发送到 \(session.tuiTitle) 终端", "Send to the \(session.tuiTitle) terminal"))

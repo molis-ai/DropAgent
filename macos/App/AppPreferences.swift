@@ -56,6 +56,7 @@ struct AppPreferences: Codable, Equatable {
     var inboxPath: String?
     var jobsPath: String?
     var setupCardDismissed: Bool
+    var firstActionHintDismissed: Bool
     var toggleHotKey: HotKeyChord
     var captureHotKey: HotKeyChord
     var filesHotKey: HotKeyChord
@@ -66,6 +67,8 @@ struct AppPreferences: Codable, Equatable {
     var showDropWheel: Bool
     var actionOrder: [String]
     var shortcuts: [ShortcutAction]
+    var panelX: Double?
+    var panelTop: Double?
 
     static let `default` = AppPreferences()
 
@@ -75,6 +78,7 @@ struct AppPreferences: Codable, Equatable {
         inboxPath: String? = nil,
         jobsPath: String? = nil,
         setupCardDismissed: Bool = false,
+        firstActionHintDismissed: Bool = false,
         toggleHotKey: HotKeyChord = .toggleDefault,
         captureHotKey: HotKeyChord = .captureDefault,
         filesHotKey: HotKeyChord = .filesDefault,
@@ -84,13 +88,16 @@ struct AppPreferences: Codable, Equatable {
         deleteHotKey: HotKeyChord = .deleteDefault,
         showDropWheel: Bool = true,
         actionOrder: [String] = ActionBarLayout.defaultOrder,
-        shortcuts: [ShortcutAction] = []
+        shortcuts: [ShortcutAction] = [],
+        panelX: Double? = nil,
+        panelTop: Double? = nil
     ) {
         self.appearance = appearance
         self.language = language
         self.inboxPath = inboxPath
         self.jobsPath = jobsPath
         self.setupCardDismissed = setupCardDismissed
+        self.firstActionHintDismissed = firstActionHintDismissed
         self.toggleHotKey = toggleHotKey
         self.captureHotKey = captureHotKey
         self.filesHotKey = filesHotKey
@@ -101,6 +108,8 @@ struct AppPreferences: Codable, Equatable {
         self.showDropWheel = showDropWheel
         self.actionOrder = actionOrder.isEmpty ? ActionBarLayout.defaultOrder : actionOrder
         self.shortcuts = shortcuts
+        self.panelX = panelX
+        self.panelTop = panelTop
     }
 
     init(from decoder: Decoder) throws {
@@ -110,6 +119,7 @@ struct AppPreferences: Codable, Equatable {
         inboxPath = try container.decodeIfPresent(String.self, forKey: .inboxPath)
         jobsPath = try container.decodeIfPresent(String.self, forKey: .jobsPath)
         setupCardDismissed = try container.decodeIfPresent(Bool.self, forKey: .setupCardDismissed) ?? false
+        firstActionHintDismissed = try container.decodeIfPresent(Bool.self, forKey: .firstActionHintDismissed) ?? false
         toggleHotKey = try container.decodeIfPresent(HotKeyChord.self, forKey: .toggleHotKey) ?? .toggleDefault
         captureHotKey = try container.decodeIfPresent(HotKeyChord.self, forKey: .captureHotKey) ?? .captureDefault
         filesHotKey = try container.decodeIfPresent(HotKeyChord.self, forKey: .filesHotKey) ?? .filesDefault
@@ -121,6 +131,8 @@ struct AppPreferences: Codable, Equatable {
         let order = try container.decodeIfPresent([String].self, forKey: .actionOrder) ?? []
         actionOrder = order.isEmpty ? ActionBarLayout.defaultOrder : order
         shortcuts = try container.decodeIfPresent([ShortcutAction].self, forKey: .shortcuts) ?? []
+        panelX = try container.decodeIfPresent(Double.self, forKey: .panelX)
+        panelTop = try container.decodeIfPresent(Double.self, forKey: .panelTop)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -129,6 +141,7 @@ struct AppPreferences: Codable, Equatable {
         case inboxPath
         case jobsPath
         case setupCardDismissed
+        case firstActionHintDismissed
         case toggleHotKey
         case captureHotKey
         case filesHotKey
@@ -139,6 +152,19 @@ struct AppPreferences: Codable, Equatable {
         case showDropWheel
         case actionOrder
         case shortcuts
+        case panelX
+        case panelTop
+    }
+
+    var savedPanelOrigin: (x: CGFloat, top: CGFloat)? {
+        get {
+            guard let panelX, let panelTop else { return nil }
+            return (CGFloat(panelX), CGFloat(panelTop))
+        }
+        set {
+            panelX = newValue.map { Double($0.x) }
+            panelTop = newValue.map { Double($0.top) }
+        }
     }
 
     var inboxURL: URL? {

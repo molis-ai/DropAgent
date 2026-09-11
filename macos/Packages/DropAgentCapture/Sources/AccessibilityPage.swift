@@ -3,8 +3,27 @@ import ApplicationServices
 import Foundation
 
 public enum AccessibilityPage {
+    /// Ad-hoc signed builds often keep `AXIsProcessTrusted` false after the
+    /// user has already enabled the app. Believe a live Accessibility call.
     public static func isTrusted() -> Bool {
-        AXIsProcessTrusted()
+        resolveTrusted(processFlag: processTrustFlag(), apiEnabled: canReadSystemWide())
+    }
+
+    public static func resolveTrusted(processFlag: Bool, apiEnabled: Bool) -> Bool {
+        processFlag || apiEnabled
+    }
+
+    public static func processTrustFlag() -> Bool {
+        if AXIsProcessTrusted() { return true }
+        return AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": false] as CFDictionary)
+    }
+
+    public static func canReadSystemWide() -> Bool {
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 0.2)
+        var ref: CFTypeRef?
+        let err = AXUIElementCopyAttributeValue(system, kAXFocusedApplicationAttribute as CFString, &ref)
+        return err == .success || err == .noValue
     }
 
     public static func hasSiblingDropAgent() -> Bool {

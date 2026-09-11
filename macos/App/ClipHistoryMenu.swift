@@ -12,6 +12,13 @@ struct ClipHistoryMenu: View {
         VStack(alignment: .leading, spacing: 0) {
             if session.clipRecords.isEmpty == false {
                 toolbar
+                Text(Copy.t("单击选择，双击切换", "Click to select, double-click to switch"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.faint)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                    .padding(.bottom, 4)
+                    .accessibilityIdentifier("clip-history-hint")
             }
             if session.clipRecords.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -59,11 +66,8 @@ struct ClipHistoryMenu: View {
                     session.clipMultiSelect ? Copy.t("完成", "Done") : Copy.t("多选", "Select"),
                     systemImage: session.clipMultiSelect ? "checkmark.circle.fill" : "checkmark.circle"
                 )
-                .font(.system(size: 12, weight: session.clipMultiSelect ? .semibold : .medium))
-                .foregroundStyle(Palette.text)
-                .labelStyle(.titleAndIcon)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QuietButtonStyle(selected: session.clipMultiSelect))
             .accessibilityIdentifier("clip-multi-select")
             Spacer(minLength: 0)
             if session.clipSelection.isEmpty == false {
@@ -90,6 +94,8 @@ private struct ClipHistoryRow: View {
     @ObservedObject var session: AppSession
     let record: ClipRecord
     @State private var hovering = false
+    @State private var clickTask: Task<Void, Never>?
+    @State private var clickCount = 0
 
     private var isCurrent: Bool { session.currentClipFingerprint == record.fingerprint }
     private var selected: Bool { session.clipSelection.contains(record.id) }
@@ -97,19 +103,18 @@ private struct ClipHistoryRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Circle()
-                    .fill(isCurrent ? Palette.text : Color.clear)
-                    .overlay(Circle().stroke(isCurrent ? Palette.text : Palette.line, lineWidth: 1))
-                    .frame(width: 7, height: 7)
-                    .accessibilityLabel(isCurrent ? Copy.t("当前剪贴板", "Current clipboard") : "")
-                    .accessibilityHidden(isCurrent == false)
                 thumb
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(record.title)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Palette.text)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    HStack(spacing: 6) {
+                        Text(record.title)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Palette.text)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if isCurrent {
+                            currentTag
+                        }
+                    }
                     Text(subtitle)
                         .font(.system(size: 11))
                         .foregroundStyle(Palette.faint)
@@ -121,11 +126,8 @@ private struct ClipHistoryRow: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.faint)
-                        .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(IconButtonStyle(size: 22))
                 .opacity(hovering ? 1 : 0)
                 .accessibilityLabel(Copy.t("删除", "Delete"))
                 .accessibilityIdentifier("clip-delete")
@@ -144,11 +146,62 @@ private struct ClipHistoryRow: View {
         .contentShape(Rectangle())
         .background(selected ? Palette.panelHover : hovering ? Palette.panelHover.opacity(0.6) : Color.clear)
         .onHover { hovering = $0 }
-        .onTapGesture { session.toggleClipSelect(id: record.id, command: ClickModifiers.command) }
+        .onTapGesture { handleTap(command: ClickModifiers.command) }
+        .onDisappear {
+            clickTask?.cancel()
+            clickCount = 0
+        }
         .modifier(ClipRowDrag(session: session, record: record))
         .accessibilityIdentifier("clip-row")
-        .accessibilityLabel(record.title)
+        .accessibilityLabel(isCurrent ? Copy.t("\(record.title) 当前", "\(record.title) current") : record.title)
+        .accessibilityHint(Copy.t("单击选择，双击设为当前并复制", "Click to select. Double-click to make current and copy."))
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var currentTag: some View {
+        Text(Copy.t("当前", "Current"))
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .foregroundStyle(Palette.text)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Palette.panel2)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Palette.line)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .accessibilityIdentifier("clip-current")
+            .accessibilityLabel(Copy.t("当前", "Current"))
+    }
+
+    private func handleTap(command: Bool) {
+        if command {
+            clickTask?.cancel()
+            clickCount = 0
+            session.toggleClipSelect(id: record.id, command: true)
+            return
+        }
+        clickCount += 1
+        if clickCount >= 2 {
+            clickTask?.cancel()
+            clickCount = 0
+            session.makeClipCurrent(record.id)
+            return
+        }
+        let shouldDeselectIfSingle = selected
+        if selected == false {
+            session.toggleClipSelect(id: record.id, command: false)
+        }
+        clickTask?.cancel()
+        clickTask = Task { @MainActor in
+            let nanos = UInt64(max(0.18, NSEvent.doubleClickInterval) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanos)
+            guard !Task.isCancelled else { return }
+            if clickCount == 1, shouldDeselectIfSingle {
+                session.toggleClipSelect(id: record.id, command: false)
+            }
+            clickCount = 0
+        }
     }
 
     @ViewBuilder
@@ -264,71 +317,29 @@ private struct ClipDragChip: View {
     }
 }
 
-struct ClipHistoryButton: NSViewRepresentable {
-    var session: AppSession
+struct ClipHistoryButton: View {
+    @ObservedObject var session: AppSession
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(session: session)
-    }
-
-    func makeNSView(context: Context) -> NSButton {
-        let button = ClipHistoryNSButton()
-        button.bezelStyle = .inline
-        button.isBordered = false
-        button.setButtonType(.momentaryChange)
-        button.imagePosition = .imageOnly
-        button.imageScaling = .scaleProportionallyDown
-        let image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)
-        image?.isTemplate = true
-        button.image = image
-        button.contentTintColor = NSColor(Palette.faint)
-        button.target = context.coordinator
-        button.action = #selector(Coordinator.toggle(_:))
-        button.identifier = NSUserInterfaceItemIdentifier("shelf-paste")
-        button.setAccessibilityLabel(Copy.t("剪贴板历史", "Clipboard history"))
-        button.setAccessibilityHelp(
-            Copy.t("打开最近十条。快捷键仍直接把当前贴上架子。", "Opens the last ten clips. The shortcut still pastes the current clip onto the shelf.")
-        )
-        button.toolTip = Copy.t(
+    var body: some View {
+        Button {
+            let point = NSEvent.mouseLocation
+            session.toggleClipHistory(anchor: CGRect(x: point.x - 14, y: point.y - 14, width: 28, height: 28))
+        } label: {
+            Image(systemName: "doc.on.clipboard")
+                .font(.system(size: 12, weight: .medium))
+        }
+        .buttonStyle(IconButtonStyle(selected: session.clipHistoryOpen))
+        .help(Copy.t(
             "剪贴板历史。\(session.prefs.pasteHotKey.label) 仍直接贴当前。",
             "Clipboard history. \(session.prefs.pasteHotKey.label) still pastes the current clip."
-        )
-        return button
+        ))
+        .accessibilityLabel(Copy.t("剪贴板历史", "Clipboard history"))
+        .accessibilityHint(Copy.t(
+            "打开最近十条。快捷键仍直接把当前贴上架子。",
+            "Opens the last ten clips. The shortcut still pastes the current clip onto the shelf."
+        ))
+        .accessibilityIdentifier("shelf-paste")
     }
-
-    func updateNSView(_ button: NSButton, context: Context) {
-        context.coordinator.session = session
-        button.contentTintColor = NSColor(session.clipHistoryOpen ? Palette.text : Palette.faint)
-        button.toolTip = Copy.t(
-            "剪贴板历史。\(session.prefs.pasteHotKey.label) 仍直接贴当前。",
-            "Clipboard history. \(session.prefs.pasteHotKey.label) still pastes the current clip."
-        )
-    }
-
-    @MainActor
-    final class Coordinator: NSObject {
-        var session: AppSession
-
-        init(session: AppSession) {
-            self.session = session
-        }
-
-        @objc func toggle(_ sender: NSButton) {
-            session.toggleClipHistory(anchor: Self.screenFrame(of: sender))
-        }
-
-        static func screenFrame(of view: NSView) -> CGRect {
-            guard let window = view.window else {
-                let point = NSEvent.mouseLocation
-                return CGRect(x: point.x - 11, y: point.y - 11, width: 22, height: 22)
-            }
-            return window.convertToScreen(view.convert(view.bounds, to: nil))
-        }
-    }
-}
-
-private final class ClipHistoryNSButton: NSButton {
-    override var intrinsicContentSize: NSSize { NSSize(width: 22, height: 22) }
 }
 
 @MainActor

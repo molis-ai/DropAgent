@@ -44,6 +44,10 @@ struct ComposerField: NSViewRepresentable {
 
     private func applyChrome(_ field: NSTextField) {
         field.textColor = enabled ? Palette.textNS : Palette.mutedNS
+        if let editor = field.currentEditor() as? NSTextView {
+            editor.insertionPointColor = Palette.textNS
+            editor.selectedTextAttributes = [.backgroundColor: Palette.selectionNS, .foregroundColor: Palette.textNS]
+        }
         field.placeholderAttributedString = NSAttributedString(
             string: placeholder,
             attributes: [
@@ -107,7 +111,10 @@ private final class ComposerTextField: NSTextField {
 
     override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
-        (currentEditor() as? NSTextView)?.insertionPointColor = Palette.textNS
+        if let editor = currentEditor() as? NSTextView {
+            editor.insertionPointColor = Palette.textNS
+            editor.selectedTextAttributes = [.backgroundColor: Palette.selectionNS, .foregroundColor: Palette.textNS]
+        }
         return ok
     }
 }

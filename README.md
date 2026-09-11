@@ -1,16 +1,17 @@
 # DropAgent
 
 [![Check](https://github.com/molis-ai/DropAgent/actions/workflows/check.yml/badge.svg)](https://github.com/molis-ai/DropAgent/actions/workflows/check.yml)
+[![Release](https://img.shields.io/github/v/release/molis-ai/DropAgent)](https://github.com/molis-ai/DropAgent/releases/latest)
 
 **菜单栏上的 Agent 置物架。** 把 PDF、截图或链接先放着，在副本上处理，新文件出现在结果区，再拖走。原件不动。
 
 A macOS menu bar shelf for the coding agent you already have. Stage first, run on a copy, drag the new file out.
 
-![深色面板：上面是文件卡，中间是内容台，下面是动作](docs/readme/panel-dark.png)
+![深色主题：首次体验、操作路径与示例入口](docs/readme/panel-dark.png)
 
 点一张卡，中间出现正文；下面是动作栏。取消选中则收起内容台。不把预览挂在面板外面。
 
-当前版本 **0.1.0**，从源码打包运行。不上 Mac App Store，不提供云端模型。截图来自当前界面预览。
+当前版本 **0.1.0**。[下载 macOS 安装包](https://github.com/molis-ai/DropAgent/releases/tag/v0.1.0)（macOS 14+，Apple Silicon）。也可从源码打包。截图来自当前界面预览。
 
 ## 它解决什么
 
@@ -53,14 +54,21 @@ A macOS menu bar shelf for the coding agent you already have. Stage first, run o
 
 ## 开始使用
 
-需要：
+### 下载安装包
 
-- macOS 14+
-- Swift 6 工具链（Xcode 或 Command Line Tools）
+1. 从 [v0.1.0 Release](https://github.com/molis-ai/DropAgent/releases/tag/v0.1.0) 下载 `DropAgent-v0.1.0-macos-arm64.zip`。
+2. 解压，把 `DropAgent.app` 拖进「应用程序」，然后打开。安装包不需要 Xcode 或 Swift。
+3. 点菜单栏的 DropAgent 图标，从「试用示例 PDF」开始。
+
+要求 macOS 14 或更新版本、Apple Silicon（M 系列）Mac。本次二进制不支持 Intel。
+
+v0.1.0 使用 adhoc 签名，尚未经过 Apple 公证。若系统拦截，确认下载自本仓库后，按 [Apple 的说明](https://support.apple.com/zh-cn/102445)，在尝试打开后前往「系统设置 → 隐私与安全性 → 仍要打开」。无需关闭系统整体安全保护。
 
 第一次成功**不要求**已装 Grok / Codex。有 Agent 再跑总结、翻译。
 
-在仓库根目录：
+### 从源码构建
+
+需要 macOS 14+ 和 Swift 6 工具链（Xcode 或 Command Line Tools）。在仓库根目录：
 
 ```bash
 bash macos/package-app.sh
@@ -69,17 +77,17 @@ open macos/dist/DropAgent.app
 
 有 Developer ID 就按开发者证书签；否则做 adhoc 签名。应用在菜单栏，Dock 里没有图标。`macos/dist/` 不进 git。
 
-macOS 可能拦截未公证的 App。若打不开：在 Finder 里选中 `DropAgent.app`，右键 → 打开。这不是沙箱安装包，也还没有 GitHub Release。
+发布优化构建使用 `DROPAGENT_CONFIGURATION=release bash macos/package-app.sh`。
 
-打开后面板在菜单栏图标下方。第一次会看到三步引导。也可以点「放入示例文稿」。
+打开后面板在菜单栏图标下方。第一次可以点「试用示例 PDF」，或选择自己的文件。示例从提取文字到拿走新文件，无需 Agent 或权限。设置 → 使用指南可以再次试用。
 
-![首次打开的三步说明和放入示例](docs/readme/onboard.png)
+![首次打开：放入材料，生成新文件](docs/readme/onboard.png)
 
 **不依赖 Agent 的最短路径：**
 
 1. 拖一张截图或一份可选中文字的 PDF 到文件架（或点 `+`）。
 2. 点那张卡，中间出现内容。
-3. 点「文字提取」，看权限条（本机抽字、不发送），再「在副本中运行」。
+3. 点「提取文字」，确认处理范围，再点「开始提取」。
 4. 结果区出现 `ocr.md` 或 `pdf.md`。上面的原件还在，可以拖走结果。
 
 ![运行前的权限条：读副本、写任务目录、网络、隔离档](docs/readme/confirm.png)
@@ -112,13 +120,13 @@ CLI 动作的隔离按探测结果写。Codex / Gemini 在官方能力支持时�
 把示例换成自己的文件即可。
 
 - 拖 PDF、图片、文件夹、文本或链接到**文件架**，或点 `+`、搜索本机文件。
-- 点「其他」打开对话浮窗。拖到浮窗是发给当前终端，不是加入架子。
+- 点「对话」打开对话浮窗。拖到浮窗是发给当前终端，不是加入架子。
 
 ![拖到文件架时高亮「加入架子」](docs/readme/drop-zones.png)
 
 - 浏览器最前时按 ⌃⌥W 抓当前页。拖入或粘贴网址也会去抓正文；登录墙后的正文不承诺能拿到。
 - 多选后用「整合」得到一份 `brief.md`。
-- 结果可复制、拖到别的窗口，或「放到上面当材料」。多选时一次拖出所选项。网站抓取拖出的是文件夹：链接、`page.md`、截图。
+- 结果可复制、拖到别的窗口，或「用作材料」。多选时一次拖出所选项。网站抓取拖出的是文件夹：链接、`page.md`、截图。
 
 轮盘可在设置 → 外观关掉。关掉后，菜单栏图标和文件架仍接拖入。
 

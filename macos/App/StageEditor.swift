@@ -80,6 +80,7 @@ struct StageEditor: NSViewRepresentable {
         if text.font != font { text.font = font }
         text.textColor = Palette.textNS
         text.insertionPointColor = Palette.textNS
+        text.selectedTextAttributes = [.backgroundColor: Palette.selectionNS, .foregroundColor: Palette.textNS]
     }
 
     @MainActor

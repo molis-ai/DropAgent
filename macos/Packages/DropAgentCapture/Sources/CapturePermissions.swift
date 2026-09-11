@@ -98,9 +98,9 @@ public enum CapturePermissions {
         return kind.primaryBundleIdentifier
     }
 
-    public static func liveStatus() -> CapturePermissionStatus {
+    public static func liveStatus(accessibilityTrusted: Bool = AccessibilityPage.isTrusted()) -> CapturePermissionStatus {
         status(
-            accessibilityTrusted: AccessibilityPage.isTrusted(),
+            accessibilityTrusted: accessibilityTrusted,
             installedBundleIDs: liveInstalledBundleIDs(),
             runningBundleIDs: liveRunningBundleIDs(),
             stateForBundle: { AutomationAccess.probe(bundleIdentifier: $0) }

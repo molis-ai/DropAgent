@@ -9,8 +9,8 @@ struct SettingsWorkspace: View {
             SettingsForm.pathRow(
                 title: Copy.t("写入区域", "Incoming files"),
                 caption: Copy.t(
-                    "拖进来的文件副本放在这里。原件不动。",
-                    "Staged copies of dropped files live here. Originals stay put."
+                    "保存添加的材料副本，原文件保持不变。",
+                    "Stores copies of added files. Originals stay unchanged."
                 ),
                 path: DropAgentPaths.inbox,
                 isOverride: session.prefs.inboxPath != nil,
@@ -20,8 +20,8 @@ struct SettingsWorkspace: View {
             SettingsForm.pathRow(
                 title: Copy.t("输出结果", "Results"),
                 caption: Copy.t(
-                    "Recipe 跑完的新文件放在这里，目录是任务编号 / output。",
-                    "New files from recipes land here, under each job id / output."
+                    "按任务保存生成的文件。",
+                    "Stores generated files, organized by task."
                 ),
                 path: DropAgentPaths.jobs,
                 isOverride: session.prefs.jobsPath != nil,

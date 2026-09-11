@@ -36,15 +36,45 @@ extension AppSession {
             dismissed: prefs.setupCardDismissed,
             captureReady: SetupCardPolicy.captureReady(setup),
             isDiagnostic: suppressSetupCard,
-            panelVisible: true
+            panelVisible: true,
+            requested: setupCardRequested
         )
     }
+
+    var showsCaptureBanner: Bool {
+        SetupCardPolicy.shouldShowCaptureBanner(
+            onboarded: showsOnboarding == false,
+            isEmpty: items.isEmpty && results.isEmpty,
+            captureReady: SetupCardPolicy.captureReady(setup),
+            dismissed: prefs.setupCardDismissed,
+            isDiagnostic: suppressSetupCard,
+            covering: settingsOpen || showsSetupCard
+        )
+    }
+
+    var showsFirstActionHint: Bool {
+        Onboarding.shouldShowCoach(
+            dismissed: prefs.firstActionHintDismissed,
+            hasSelection: selectedItems.isEmpty == false,
+            isBusy: isCapturing
+                || selectedItems.contains { $0.status == .confirm || $0.status == .running }
+        )
+    }
+    var guidedSample: Item? {
+        guard !prefs.firstActionHintDismissed else { return nil }
+        if paneFocus == .result, let result = selectedResult {
+            return result.sourceItemIDs.compactMap { shelf.item(id: $0) }.first(where: OnboardingSample.contains)
+        }
+        guard selectedItems.count == 1 else { return nil }
+        return selectedItems.first(where: OnboardingSample.contains)
+    }
+
     var gearNeedsAttention: Bool {
         SetupCardPolicy.gearNeedsAttention(hasAgent: hasAgent, setup: setup)
     }
     var recipeActorLine: String {
         if activeRecipeID == .pdfText {
-            return Copy.t("本机抽字，不发送。", "On-device extract, not sent.")
+            return Copy.t("本机提取，不发送。", "On-device extraction, not sent.")
         }
         if isLocalRecipe(activeRecipeID) {
             return Copy.t("本机识别，不发送。", "On-device recognition, not sent.")
@@ -53,7 +83,7 @@ extension AppSession {
     }
     var recipeIsolationFact: String {
         if confirmRecipeID == .pdfText {
-            return Copy.t("本机抽字，不发送", "On-device extract, not sent")
+            return Copy.t("本机提取，不发送", "On-device extraction, not sent")
         }
         if isLocalRecipe(confirmRecipeID) {
             return Copy.t("本机识别，不发送", "On-device, not sent")

@@ -3,7 +3,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
-swift build --product DropAgent
+BUILD_CONFIGURATION="${DROPAGENT_CONFIGURATION:-debug}"
+case "$BUILD_CONFIGURATION" in
+  debug|release) ;;
+  *) echo "DROPAGENT_CONFIGURATION must be debug or release" >&2; exit 1 ;;
+esac
+swift build --configuration "$BUILD_CONFIGURATION" --product DropAgent
+BIN_DIR="$(swift build --configuration "$BUILD_CONFIGURATION" --show-bin-path)"
 
 APP="$ROOT/dist/DropAgent.app"
 BUNDLE_ID="local.dropagent"
@@ -11,7 +17,7 @@ if [[ "${DROPAGENT_VARIANT:-}" == "review" ]]; then
   APP="$ROOT/dist/DropAgent Review.app"
   BUNDLE_ID="local.dropagent.review"
 fi
-BIN="$ROOT/.build/debug/DropAgent"
+BIN="$BIN_DIR/DropAgent"
 mkdir -p "$APP/Contents/MacOS"
 cp "$ROOT/App/Info.plist" "$APP/Contents/Info.plist"
 if [[ "$BUNDLE_ID" == "local.dropagent.review" ]]; then
@@ -27,6 +33,9 @@ ICON_PNG="$ROOT/dist/DropAgent-1024.png"
 ICONSET="$ROOT/dist/DropAgent.iconset"
 ICNS="$APP/Contents/Resources/DropAgent.icns"
 mkdir -p "$APP/Contents/Resources" "$ICONSET"
+cp "$ROOT/../LICENSE" "$APP/Contents/Resources/LICENSE"
+cp "$ROOT/../NOTICE" "$APP/Contents/Resources/NOTICE"
+ditto "$BIN_DIR/SwiftTerm_SwiftTerm.bundle" "$APP/Contents/Resources/SwiftTerm_SwiftTerm.bundle"
 swift "$ICON_SRC" "$ICON_PNG"
 sips -z 16 16     "$ICON_PNG" --out "$ICONSET/icon_16x16.png" >/dev/null
 sips -z 32 32     "$ICON_PNG" --out "$ICONSET/icon_16x16@2x.png" >/dev/null

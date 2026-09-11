@@ -2,12 +2,61 @@ import AppKit
 import Foundation
 import SwiftUI
 
+struct WindowDragHandle: NSViewRepresentable {
+    func makeNSView(context: Context) -> WindowDragView {
+        WindowDragView()
+    }
+
+    func updateNSView(_ view: WindowDragView, context: Context) {}
+}
+
+final class WindowDragView: NSView {
+    override func mouseDown(with event: NSEvent) {
+        guard let panel = window as? DropAgentPanel else { return }
+        panel.beginUserMove(at: panel.convertPoint(toScreen: event.locationInWindow))
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let panel = window as? DropAgentPanel else { return }
+        panel.continueUserMove(at: panel.convertPoint(toScreen: event.locationInWindow))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        (window as? DropAgentPanel)?.endUserMove()
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .openHand)
+    }
+}
+
 final class DropAgentPanel: NSPanel {
     var onMouseInsideChange: ((Bool) -> Void)?
+    var onUserMoved: (() -> Void)?
+    private(set) var userMoving = false
+    private var moveStart = NSPoint.zero
+    private var moveOffset = NSPoint.zero
     private var tracking: NSTrackingArea?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    func beginUserMove(at point: NSPoint) {
+        moveStart = frame.origin
+        moveOffset = NSPoint(x: point.x - frame.minX, y: point.y - frame.minY)
+        userMoving = true
+    }
+
+    func continueUserMove(at point: NSPoint) {
+        guard userMoving else { return }
+        setFrameOrigin(NSPoint(x: point.x - moveOffset.x, y: point.y - moveOffset.y))
+    }
+
+    func endUserMove() {
+        guard userMoving else { return }
+        userMoving = false
+        if frame.origin != moveStart { onUserMoved?() }
+    }
 
     func installMouseTracking() {
         guard let contentView else { return }
@@ -164,6 +213,14 @@ enum StatusChrome {
         }
     }
 
+    static func lowerForPermission() {
+        captureStatusWindows()
+        for item in stored {
+            item.window.level = .normal
+            item.window.orderBack(nil)
+        }
+    }
+
     private static func captureStatusWindows() {
         NSApp.activate(ignoringOtherApps: true)
         blockActivateRestore = true
@@ -196,4 +253,3 @@ enum StatusChrome {
         blockActivateRestore = false
     }
 }
-

@@ -35,6 +35,13 @@ enum AppE2E {
             Self.forceRemove(DropAgentPaths.root)
             try? DropAgentPaths.ensure()
             try? FileManager.default.createDirectory(at: uiOut, withIntermediateDirectories: true)
+            if CommandLine.arguments.contains("--panel-only") {
+                Task { @MainActor in
+                    await PanelE2E.run()
+                    NSApp.terminate(nil)
+                }
+                return
+            }
             session = AppSession(jobRunner: RecipeStubAgent())
 
             let window = NSWindow(
@@ -65,7 +72,21 @@ enum AppE2E {
         private func go() async {
             session.setTUIPreference(.grok)
             await settle()
-            verifyOnboarding()
+            await verifyOnboarding()
+            if ProcessInfo.processInfo.arguments.contains("--ui-only") {
+                verifyTtyTheme()
+                await verifyErrorRecoveryUI()
+                await verifyPanelSettings()
+                verifyContentStage()
+                await verifyActionBar()
+                verifyFailedActionRetry()
+                verifyFailedOutputTakeaway()
+                verifyDoneTakeaway()
+                await verifyPdfTextLoop()
+                await verifyImageTextLoop()
+                fputs("e2e: ui ok — onboarding, permissions recovery UI, settings, editing, actions, failure, PDF, OCR, export\n", stdout)
+                return
+            }
             session.systemDragActive = true
             await settle()
             snapshot("e2e-drag-empty")
@@ -74,6 +95,7 @@ enum AppE2E {
             verifyLivePanelChrome()
             verifyPanelIdle()
             verifyPlusKeepsPanel()
+            verifyPermissionLowersPanel()
             verifyFirstOpen()
             await verifySetupCard()
             await verifyPaneLayout()
@@ -618,6 +640,9 @@ enum AppE2E {
             guard session.actionSlots.contains(.recipe(.redact)) == false else {
                 fail("redact still on bar")
             }
+            guard session.poolSlots.contains(.recipe(.redact)) else {
+                fail("redact missing from pool")
+            }
             let sizes: [String: CGFloat] = [
                 RecipeID.summarize.rawValue: 80,
                 RecipeID.extract.rawValue: 70,
@@ -660,8 +685,21 @@ enum AppE2E {
             guard let action = session.prefs.shortcuts.first(where: { $0.name == "抽付款日" }) else {
                 fail("shortcut not saved")
             }
+            guard session.actionSlots.contains(.shortcut(action.id)) == false else {
+                fail("shortcut auto-added to bar")
+            }
+            guard session.poolSlots.contains(.shortcut(action.id)) else {
+                fail("shortcut missing from pool")
+            }
+            guard session.shortcutPoolNotice?.id == action.id else {
+                fail("pool notice missing")
+            }
+            session.pinPooledShortcutToBar()
             guard session.barSlots(organizing: false).contains(.shortcut(action.id)) else {
                 fail("shortcut missing on pdf bar \(session.barSlots(organizing: false).map(\.id))")
+            }
+            guard session.shortcutPoolNotice == nil else {
+                fail("pool notice stayed")
             }
             session.chooseShortcut(id: action.id)
             guard session.canConfirmRun else {
@@ -1117,7 +1155,7 @@ enum AppE2E {
             guard session.recipeNetworkFact == "关" else {
                 fail("pdf network \(session.recipeNetworkFact)")
             }
-            guard session.recipeIsolationFact.contains("本机抽字") else {
+            guard session.recipeIsolationFact.contains("本机提取") else {
                 fail("pdf isolation \(session.recipeIsolationFact)")
             }
             await session.confirmRun()
@@ -1513,6 +1551,14 @@ enum AppE2E {
             guard session.clipSelection.count == 2 else {
                 fail("clip command multi \(session.clipSelection.count)")
             }
+            let switchBoard = NSPasteboard.withUniqueName()
+            session.makeClipCurrent(older.id, on: switchBoard)
+            guard switchBoard.string(forType: .string) == "history-one" else {
+                fail("make current did not copy \(switchBoard.string(forType: .string) ?? "nil")")
+            }
+            guard session.currentClipFingerprint == older.fingerprint else {
+                fail("double-click did not switch current")
+            }
             await settle()
             guard session.items.count == beforeItems else {
                 fail("selecting a clip admitted it")
@@ -1903,7 +1949,7 @@ enum AppE2E {
             guard let light, light.redComponent > 0.9 else {
                 fail("light tty well \(light?.redComponent ?? -1)")
             }
-            guard Palette.ttyIdleFill.contains("#fcfcfd") else {
+            guard Palette.ttyIdleFill.contains("#fcfcfc") else {
                 fail("light tty fill \(Palette.ttyIdleFill)")
             }
             session.setAppearance(.dark)
@@ -1994,6 +2040,14 @@ enum AppE2E {
             session.setLanguage(.en)
             guard Copy.t("设置", "Settings") == "Settings" else { fail("settings english") }
             session.settingsOpen = true
+            session.settingsSection = .actions
+            await settle()
+            guard settingsShows("settings-action-pool") else {
+                fail("action pool missing \(settingsTree())")
+            }
+            guard settingsShows("settings-action-bar") else {
+                fail("action bar column missing \(settingsTree())")
+            }
             session.settingsSection = .shortcuts
             await settle()
             snapshot("e2e-settings")
@@ -2008,17 +2062,13 @@ enum AppE2E {
             guard settingsShows("How It Works") else {
                 fail("settings guide title not english \(settingsTree())")
             }
-            guard settingsShows("drop wheel") else {
+            guard settingsShows("Drop onto the menu bar icon") else {
                 fail("settings guide body not english \(settingsTree())")
             }
-            guard SettingsGuideCopy.dropIn.contains("drop wheel"),
-                  SettingsGuideCopy.dropIn.contains("six slices"),
-                  SettingsGuideCopy.files.contains("Finder"),
-                  SettingsGuideCopy.accepts.contains("PDF"),
-                  SettingsGuideCopy.browser.contains("tabs"),
-                  SettingsGuideCopy.reads.contains("job copy"),
-                  SettingsGuideCopy.writes.contains("never overwritten"),
-                  SettingsGuideCopy.dropOut.contains("does not move")
+            guard settingsShows("Actions use job copies"),
+                  settingsShows("Actions do not overwrite originals"),
+                  settingsShows("not restricted to the copy sandbox"),
+                  settingsShows("copies remain in DropAgent")
             else {
                 fail("settings english guide \(SettingsGuideCopy.dropIn)")
             }
@@ -2042,16 +2092,10 @@ enum AppE2E {
             guard settingsShows("轮盘") else {
                 fail("settings guide body not chinese \(settingsTree())")
             }
-            guard SettingsGuideCopy.dropIn.contains("轮盘"),
-                  SettingsGuideCopy.dropIn.contains("六瓣"),
-                  SettingsGuideCopy.dropIn.contains("不开关面板"),
-                  SettingsGuideCopy.files.contains("Finder"),
-                  SettingsGuideCopy.files.contains("⌘C"),
-                  SettingsGuideCopy.accepts.contains("PDF"),
-                  SettingsGuideCopy.browser.contains("标签"),
-                  SettingsGuideCopy.reads.contains("任务副本"),
-                  SettingsGuideCopy.writes.contains("不覆盖"),
-                  SettingsGuideCopy.dropOut.contains("复制不是挪走")
+            guard settingsShows("动作使用任务副本"),
+                  settingsShows("快捷动作不覆盖原文件"),
+                  settingsShows("不受副本沙箱限制"),
+                  settingsShows("DropAgent 中的副本会保留")
             else {
                 fail("settings chinese guide \(SettingsGuideCopy.dropIn)")
             }
@@ -2219,6 +2263,53 @@ enum AppE2E {
             }
             guard LivePanelChrome.styleMask.contains(.miniaturizable) == false else {
                 fail("live panel still miniaturizable")
+            }
+            guard LivePanelChrome.styleMask.contains(.resizable) == false else {
+                fail("live panel became resizable")
+            }
+            let visible = NSRect(x: 0, y: 0, width: 1440, height: 900)
+            let placed = PanelPlacement.underStatusItem(
+                button: NSRect(x: 1300, y: 878, width: 28, height: 22),
+                visible: visible,
+                size: NSSize(width: 1040, height: 400)
+            )
+            guard placed.width >= LivePanelChrome.shelfOnlyMin else {
+                fail("default width too small \(placed.width)")
+            }
+            let moved = PanelPlacement.placed(
+                savedX: 80,
+                savedTop: 820,
+                size: NSSize(width: 1040, height: 360),
+                visible: visible
+            )
+            guard abs(moved.maxY - 820) < 0.5 else {
+                fail("saved top \(moved.maxY)")
+            }
+            guard abs(moved.minX - 80) < 0.5 else {
+                fail("saved x \(moved.minX)")
+            }
+            var prefs = AppPreferences.default
+            prefs.savedPanelOrigin = (120, 760)
+            prefs.save()
+            let loaded = AppPreferences.load()
+            guard let origin = loaded.savedPanelOrigin else {
+                fail("panel origin did not persist")
+            }
+            guard abs(origin.x - 120) < 0.5, abs(origin.top - 760) < 0.5 else {
+                fail("panel origin roundtrip \(origin)")
+            }
+            let again = PanelPlacement.placed(
+                savedX: origin.x,
+                savedTop: origin.top,
+                size: NSSize(width: 1040, height: 400),
+                visible: visible
+            )
+            guard abs(again.minX - 120) < 0.5, abs(again.maxY - 760) < 0.5 else {
+                fail("reopen frame \(again)")
+            }
+            let clamped = PanelPlacement.clamp(NSRect(x: -80, y: -40, width: 1040, height: 400), visible: visible)
+            guard clamped.minX >= visible.minX else {
+                fail("clamp left \(clamped.minX)")
             }
             guard LivePanelChrome.panelWidth == 1040 else {
                 fail("panel width \(LivePanelChrome.panelWidth)")
@@ -2399,20 +2490,51 @@ enum AppE2E {
             panel.orderOut(nil)
         }
 
+        private func verifyPermissionLowersPanel() {
+            let panel = NSPanel(
+                contentRect: NSRect(x: 40, y: 40, width: 80, height: 80),
+                styleMask: .borderless,
+                backing: .buffered,
+                defer: false
+            )
+            panel.isFloatingPanel = true
+            panel.level = .statusBar
+            panel.alphaValue = 1
+            panel.orderFront(nil)
+            StatusChrome.lowerForPermission()
+            guard panel.isVisible else { fail("permission hid the panel") }
+            guard panel.level == .normal else { fail("permission level \(panel.level.rawValue)") }
+            StatusChrome.restore()
+            guard panel.isVisible else { fail("permission restore hid the panel") }
+            guard panel.level == .statusBar else { fail("permission restore level \(panel.level.rawValue)") }
+            panel.orderOut(nil)
+        }
+
         private func verifySetupCard() async {
             guard SetupCardPolicy.shouldShowCard(
                 dismissed: false,
                 captureReady: false,
                 isDiagnostic: false,
-                panelVisible: true
+                panelVisible: true,
+                requested: true
             ) else {
-                fail("setup card hidden when incomplete")
+                fail("setup card hidden when requested")
+            }
+            guard SetupCardPolicy.shouldShowCard(
+                dismissed: false,
+                captureReady: false,
+                isDiagnostic: false,
+                panelVisible: true,
+                requested: false
+            ) == false else {
+                fail("setup card shown without request")
             }
             guard SetupCardPolicy.shouldShowCard(
                 dismissed: true,
                 captureReady: false,
                 isDiagnostic: false,
-                panelVisible: true
+                panelVisible: true,
+                requested: true
             ) == false else {
                 fail("dismissed setup card still shown")
             }
@@ -2420,7 +2542,8 @@ enum AppE2E {
                 dismissed: false,
                 captureReady: false,
                 isDiagnostic: true,
-                panelVisible: true
+                panelVisible: true,
+                requested: true
             ) == false else {
                 fail("diagnostic setup card shown")
             }
@@ -2428,9 +2551,40 @@ enum AppE2E {
                 dismissed: false,
                 captureReady: true,
                 isDiagnostic: false,
-                panelVisible: true
+                panelVisible: true,
+                requested: true
             ) == false else {
                 fail("ready setup card shown")
+            }
+            guard SetupCardPolicy.shouldShowCaptureBanner(
+                onboarded: true,
+                isEmpty: true,
+                captureReady: false,
+                dismissed: false,
+                isDiagnostic: false,
+                covering: false
+            ) else {
+                fail("capture banner hidden after onboarding")
+            }
+            guard SetupCardPolicy.shouldShowCaptureBanner(
+                onboarded: false,
+                isEmpty: true,
+                captureReady: false,
+                dismissed: false,
+                isDiagnostic: false,
+                covering: false
+            ) == false else {
+                fail("capture banner during onboarding")
+            }
+            guard SetupCardPolicy.shouldShowCaptureBanner(
+                onboarded: true,
+                isEmpty: true,
+                captureReady: false,
+                dismissed: true,
+                isDiagnostic: false,
+                covering: false
+            ) == false else {
+                fail("dismissed capture banner still shown")
             }
             guard SetupCardPolicy.gearNeedsAttention(hasAgent: false, setup: SetupFixtures.incomplete) else {
                 fail("missing agent should mark gear")
@@ -2475,6 +2629,9 @@ enum AppE2E {
                 guard decoded.setupCardDismissed == false else {
                     fail("missing setupCardDismissed should be false")
                 }
+                guard decoded.firstActionHintDismissed == false else {
+                    fail("missing firstActionHintDismissed should be false")
+                }
                 guard decoded.showDropWheel else {
                     fail("missing drop wheel pref should default on")
                 }
@@ -2493,12 +2650,17 @@ enum AppE2E {
             session.setupPermissionsOverride = SetupFixtures.incomplete
             session.suppressSetupCard = false
             session.refreshSetup()
+            guard session.showsSetupCard == false else {
+                fail("incomplete setup shown without request")
+            }
+            session.requestSetupCard()
             guard session.showsSetupCard else {
                 fail("forced setup card hidden")
             }
             await settle()
             snapshot("e2e-setup")
             session.suppressSetupCard = true
+            session.setupCardRequested = false
             session.setupPermissionsOverride = nil
             session.refreshSetup()
             guard session.showsSetupCard == false else {
@@ -2506,7 +2668,26 @@ enum AppE2E {
             }
         }
 
-        private func verifyOnboarding() {
+        private func verifyErrorRecoveryUI() async {
+            session.errorText = "网页抓取需要授权，请授权后重试。"
+            session.offerPrivacySettings = true
+            session.offerCaptureRetry = true
+            await settle()
+            guard let host = hosting,
+                  viewContains(host, needle: "error-banner"),
+                  viewContains(host, needle: "error-authorize"),
+                  viewContains(host, needle: "error-retry") else {
+                fail("capture recovery actions are hidden")
+            }
+            session.dismissError()
+            await settle()
+            guard session.errorText == nil, !session.offerPrivacySettings, !session.offerCaptureRetry,
+                  !viewContains(host, needle: "error-banner") else {
+                fail("error dismissal did not clear the recovery UI and state")
+            }
+        }
+
+        private func verifyOnboarding() async {
             guard Onboarding.shouldShow(markerExists: false, isEmpty: true) else {
                 fail("onboarding hidden when empty")
             }
@@ -2516,27 +2697,72 @@ enum AppE2E {
             guard Onboarding.shouldShow(markerExists: false, isEmpty: false) == false else {
                 fail("onboarding with items")
             }
-            guard session.showsOnboarding else {
-                fail("session missing onboarding")
+            guard Onboarding.shouldShowCoach(dismissed: false, hasSelection: true, isBusy: false) else {
+                fail("coach hidden on first item")
             }
+            guard Onboarding.shouldShowCoach(dismissed: true, hasSelection: true, isBusy: false) == false else {
+                fail("dismissed coach still shown")
+            }
+            guard Onboarding.shouldShowCoach(dismissed: false, hasSelection: true, isBusy: true) == false else {
+                fail("coach during confirm")
+            }
+            guard session.showsOnboarding else { fail("session missing onboarding") }
             snapshot("e2e-onboard")
+            session.dismissOnboarding()
+            guard !session.showsOnboarding, !session.showsCaptureBanner else {
+                fail("skip did not leave a quiet shelf")
+            }
+            session.presence = .none
+            session.recipePresence = .none
             session.tryOnboardingSample()
-            guard session.items.contains(where: { $0.title == Onboarding.sampleFileName && $0.kind == .markdown }) else {
-                fail("try once did not admit sample")
+            guard let sample = session.items.first(where: OnboardingSample.contains),
+                  sample.kind == .pdf, sample.status == .idle, session.results.isEmpty else {
+                fail("sample must be a real idle PDF; admission must not run a job")
             }
-            guard session.showsOnboarding == false else {
-                fail("onboarding still showing after try")
+            let before = hash(sample.sourceURL)
+            guard !session.showsOnboarding, session.showsFirstActionHint, session.guidedSample?.id == sample.id else {
+                fail("sample missing its next action")
             }
-            guard FileManager.default.fileExists(atPath: DropAgentPaths.onboardedFile.path) else {
-                fail("missing onboarded marker")
+            session.chooseRecipe(.pdfText)
+            session.cancelConfirm()
+            guard session.shelf.item(id: sample.id)?.status == .idle, session.guidedSample != nil else {
+                fail("cancel did not return to the sample guide")
             }
-            for item in session.items {
-                session.remove(id: item.id)
+            session.chooseRecipe(.pdfText)
+            guard session.canConfirmRun, session.recipeNetworkFact == "关", !session.hasAgent else {
+                fail("sample extraction must work without agent or network")
             }
+            await session.confirmRun()
+            guard let result = session.selectedResult, let output = result.output,
+                  result.title == "pdf.md", result.sourceItemIDs.contains(sample.id) else {
+                fail(session.errorText ?? "sample extraction did not present a result")
+            }
+            let body = (try? String(contentsOf: output, encoding: .utf8)) ?? ""
+            guard body.contains(Copy.t("季度报告", "quarterly report")),
+                  body.contains(Copy.t("客户反馈", "customer feedback")) else {
+                fail("sample did not extract its actual content")
+            }
+            guard hash(sample.sourceURL) == before, session.guidedSample?.id == sample.id, !session.showsActionBar else {
+                fail("sample source changed or completion guidance disappeared")
+            }
+            do {
+                let landed = try await land(result.takeawayItem())
+                guard try String(contentsOf: landed, encoding: .utf8) == body else {
+                    fail("sample exported content differs from result")
+                }
+            } catch { fail("sample export: \(error)") }
+            session.dismissFirstActionHint()
+            guard session.guidedSample == nil, AppPreferences.load().firstActionHintDismissed else {
+                fail("sample guide dismissal was not persisted")
+            }
+            session.removeResult(result.id)
+            session.remove(id: sample.id)
             session.refresh()
-            guard session.showsOnboarding == false else {
-                fail("onboarding returned after clear")
+            guard !session.showsOnboarding,
+                  FileManager.default.fileExists(atPath: DropAgentPaths.onboardedFile.path) else {
+                fail("onboarding returned after clearing the sample")
             }
+            session.refreshPresence()
             guard FileManager.default.fileExists(atPath: DropAgentPaths.openedFile.path) == false else {
                 fail("onboarding wrote opened")
             }

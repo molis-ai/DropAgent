@@ -6,9 +6,14 @@ enum SetupCardPolicy {
         dismissed: Bool,
         captureReady: Bool,
         isDiagnostic: Bool,
-        panelVisible: Bool
+        panelVisible: Bool,
+        requested: Bool
     ) -> Bool {
-        isDiagnostic == false && panelVisible && dismissed == false && captureReady == false
+        isDiagnostic == false
+            && panelVisible
+            && dismissed == false
+            && captureReady == false
+            && requested
     }
 
     static func captureReady(_ setup: PageAdmitSetup) -> Bool {
@@ -19,6 +24,22 @@ enum SetupCardPolicy {
         hasAgent == false
             || setup.accessibilityTrusted == false
             || (setup.browsers.isEmpty == false && setup.browsers.contains(where: \.allowed) == false)
+    }
+
+    static func shouldShowCaptureBanner(
+        onboarded: Bool,
+        isEmpty: Bool,
+        captureReady: Bool,
+        dismissed: Bool,
+        isDiagnostic: Bool,
+        covering: Bool
+    ) -> Bool {
+        onboarded
+            && isEmpty
+            && captureReady == false
+            && dismissed == false
+            && isDiagnostic == false
+            && covering == false
     }
 
     /// A silent denial may precede registration; keep an explicit request available.
@@ -37,9 +58,35 @@ enum BrowserSetupAction: Equatable {
 
 @MainActor
 enum SetupCopy {
-    static var title: String { Copy.t("使用准备", "Setup") }
+    static var title: String { Copy.t("权限与连接", "Permissions & connections") }
 
-    static var later: String { Copy.t("以后再说", "Later") }
+    static var overlayLead: String {
+        Copy.t(
+            "按需开启网页抓取和 Finder 文件导入。直接拖入文件无需授权。",
+            "Enable page capture and Finder import as needed. Dropping files requires no permissions."
+        )
+    }
+
+    static var later: String { Copy.t("暂不设置", "Not now") }
+
+    static var prepare: String { Copy.t("设置权限", "Set up permissions") }
+
+    static var bannerTitle: String { Copy.t("网页抓取需要授权", "Page capture needs permission") }
+
+    static var bannerDetail: String { Copy.t("添加文件和本机文字提取可直接使用。", "Adding files and on-device text extraction are ready to use.") }
+
+    static var captureGroupTitle: String { Copy.t("抓当前页", "Page capture") }
+
+    static var captureGroupLead: String {
+        Copy.t(
+            "只需授权要使用的浏览器。",
+            "Allow access to the browsers you use."
+        )
+    }
+
+    static var agentSection: String { Copy.t("终端", "Terminal") }
+
+    static var finderSection: String { Copy.t("从 Finder 加入", "Finder") }
 
     static var agentTitle: String { Copy.t("终端 Agent", "Terminal agent") }
 
@@ -49,8 +96,8 @@ enum SetupCopy {
 
     static var agentMissing: String {
         Copy.t(
-            "未发现终端 Agent。可以先把文件放在架子上。",
-            "No terminal agent found. You can still put files on the shelf."
+            "未检测到本机 Agent。添加文件和文字提取仍可使用。",
+            "No local agent found. Adding files and text extraction are still available."
         )
     }
 
@@ -95,27 +142,42 @@ enum SetupCopy {
 
     static var accessibilityTitle: String { Copy.t("辅助功能", "Accessibility") }
 
-    static var accessibilityReady: String { Copy.t("已开", "Enabled") }
+    static var accessibilityReady: String { Copy.t("已打开", "On") }
 
     static var accessibilityNeed: String {
         Copy.t(
-            "当前进程未获得辅助功能访问。若系统开关已开，请核对下方应用位置，并在授权后退出重开。",
-            "This process does not have Accessibility access. If the system toggle is on, check the app location below and quit and reopen after granting access."
+            "读取当前页地址需要它。点允许后，在系统提示里打开设置，并打开 DropAgent。",
+            "Needed to read the current page address. Allow, then turn DropAgent on in the system prompt."
         )
+    }
+
+    static var accessibilityNeedShort: String {
+        Copy.t("读取当前页地址需要它。", "Needed to read the current page address.")
     }
 
     static var accessibilityForeign: String {
         Copy.t(
-            "检测到另一份 DropAgent 进程；当前进程尚未获得辅助功能访问。请核对授权的应用位置。",
-            "Another DropAgent process was detected; this process lacks Accessibility access. Check which app location was granted access."
+            "系统列表里开着的可能是另一份 DropAgent。请核对该应用。",
+            "The toggle in System Settings may belong to another copy of DropAgent. Check which app was allowed."
         )
     }
 
-    static func automationStatus(_ row: PageAdmitBrowserRow) -> String {
+    static var openAccessibilitySettings: String {
+        Copy.t("打开辅助功能设置", "Open Accessibility Settings")
+    }
+
+    static func automationStatus(_ row: PageAdmitBrowserRow, compact: Bool = false) -> String {
         switch row.state {
         case .allowed: return browserReady(row.displayName)
-        case .denied: return Copy.t("系统未许可控制\(row.displayName)。可请求授权，或到系统自动化设置核对。", "The system has not permitted control of \(row.displayName). Request access or check Automation settings.")
-        case .notDetermined: return Copy.t("尚未决定是否允许控制\(row.displayName)。", "Access to \(row.displayName) has not been decided.")
+        case .denied:
+            return Copy.t(
+                "还没允许控制\(row.displayName)。可再请求一次，或打开自动化设置。",
+                "Control of \(row.displayName) is not allowed. Request again, or open Automation settings."
+            )
+        case .notDetermined:
+            return compact
+                ? browserNeed(row.displayName)
+                : Copy.t("尚未允许控制\(row.displayName)。", "Control of \(row.displayName) has not been allowed yet.")
         case .unavailable:
             return row.running
                 ? Copy.t("暂时无法检测\(row.displayName)的授权状态。", "Cannot currently determine access to \(row.displayName).")
@@ -123,20 +185,22 @@ enum SetupCopy {
         }
     }
 
-    static var authorize: String { Copy.t("去授权", "Authorize") }
+    static var authorize: String { Copy.t("允许", "Allow") }
 
-    static var openAndAuthorize: String { Copy.t("打开并授权", "Open and authorize") }
+    static var openAndAuthorize: String { Copy.t("打开并允许", "Open and allow") }
+
+    static var openAutomationSettings: String { Copy.t("打开自动化设置", "Open Automation Settings") }
 
     static func browserReady(_ name: String) -> String {
         Copy.t("已允许控制\(name)", "Allowed to control \(name)")
     }
 
     static func browserNeed(_ name: String) -> String {
-        Copy.t("抓页时要允许控制\(name)。", "Page capture needs control of \(name).")
+        Copy.t("抓 \(name) 当前页需要允许控制它。", "Capturing a \(name) page needs control of it.")
     }
 
     static func browserClosed(_ name: String) -> String {
-        Copy.t("打开\(name)后再授权。", "Open \(name), then authorize.")
+        Copy.t("打开\(name)后再允许。", "Open \(name), then allow.")
     }
 }
 

@@ -25,21 +25,16 @@ struct SettingsRuntime: View {
                     HStack(spacing: 8) {
                         Button(action: { session.setCustomRuntimeKind(custom.id, kind: .tui) }) {
                             Text("TUI")
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .buttonStyle(QuietButtonStyle())
-                        .opacity(custom.kind == .tui ? 1 : 0.55)
+                        .buttonStyle(QuietButtonStyle(selected: custom.kind == .tui, expand: true))
                         Button(action: { session.setCustomRuntimeKind(custom.id, kind: .cli) }) {
                             Text("CLI")
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .buttonStyle(QuietButtonStyle())
-                        .opacity(custom.kind == .cli ? 1 : 0.55)
+                        .buttonStyle(QuietButtonStyle(selected: custom.kind == .cli, expand: true))
                         Button(action: { session.removeCustomRuntime(custom.id) }) {
                             Text(Copy.t("删除", "Remove"))
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .buttonStyle(QuietButtonStyle())
+                        .buttonStyle(QuietButtonStyle(danger: true, expand: true))
                     }
                     .frame(height: 30)
                 }
@@ -51,10 +46,8 @@ struct SettingsRuntime: View {
             }
             Button(action: { session.pickTUIExecutable() }) {
                 Text(Copy.t("添加 Runtime…", "Add Runtime…"))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .buttonStyle(QuietButtonStyle())
-            .frame(height: 32)
+            .buttonStyle(QuietButtonStyle(expand: true))
             .accessibilityIdentifier("settings-add-runtime")
         }
     }

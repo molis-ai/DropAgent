@@ -10,14 +10,13 @@ struct WorkPane: View {
             CapturingBody(reduceMotion: reduceMotion)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
-        } else if session.offerPrivacySettings || session.offerCaptureRetry {
-            EmptyView()
         } else {
             let batch = session.selectedItems
             if batch.isEmpty && session.showsOnboarding {
                 OnboardingView(session: session)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
+            } else if batch.isEmpty && session.showsCaptureBanner && session.errorText == nil {
+                CaptureReadyBanner(session: session)
+                    .padding(.bottom, 4)
             } else if batch.contains(where: { $0.status == .confirm }) {
                 RecipeConfirmationView(session: session)
                     .padding(.horizontal, 16)
@@ -54,11 +53,12 @@ struct WorkPane: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
-            } else if session.errorText != nil {
-                ErrorBanner(session: session)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
             }
+        }
+        if !session.isCapturing && session.errorText != nil && session.selectedFailureReason == nil {
+            ErrorBanner(session: session)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
         }
     }
 }

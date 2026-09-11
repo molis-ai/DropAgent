@@ -39,7 +39,7 @@ extension AppSession {
                     return
                 }
                 authorizingID = FrontAdmit.finderBundleID
-                let state = await PageAdmit.requestAutomationOffMain(bundleIdentifier: FrontAdmit.finderBundleID)
+                let state = await requestAutomationLettingPromptThrough(bundleIdentifier: FrontAdmit.finderBundleID)
                 authorizingID = nil
                 refreshSetup()
                 finderOK = state == .allowed

@@ -12,17 +12,13 @@ struct RowEditButtons: View {
     var deleteID: String
 
     var body: some View {
-        let size: CGFloat = 24
-        let height: CGFloat = compact ? 24 : 28
-        HStack(spacing: 0) {
+        let size: CGFloat = compact ? 24 : 28
+        HStack(spacing: 4) {
             Button(action: onHide) {
                 Image(systemName: "xmark")
                     .font(.system(size: compact ? 9 : 10, weight: .semibold))
-                    .foregroundStyle(visible ? Palette.text : Palette.faint)
-                    .frame(width: size, height: height)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(IconButtonStyle(size: size))
             .accessibilityLabel(Copy.t("隐藏", "Hide"))
             .accessibilityHint(Copy.t("从列表拿掉，不删文件", "Remove from the list without deleting files"))
             .help(Copy.t("隐藏", "Hide"))
@@ -30,18 +26,14 @@ struct RowEditButtons: View {
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .font(.system(size: compact ? 9 : 10, weight: .semibold))
-                    .foregroundStyle(visible ? Palette.danger : Palette.faint)
-                    .frame(width: size, height: height)
-                    .contentShape(Rectangle())
+                    .foregroundStyle(Palette.danger)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(IconButtonStyle(size: size))
             .accessibilityLabel(Copy.t("删除", "Delete"))
             .accessibilityHint(Copy.t("删除 DropAgent 里的副本，原件保留", "Delete DropAgent’s copy. The original stays."))
             .help(Copy.t("删除", "Delete"))
             .accessibilityIdentifier(deleteID)
         }
-        .background(visible ? Palette.panel2 : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
         .opacity(visible ? 1 : 0)
         .allowsHitTesting(visible)
         .accessibilityHidden(!visible)

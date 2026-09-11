@@ -6,7 +6,7 @@ struct SettingsLook: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             VStack(alignment: .leading, spacing: 10) {
-                SettingsForm.sectionTitle(Copy.t("颜色", "Theme"))
+                SettingsForm.sectionTitle(Copy.t("主题", "Theme"))
                 SettingsForm.segmented(
                     items: [
                         (AppearancePreference.light, Copy.t("浅色", "Light")),

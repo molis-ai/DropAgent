@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ShortcutComposer: View {
     @ObservedObject var session: AppSession
+    var inset = true
 
     var body: some View {
         if session.shortcutDraft != nil {
@@ -20,11 +21,11 @@ struct ShortcutComposer: View {
     private var form: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(draftBind.wrappedValue.id == nil
-                 ? Copy.t("新快捷动作", "New shortcut")
-                 : Copy.t("编辑快捷动作", "Edit shortcut"))
+                 ? Copy.t("新建自定义动作", "New custom action")
+                 : Copy.t("编辑自定义动作", "Edit custom action"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Palette.text)
-            TextField(Copy.t("名字，比如抽付款日", "Name, e.g. Payment dates"), text: draftBind.name)
+            TextField(Copy.t("动作名称，如「提取付款日期」", "Action name, e.g. Extract payment dates"), text: draftBind.name)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .padding(.horizontal, 8)
@@ -40,14 +41,8 @@ struct ShortcutComposer: View {
                         else { draftBind.wrappedValue.kinds.insert(kind) }
                     } label: {
                         Text(Copy.kindWord(kind))
-                            .font(.system(size: 11, weight: on ? .semibold : .regular))
-                            .foregroundStyle(Palette.text)
-                            .padding(.horizontal, 8)
-                            .frame(height: 24)
-                            .background(on ? Palette.panelPress : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TagButtonStyle(selected: on))
                     .accessibilityIdentifier("shortcut-kind-\(kind.rawValue)")
                 }
             }
@@ -63,21 +58,18 @@ struct ShortcutComposer: View {
             HStack(spacing: 12) {
                 Button(action: session.saveShortcutDraft) {
                     Text(Copy.t("保存", "Save"))
-                        .font(.system(size: 12, weight: .semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PrimaryButtonStyle())
                 .accessibilityIdentifier("shortcut-save")
                 Button(action: session.closeShortcutComposer) {
                     Text(Copy.t("取消", "Cancel"))
-                        .font(.system(size: 12))
-                        .foregroundStyle(Palette.muted)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QuietButtonStyle())
                 .accessibilityIdentifier("shortcut-cancel")
                 Spacer(minLength: 0)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        .padding(.horizontal, inset ? 16 : 0)
+        .padding(.bottom, inset ? 10 : 4)
     }
 }

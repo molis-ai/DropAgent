@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HeaderSearchField: View {
     @ObservedObject var session: AppSession
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: 6) {
@@ -17,6 +18,7 @@ struct HeaderSearchField: View {
                 )
             )
             .textFieldStyle(.plain)
+            .focused($focused)
             .font(.system(size: 12))
             .foregroundStyle(Palette.text)
             .accessibilityIdentifier("shelf-search")
@@ -24,22 +26,19 @@ struct HeaderSearchField: View {
                 Button {
                     session.spotlight.setText("")
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.faint)
-                        .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(IconButtonStyle(size: 22))
                 .accessibilityLabel(Copy.t("清除搜索", "Clear search"))
             }
         }
         .padding(.horizontal, 8)
-        .frame(height: 28)
+        .frame(height: 32)
         .background(Palette.field)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Palette.line)
+                .strokeBorder(focused ? Palette.accent : Color.clear)
         )
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
@@ -96,7 +95,7 @@ struct HeaderSearchMenu: View {
                                 .padding(.vertical, 8)
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(RowButtonStyle())
                             .accessibilityLabel(Copy.t("加入 \(hit.name)", "Add \(hit.name)"))
                             .accessibilityIdentifier("spotlight-hit")
                         }

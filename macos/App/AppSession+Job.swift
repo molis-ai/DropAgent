@@ -19,6 +19,7 @@ extension AppSession {
             }
         }
         paneFocus = .input
+        if guidedSample == nil { dismissFirstActionHint() }
         let spec = RecipeCatalog.spec(recipe)
         var skipped = 0
         for item in selectedItems where item.status == .idle || item.status == .confirm || item.status == .failed || item.status == .sent {

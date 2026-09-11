@@ -66,6 +66,7 @@ final class AppSession: ObservableObject {
     @Published var actionBarEditing = false
     @Published var draggingActionID: String?
     @Published var shortcutDraft: ShortcutDraft?
+    @Published var shortcutPoolNotice: ShortcutPoolNotice?
     @Published var stageEditing = false
     @Published var recipeOptions: [RecipeID: String] = [:]
     @Published var multiSelect = false
@@ -84,6 +85,8 @@ final class AppSession: ObservableObject {
     @Published var setup = PageAdmitSetup.empty
     @Published var setupPermissionsOverride: PageAdmitSetup?
     @Published var suppressSetupCard = false
+    @Published var setupCardRequested = false
+    @Published var askedAccessibility = false
     @Published var authorizingID: String?
     @Published var tuiProcessRunning = false
     @Published var ptyLive = false
@@ -178,23 +181,29 @@ final class AppSession: ObservableObject {
         Onboarding.shouldShow(markerExists: onboarded, isEmpty: items.isEmpty && results.isEmpty)
     }
 
-    func dismissOnboarding() { markOnboarded() }
+    func dismissOnboarding() {
+        markOnboarded()
+        dismissSetupCard()
+    }
 
     func tryOnboardingSample() {
         do {
             let folder = DropAgentPaths.root.appendingPathComponent("Samples/\(UUID().uuidString)", isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let url = folder.appendingPathComponent(Onboarding.sampleFileName)
-            try Data(Onboarding.sampleMarkdown.utf8).write(to: url, options: .atomic)
+            try OnboardingSample.write(to: url)
             let result = ingest.admit(urls: [url])
             follow(result)
             if let item = result.admitted.first {
+                prefs.firstActionHintDismissed = false
+                prefs.save()
+                settingsOpen = false
                 shelf.setSelection([item.id])
                 aiTab = .work
                 paneFocus = .input
             }
         } catch {
-            errorText = Copy.t("没能加入示例文稿，请重试或添加自己的文件。", "Could not add the sample. Try again or add your own file.")
+            errorText = Copy.t("没能加入示例 PDF，请重试或添加自己的文件。", "Could not add the sample. Try again or add your own file.")
         }
     }
 
@@ -253,7 +262,8 @@ final class AppSession: ObservableObject {
     }
 
     var showsActionBar: Bool {
-        selectedItems.isEmpty == false && settingsOpen == false && showsSetupCard == false
+        paneFocus == .input && selectedItems.isEmpty == false && settingsOpen == false && showsSetupCard == false
+            && !selectedItems.contains { $0.status == .confirm || $0.status == .running }
     }
 
     var stagedItem: Item? {
@@ -274,7 +284,7 @@ final class AppSession: ObservableObject {
 
     func toggleOther() {
         onPanelInteraction?()
-        withAnimation(Palette.floatExpand) {
+        withAnimation(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : Palette.floatExpand) {
             otherOpen.toggle()
             if otherOpen { aiTab = canOpenTerminalTab ? .tty : .work }
         }

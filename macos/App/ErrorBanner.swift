@@ -13,7 +13,7 @@ struct ErrorBanner: View {
                         .foregroundStyle(Palette.text)
                         .accessibilityHidden(true)
                     Text(error)
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .foregroundStyle(Palette.text)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -26,8 +26,9 @@ struct ErrorBanner: View {
                             Label(Copy.t("去授权", "Authorize"), systemImage: "lock.shield")
                         }
                             .buttonStyle(QuietButtonStyle())
-                            .frame(width: 88)
-                            .accessibilityLabel(Copy.t("打开辅助功能授权", "Open Accessibility settings"))
+                            .accessibilityLabel(Copy.t("授权此功能", "Authorize this feature"))
+                            .background(AccessibleID(identifier: "error-authorize").frame(width: 0, height: 0).allowsHitTesting(false))
+                            .accessibilityIdentifier("error-authorize")
                     }
                     if session.offerCaptureRetry || session.offerPrivacySettings {
                         Button {
@@ -36,21 +37,23 @@ struct ErrorBanner: View {
                             Label(Copy.t("再试", "Retry"), systemImage: "arrow.clockwise")
                         }
                             .buttonStyle(QuietButtonStyle())
-                            .frame(width: 68)
                             .disabled(session.isCapturing)
-                            .accessibilityLabel(Copy.t("再抓一次当前页", "Capture the current page again"))
+                            .accessibilityLabel(Copy.t("重试刚才的操作", "Retry the last action"))
+                            .background(AccessibleID(identifier: "error-retry").frame(width: 0, height: 0).allowsHitTesting(false))
+                            .accessibilityIdentifier("error-retry")
                     }
                     Spacer(minLength: 0)
-                    Button(Copy.t("好", "OK")) { session.dismissError() }
+                    Button(Copy.t("关闭提示", "Dismiss")) { session.dismissError() }
                         .buttonStyle(QuietButtonStyle())
-                        .frame(width: 44)
                         .accessibilityLabel(Copy.t("关闭这条提示", "Dismiss this notice"))
                 }
             }
-            .padding(8)
+            .padding(14)
             .background(Palette.panel2)
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.line))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .accessibilityElement(children: .contain)
+            .background(AccessibleID(identifier: "error-banner").frame(width: 0, height: 0).allowsHitTesting(false))
+            .accessibilityIdentifier("error-banner")
         }
     }
 }

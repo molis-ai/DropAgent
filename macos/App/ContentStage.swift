@@ -15,9 +15,32 @@ struct ContentStage: View {
     }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Text(session.paneFocus == .result ? Copy.t("新文件", "Result") : Copy.t("预览", "Preview"))
+                    .foregroundStyle(Palette.muted)
+                Text(item.title)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 8)
+                if editURL != nil {
+                    Button(session.stageEditing ? Copy.t("完成编辑", "Done editing") : Copy.t("编辑副本", "Edit copy")) {
+                        if session.stageEditing { session.stopStageEdit() } else { session.beginStageEdit() }
+                    }
+                    .buttonStyle(QuietButtonStyle(subtle: true))
+                    .accessibilityIdentifier("stage-edit")
+                }
+            }
+            .font(.system(size: 11.5))
+            .foregroundStyle(Palette.text)
+            .padding(.horizontal, 14)
+            .frame(height: 36)
+            Divider().overlay(Palette.line)
             if item.kind == .folder {
                 FolderStage(root: folderRoot)
+            } else if item.kind == .pdf {
+                PDFContentView(url: item.parts.first?.url ?? item.sourceURL)
             } else if let url = editURL, session.stageEditing {
                 editor(url)
             } else {
@@ -25,7 +48,7 @@ struct ContentStage: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: LivePanelChrome.previewStageHeight)
+        .frame(height: session.guidedSample != nil ? 220 : LivePanelChrome.previewStageHeight)
         .background(Palette.panel)
         .clipShape(RoundedRectangle(cornerRadius: LivePanelChrome.cardRadius, style: .continuous))
         .overlay(

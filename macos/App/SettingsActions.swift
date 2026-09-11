@@ -14,14 +14,65 @@ struct SettingsActions: View {
     @State private var startFrames: [String: CGRect] = [:]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SettingsForm.sectionTitle(Copy.t("栏上的动作", "Actions on the bar"))
-            Text(Copy.t("「其他」一直在加号前面，不能拿掉。", "Other always sits before Add and cannot be hidden."))
+        VStack(alignment: .leading, spacing: 12) {
+            Text(Copy.t("将常用动作加入动作栏，拖动手柄调整顺序。", "Add frequent actions to the bar. Drag handles to reorder."))
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.faint)
+            HStack(alignment: .top, spacing: 16) {
+                poolColumn
+                Rectangle()
+                    .fill(Palette.line)
+                    .frame(width: 1)
+                    .padding(.vertical, 4)
+                barColumn
+            }
+        }
+        .accessibilityIdentifier("settings-actions")
+        .scrollDisabled(draggingID != nil)
+    }
+
+    private var poolColumn: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SettingsForm.sectionTitle(Copy.t("更多动作", "More actions"))
+            if session.shortcutDraft != nil {
+                ShortcutComposer(session: session, inset: false)
+                if let error = session.errorText {
+                    Text(error)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.warning)
+                }
+            } else {
+                Button(Copy.t("新建自定义动作", "New custom action")) {
+                    session.openShortcutComposer()
+                }
+                .buttonStyle(QuietButtonStyle())
+                .accessibilityIdentifier("settings-add-shortcut")
+            }
+            if session.poolSlots.isEmpty && session.shortcutDraft == nil {
+                Text(Copy.t("所有动作均已加入动作栏。也可新建自定义动作。", "All actions are on the bar. You can also create a custom action."))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.muted)
+            }
+            ForEach(session.poolSlots) { slot in
+                poolRow(slot)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AccessibleID(identifier: "settings-action-pool").frame(width: 0, height: 0).allowsHitTesting(false))
+        .accessibilityIdentifier("settings-action-pool")
+    }
+
+    private var barColumn: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SettingsForm.sectionTitle(Copy.t("动作栏", "Action bar"))
+            if session.actionSlots.isEmpty {
+                Text(Copy.t("从左侧选择动作，加入动作栏。", "Choose an action on the left to add it here."))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.muted)
+            }
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(session.actionSlots) { slot in
-                    slotRow(slot)
+                    barRow(slot)
                         .opacity(draggingID == slot.id ? 0 : 1)
                         .offset(y: neighborOffset(slot.id))
                         .animation(
@@ -45,80 +96,50 @@ struct SettingsActions: View {
                     rowFrames = frames
                 }
             }
-            if hiddenSlots.isEmpty == false {
-                SettingsForm.sectionTitle(Copy.t("已从栏上拿掉", "Hidden from the bar"))
-                ForEach(hiddenSlots) { slot in
-                    HStack {
-                        Text(slotTitle(slot))
-                            .font(.system(size: 13))
-                            .foregroundStyle(Palette.text)
-                        Spacer()
-                        Button(Copy.t("放回", "Restore")) {
-                            session.showSlot(slot)
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12))
-                        .accessibilityIdentifier("action-restore-\(slot.id)")
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-            SettingsForm.sectionTitle(Copy.t("快捷动作", "Shortcuts"))
-            Button(Copy.t("添加快捷动作", "Add shortcut")) {
-                session.settingsOpen = false
-                session.openShortcutComposer()
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 12, weight: .medium))
-            .accessibilityIdentifier("settings-add-shortcut")
-            ForEach(session.prefs.shortcuts) { action in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(action.name)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Palette.text)
-                    Text(action.kinds.map { Copy.kindWord($0) }.joined(separator: " · "))
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.muted)
-                    HStack(spacing: 12) {
-                        Button(Copy.t("编辑", "Edit")) {
-                            session.settingsOpen = false
-                            session.openShortcutComposer(edit: action.id)
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12))
-                        Button(Copy.t("删除", "Delete"), role: .destructive) {
-                            session.deleteShortcut(id: action.id)
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Palette.danger)
-                        Spacer()
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Palette.panel2.opacity(0.65))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.line))
-                .accessibilityIdentifier("settings-shortcut-\(action.id)")
-            }
         }
-        .accessibilityIdentifier("settings-actions")
-        .scrollDisabled(draggingID != nil)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AccessibleID(identifier: "settings-action-bar").frame(width: 0, height: 0).allowsHitTesting(false))
+        .accessibilityIdentifier("settings-action-bar")
     }
 
-    private var hiddenSlots: [ActionSlot] {
-        let visible = Set(session.actionSlots.map(\.id))
-        var slots: [ActionSlot] = RecipeID.barRecipes
-            .map { ActionSlot.recipe($0) }
-            .filter { visible.contains($0.id) == false }
-        for action in session.prefs.shortcuts where visible.contains(action.storedRecipe) == false {
-            slots.append(.shortcut(action.id))
+    private func poolRow(_ slot: ActionSlot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(slotTitle(slot))
+                .font(.system(size: 13))
+                .foregroundStyle(Palette.text)
+            if case .shortcut(let id) = slot, let action = session.shortcut(id: id) {
+                Text(action.kinds.map { Copy.kindWord($0) }.joined(separator: " · "))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.muted)
+            }
+            HStack(spacing: 8) {
+                Button(Copy.t("加入动作栏", "Add to bar")) {
+                    session.showSlot(slot)
+                }
+                .buttonStyle(QuietButtonStyle())
+                .accessibilityIdentifier("action-restore-\(slot.id)")
+                if case .shortcut(let id) = slot {
+                    Button(Copy.t("编辑", "Edit")) {
+                        session.openShortcutComposer(edit: id)
+                    }
+                    .buttonStyle(QuietButtonStyle())
+                    Button(Copy.t("删除", "Delete"), role: .destructive) {
+                        session.deleteShortcut(id: id)
+                    }
+                    .buttonStyle(QuietButtonStyle(danger: true))
+                }
+                Spacer(minLength: 0)
+            }
         }
-        return slots
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.panel2.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Palette.line))
+        .accessibilityIdentifier(poolRowID(slot))
     }
 
-    private func slotRow(_ slot: ActionSlot) -> some View {
+    private func barRow(_ slot: ActionSlot) -> some View {
         HStack(spacing: 8) {
             DragGrip()
                 .frame(width: 8, height: 22)
@@ -128,14 +149,30 @@ struct SettingsActions: View {
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.text)
             Spacer(minLength: 0)
-            Button(Copy.t("拿掉", "Hide")) {
+            if case .shortcut(let id) = slot {
+                Button(Copy.t("编辑", "Edit")) {
+                    session.openShortcutComposer(edit: id)
+                }
+                .buttonStyle(QuietButtonStyle())
+            }
+            Button(Copy.t("放回池子", "Return to pool")) {
                 session.hideSlot(slot)
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 12))
+            .buttonStyle(QuietButtonStyle())
             .accessibilityIdentifier("settings-hide-\(slot.id)")
         }
         .padding(.vertical, 4)
+    }
+
+    private func poolRowID(_ slot: ActionSlot) -> String {
+        if case .shortcut(let id) = slot {
+            return "settings-shortcut-\(id)"
+        }
+        return "settings-pool-\(slot.id)"
+    }
+
+    private func slotRow(_ slot: ActionSlot) -> some View {
+        barRow(slot)
     }
 
     @ViewBuilder
@@ -224,7 +261,7 @@ struct SettingsActions: View {
     private func slotTitle(_ slot: ActionSlot) -> String {
         switch slot {
         case .recipe(let recipe):
-            return Copy.recipeShort(recipe)
+            return Copy.recipeSettings(recipe)
         case .shortcut(let id):
             return session.shortcut(id: id)?.name ?? Copy.t("快捷", "Shortcut")
         }

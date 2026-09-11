@@ -10,15 +10,15 @@ enum Copy {
     }
 
     static var htmlExtractedHint: String {
-        t("从 HTML 抽出的正文，不是网页预览。", "Extracted from HTML. This is not a page preview.")
+        t("已提取 HTML 正文；原网页布局未保留。", "Text extracted from HTML. The original page layout is not preserved.")
     }
 
     static var stageEditHint: String {
-        t("改的是副本，原件不动。", "Editing the copy. The original stays put.")
+        t("正在编辑副本。原文件保持不变。", "Editing a copy. The original stays unchanged.")
     }
 
     static var stageReadHint: String {
-        t("点一下开始改", "Click to edit")
+        t("点击编辑副本", "Click to edit the copy")
     }
 
     static func kindWord(_ kind: ItemKind) -> String {
@@ -34,17 +34,25 @@ enum Copy {
         }
     }
 
+    static func recipeSettings(_ id: RecipeID) -> String {
+        switch id {
+        case .imageText: return t("图片文字提取", "Image text")
+        case .pdfText: return t("PDF 文字提取", "PDF text")
+        default: return recipeShort(id)
+        }
+    }
+
     static func recipeShort(_ id: RecipeID) -> String {
         switch id {
         case .summarize: return t("总结", "Summarize")
-        case .extract: return t("抽取", "Extract")
-        case .imageText: return t("文字提取", "Get Text")
-        case .pdfText: return t("文字提取", "Get Text")
+        case .extract: return t("提取信息", "Extract data")
+        case .imageText: return t("提取文字", "Extract text")
+        case .pdfText: return t("提取文字", "Extract text")
         case .translate: return t("翻译", "Translate")
         case .redact: return t("脱敏", "Redact")
-        case .toMarkdown: return t("转 MD", "To Markdown")
+        case .toMarkdown: return t("转为 Markdown", "To Markdown")
         case .brief: return t("整合", "Combine")
-        case .shortcut: return t("快捷", "Shortcut")
+        case .shortcut: return t("自定义动作", "Custom action")
         }
     }
 
@@ -52,34 +60,34 @@ enum Copy {
         switch id {
         case .summarize: return t("总结文件", "Summarize the file")
         case .extract: return t("提取结构化信息", "Extract structured data")
-        case .imageText: return t("提取图片文字", "Get text from the image")
-        case .pdfText: return t("提取 PDF 文字", "Get text from the PDF")
-        case .translate: return t("翻译并保留格式", "Translate and keep formatting")
+        case .imageText: return t("提取图片文字", "Extract image text")
+        case .pdfText: return t("提取 PDF 文字", "Extract PDF text")
+        case .translate: return t("翻译文件", "Translate the file")
         case .redact: return t("敏感信息脱敏", "Redact sensitive information")
         case .toMarkdown: return t("转换为 Markdown", "Convert to Markdown")
-        case .brief: return t("把几份材料整合成一份", "Combine several items into one document")
+        case .brief: return t("整合多份材料", "Combine files")
         case .shortcut: return t("快捷动作", "Shortcut action")
         }
     }
 
     static func recipeBlurb(_ id: RecipeID) -> String {
         switch id {
-        case .summarize: return t("收成一篇短文，原件不动", "A short note. Original stays put.")
-        case .extract: return t("抽出要点、待办或数据", "Pull out points, todos, or data.")
-        case .imageText: return t("本机认出图里的字，不发送", "Read the words on-device. Nothing is sent.")
-        case .pdfText: return t("抽出 PDF 里可选中的字，不发送", "Pull selectable PDF text on-device. Nothing is sent.")
-        case .translate: return t("译成指定语言，尽量留版式", "Translate and keep the layout.")
-        case .redact: return t("去掉联系方式、证件等敏感信息", "Strip contacts, IDs, and similar private bits.")
-        case .toMarkdown: return t("转成可编辑的 Markdown", "Turn it into editable Markdown.")
-        case .brief: return t("选几份，合成一份新稿", "Combine several items into one document.")
-        case .shortcut: return t("在副本里跑你写的那句话", "Run your instruction on a copy.")
+        case .summarize: return t("提炼重点，生成摘要", "Turn key points into a summary.")
+        case .extract: return t("提取要点、待办或结构化数据", "Extract key points, tasks, or structured data.")
+        case .imageText: return t("在本机识别图片中的文字", "Recognize text on your Mac.")
+        case .pdfText: return t("在本机提取 PDF 中可选择的文字", "Extract selectable PDF text on your Mac.")
+        case .translate: return t("译为指定语言，尽量保留格式", "Translate while preserving formatting where possible.")
+        case .redact: return t("移除联系方式、证件等敏感信息", "Remove contact details, IDs, and other sensitive data.")
+        case .toMarkdown: return t("生成可编辑的 Markdown 文件", "Create an editable Markdown file.")
+        case .brief: return t("将多份材料整理为一份文档", "Combine several files into one document.")
+        case .shortcut: return t("在副本上执行自定义指令", "Run a custom instruction on a copy.")
         }
     }
 
-    static var otherShort: String { t("其他", "Other") }
+    static var otherShort: String { t("对话", "Chat") }
 
     static var otherBlurb: String {
-        t("写一句话，连同选中材料发给终端", "Write a line and send the selection to the terminal.")
+        t("将指令和选中材料发送给 Agent 终端", "Send instructions and selected files to the agent terminal.")
     }
 
     static func recipeStored(_ stored: String?) -> String {

@@ -7,8 +7,7 @@ import SwiftUI
 enum PanelPreview {
     @MainActor
     static func run() {
-        let root = URL(fileURLWithPath: "/tmp/dropagent-preview-root", isDirectory: true)
-        try? FileManager.default.removeItem(at: root)
+        let root = URL(fileURLWithPath: "/tmp/dropagent-preview-root-\(UUID().uuidString)", isDirectory: true)
         setenv("DROPAGENT_ROOT", root.path, 1)
         try? DropAgentPaths.ensure()
 
@@ -54,9 +53,46 @@ enum PanelPreview {
 
         @MainActor
         private func captureSequence(host: PaperHostView<PanelRootView>) async {
+            session.setupPermissionsOverride = SetupFixtures.incomplete
+            session.refreshSetup()
             await settle()
             snapshot(host, name: "00-onboard")
+            session.setAppearance(.dark)
+            await settle()
+            snapshot(host, name: "00-onboard-dark")
+            session.setAppearance(.light)
+            session.setLanguage(.en)
+            await settle()
+            snapshot(host, name: "00-onboard-en")
+            window?.setContentSize(NSSize(width: 800, height: LivePanelChrome.panelHeight))
+            host.frame.size = NSSize(width: 800, height: LivePanelChrome.panelHeight)
+            await settle()
+            snapshot(host, name: "00-onboard-en-narrow")
+            window?.setContentSize(NSSize(width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight))
+            host.frame.size = NSSize(width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
+            session.setLanguage(.zh)
+            session.tryOnboardingSample()
+            session.presence = .none
+            session.recipePresence = .none
+            await settle()
+            snapshot(host, name: "00-sample")
+            session.chooseRecipe(.pdfText)
+            await settle()
+            snapshot(host, name: "00-sample-confirm")
+            await session.confirmRun()
+            await settle()
+            snapshot(host, name: "00-sample-result")
+            for result in session.results { session.removeResult(result.id) }
+            for item in session.items { session.remove(id: item.id) }
+            session.refreshPresence()
             session.dismissOnboarding()
+            session.suppressSetupCard = false
+            session.refreshSetup()
+            await settle()
+            snapshot(host, name: "00-banner")
+            session.suppressSetupCard = true
+            session.setupPermissionsOverride = nil
+            session.refreshSetup()
             await settle()
             snapshot(host, name: "01-empty")
             session.systemDragActive = true
@@ -72,7 +108,7 @@ enum PanelPreview {
             if hadAgent { session.refreshPresence() }
 
             let pdf = DropAgentPaths.root.appendingPathComponent("sample.pdf")
-            try? Data("%PDF-1.4 sample".utf8).write(to: pdf)
+            try? OnboardingSample.write(to: pdf)
             session.admit(urls: [pdf])
             await settle()
             snapshot(host, name: "03-idle")
@@ -420,6 +456,7 @@ enum PanelPreview {
                 session.tuiProcessRunning = true
                 session.ptyLive = false
                 session.toggleSelect(id: sentID, command: false)
+                session.otherOpen = true
                 session.aiTab = .tty
                 await settle()
                 snapshot(host, name: "08c-opening")
@@ -431,6 +468,7 @@ enum PanelPreview {
                 snapshot(host, name: "08b-sent-result")
             }
 
+            session.otherOpen = false
             session.errorText = AppSession.captureFailedCopy
             session.offerPrivacySettings = true
             session.offerCaptureRetry = true
@@ -497,11 +535,24 @@ enum PanelPreview {
             session.setupPermissionsOverride = SetupFixtures.incomplete
             session.settingsOpen = false
             session.refreshSetup()
+            session.requestSetupCard()
             await settle()
             snapshot(host, name: "13-setup")
             session.settingsOpen = true
             await settle()
             snapshot(host, name: "13-settings-setup")
+            session.settingsSection = .appearance
+            await settle()
+            snapshot(host, name: "14-settings-appearance")
+            session.setAppearance(.dark)
+            session.setLanguage(.en)
+            await settle()
+            snapshot(host, name: "14-settings-dark-en")
+            session.settingsSection = .actions
+            await settle()
+            snapshot(host, name: "15-settings-actions-en")
+            session.setAppearance(.light)
+            session.setLanguage(.zh)
             session.settingsOpen = false
             session.suppressSetupCard = true
             session.setupPermissionsOverride = nil
@@ -521,7 +572,11 @@ enum PanelPreview {
         @MainActor
         private func snapshot(_ view: NSView, name: String) {
             view.layoutSubtreeIfNeeded()
-            let bounds = view.bounds
+            let height = min(view.bounds.height, session.panelHeight)
+            let bounds = NSRect(
+                x: 0, y: view.isFlipped ? 0 : view.bounds.height - height,
+                width: view.bounds.width, height: height
+            )
             guard bounds.width > 1, bounds.height > 1,
                   let rep = view.bitmapImageRepForCachingDisplay(in: bounds) else {
                 fputs("preview skip \(name)\n", stderr)

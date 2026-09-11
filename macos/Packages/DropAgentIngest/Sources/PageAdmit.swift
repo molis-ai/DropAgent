@@ -143,7 +143,16 @@ public enum PageAdmit {
     }
 
     public static func setupStatusOffMain() async -> PageAdmitSetup {
-        await PermissionWork.run { setupStatus() }
+        let trusted = await MainActor.run { AccessibilityPage.isTrusted() }
+        let foreign = await MainActor.run {
+            trusted == false && AccessibilityPage.hasSiblingDropAgent()
+        }
+        return await PermissionWork.run {
+            wrap(
+                CapturePermissions.liveStatus(accessibilityTrusted: trusted),
+                foreignCopy: foreign
+            )
+        }
     }
 
     public static func requestAutomationOffMain(bundleIdentifier: String) async -> PageAdmitAutomation {

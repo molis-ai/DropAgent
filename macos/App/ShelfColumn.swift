@@ -11,10 +11,11 @@ struct ShelfColumn: View {
         VStack(spacing: 0) {
             columnHead
             listSection
-            if let item = session.stagedItem {
+            if let item = session.stagedItem,
+               session.paneFocus == .result || !session.selectedItems.contains(where: { $0.status == .confirm || $0.status == .running }) {
                 ContentStage(item: item, session: session)
             }
-            if session.shortcutDraft != nil {
+            if session.shortcutDraft != nil, session.settingsOpen == false {
                 ShortcutComposer(session: session)
             }
             if session.showsActionBar {
@@ -35,7 +36,7 @@ struct ShelfColumn: View {
     }
 
     private var columnHead: some View {
-        ColumnHead(title: Copy.t("文件", "Files")) {
+        ColumnHead(title: Copy.t("材料", "Materials")) {
             HStack(spacing: 6) {
                 if session.items.isEmpty == false {
                     Button {
@@ -45,11 +46,8 @@ struct ShelfColumn: View {
                             session.multiSelect ? Copy.t("完成", "Done") : Copy.t("多选", "Select"),
                             systemImage: session.multiSelect ? "checkmark.circle.fill" : "checkmark.circle"
                         )
-                        .font(.system(size: 12, weight: session.multiSelect ? .semibold : .medium))
-                        .foregroundStyle(Palette.text)
-                        .labelStyle(.titleAndIcon)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QuietButtonStyle(selected: session.multiSelect))
                     .accessibilityLabel(session.multiSelect ? Copy.t("完成多选", "Done selecting") : Copy.t("多选", "Select"))
                     .accessibilityHint(Copy.t("点行前圆圈加减选择，也可以 Command 点", "Use the circles, or Command-click"))
                     .accessibilityIdentifier("multi-select")
@@ -61,16 +59,11 @@ struct ShelfColumn: View {
                         .foregroundStyle(Palette.muted)
                 }
                 ClipHistoryButton(session: session)
-                    .frame(width: 22, height: 22)
                     .accessibilityIdentifier("shelf-paste")
                 Button(action: { session.pickFilesToAdmit() }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Palette.text)
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
+                    Label(Copy.t("添加文件", "Add files"), systemImage: "plus")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QuietButtonStyle())
                 .accessibilityLabel(Copy.t("添加文件", "Add files"))
                 .accessibilityHint(Copy.t("选择文件或文件夹放到架子上", "Choose files or folders to put on the shelf"))
                 .accessibilityIdentifier("shelf-add")
@@ -81,17 +74,29 @@ struct ShelfColumn: View {
     private var listSection: some View {
         ZStack {
             if session.items.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(Copy.t("把材料放在这里", "Drop something here"))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Palette.muted)
-                    Text(Copy.t("文件、图片、文字或链接。拖入，或点 +。", "Files, images, text, or links. Drop here, or add with +."))
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.faint)
+                HStack(spacing: 14) {
+                    Image(systemName: "tray.and.arrow.down")
+                        .font(.system(size: 26, weight: .light))
+                        .foregroundStyle(listHot ? Palette.accent : Palette.muted)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(Copy.t("拖入材料", "Drop files here"))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Palette.text)
+                        Text(Copy.t("支持文件、图片、文字和链接，也可直接粘贴。", "Files, images, text, and links. You can also paste."))
+                            .font(.system(size: 12))
+                            .foregroundStyle(Palette.muted)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 22)
                 .padding(.vertical, 18)
+                .background {
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Palette.line, style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 14)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {

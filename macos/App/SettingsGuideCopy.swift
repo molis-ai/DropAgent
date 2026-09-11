@@ -1,59 +1,59 @@
 import Foundation
 
 enum SettingsGuideCopy {
-    static var dropInTitle: String { Copy.t("拖进去", "Adding Files") }
+    static var dropInTitle: String { Copy.t("添加材料", "Add files") }
     static var dropIn: String {
         Copy.t(
-            "菜单栏图标、鼠标旁的轮盘、文件行：加入架子（复制进写入区域，原件不动）。点「其他」后的对话浮窗：发给当前终端。轮盘六瓣是加入架子、发给终端、总结、抽取、翻译、转 MD；圆心是空的，拖出外圈即消失，不开关面板。屏幕最顶标签栏那一带不出现轮盘。",
-            "Menu bar icon, the drop wheel beside the pointer, and the file row add to the shelf (a copy in the incoming folder; originals stay put). The chat float after Other sends to the current terminal. The wheel has six slices: shelf, send, summarize, extract, translate, to Markdown. The hub is empty; leaving the ring dismisses it; it does not open or close the panel. It stays off the top tab strip."
+            "拖到菜单栏图标、材料区或轮盘的「加入架子」，即可添加副本。轮盘还可选择总结、提取信息、翻译和转为 Markdown。拖到「对话」浮窗或轮盘的「发给终端」，会发送给当前 Agent。",
+            "Drop onto the menu bar icon, Materials, or the wheel’s Add to shelf option to add a copy. The wheel also offers summaries, data extraction, translation, and Markdown conversion. Drop onto Chat or Send to terminal to send to the current agent."
         )
     }
 
-    static var filesTitle: String { Copy.t("选中的文件", "Selected Files") }
+    static var filesTitle: String { Copy.t("从其他应用添加", "Add from another app") }
     static var files: String {
         Copy.t(
-            "「加入选中的文件」：Finder / 桌面读选中项（可多选）。VSCode 等先模拟 ⌘C，只收文件，剪贴板会还原；没有文件再读当前打开的本地文件。浏览器最前请用抓页。原件不动。",
-            "Add Selected Files: Finder and Desktop use the current selection (multiple files allowed). VS Code and similar apps simulate ⌘C and keep only files, then restore the clipboard; if none, the open local file is used. In a browser, use page capture. Originals are not modified."
+            "「加入选中的文件」可读取 Finder 或桌面的选中项，支持多选。在 VS Code 等编辑器中，会尝试获取选中文件或当前本地文件，并还原剪贴板。浏览器页面请用「抓取当前页」。",
+            "Add Selected Files imports the selection from Finder or Desktop, including multiple files. In editors such as VS Code, it tries the selected files or current local file and restores the clipboard. For browser pages, use Capture Current Page."
         )
     }
 
-    static var acceptsTitle: String { Copy.t("能接什么", "Supported Types") }
+    static var acceptsTitle: String { Copy.t("支持的内容", "Supported content") }
     static var accepts: String {
         Copy.t(
-            "文件、文件夹、PDF、图片（PNG / JPG / GIF / WebP / HEIC）、文本 / Markdown、链接。+ 选文件，或搜索桌面 / 文稿 / 下载。文件行粘贴按钮打开最近十条剪贴板；⌘V 仍直接贴当前。",
-            "Files, folders, PDFs, images (PNG / JPG / GIF / WebP / HEIC), text / Markdown, and links. Use + to pick files, or search Desktop / Documents / Downloads. The file-row paste button opens the last ten clips; ⌘V still pastes the current clip."
+            "支持文件、文件夹、PDF、图片、文本、Markdown 和链接。点击「添加文件」或搜索本机文件。剪贴板按钮可查看最近十条记录；⌘V 直接粘贴当前内容。",
+            "Files, folders, PDFs, images, text, Markdown, and links are supported. Choose Add files or search your Mac. The clipboard button shows the ten most recent entries; ⌘V pastes the current content."
         )
     }
 
-    static var browserTitle: String { Copy.t("浏览器", "Browser") }
+    static var browserTitle: String { Copy.t("抓取网页", "Capture a page") }
     static var browser: String {
         Copy.t(
-            "拖到菜单栏图标、鼠标旁的轮盘、文件行，或粘贴整段网址：架子上先出现网站条，后台抓正文和截图（按该地址取页，不截你眼前的窗口；登录墙往往只留下链接）。拖到对话浮窗或轮盘「发给」只把链接送进终端，不抓页。当前窗口整页（含窗口截图）仍用「抓取当前页」快捷键，Safari / Chrome / Edge 要在最前。Safari 标签若系统不交 URL，仍进不来。",
-            "Drop on the menu bar icon, the drop wheel, the file row, or paste a URL: the shelf gets a website item and fetches the body and a page snapshot in the background (from that URL, not the front window; logged-in pages often keep only the link). Drop on the chat float or the wheel’s Send slice sends the link to the terminal and does not fetch. A full front-window page still uses the capture shortcut while Safari / Chrome / Edge is frontmost. Safari tabs still cannot be dropped if the system gives no URL."
+            "拖入或粘贴网址，会按地址获取正文和页面截图；需要登录的页面可能只保留链接。要抓取当前窗口，请将 Safari、Chrome 或 Edge 置于最前，再使用「抓取当前页」。浏览器标签无法拖入时，可复制网址。发送到「对话」只传递链接。",
+            "Drop or paste a URL to fetch its text and a page snapshot. Pages requiring sign-in may retain only the link. To capture the current window, bring Safari, Chrome, or Edge to the front and use Capture Current Page. If a tab cannot be dropped, copy its URL. Sending to Chat passes only the link."
         )
     }
 
-    static var readsTitle: String { Copy.t("读什么", "What It Reads") }
+    static var readsTitle: String { Copy.t("读取范围", "What gets read") }
     static var reads: String {
         Copy.t(
-            "抓页会读前台浏览器的地址、标题、正文和窗口截图，需要辅助功能和自动化授权。Recipe 只读任务副本，Prompt 里不写原件路径，也不加载你的全局 MCP / Hooks。图片「文字提取」在本机识别副本，不发送。",
-            "Capture reads the front browser’s URL, title, body, and a window screenshot. Accessibility and Automation permission are required. Recipes read the job copy only; prompts never include original paths, and your global MCP / Hooks are not loaded. Image text extraction runs on-device and is not sent."
+            "网页抓取读取前台浏览器的地址、标题、正文和窗口截图，按需申请辅助功能与自动化权限。动作使用任务副本，提示词不含原件路径，也不加载全局 MCP 或 Hooks。PDF 与图片文字提取在本机完成。",
+            "Page capture reads the front browser’s URL, title, text, and window snapshot, requesting Accessibility and Automation access as needed. Actions use job copies; prompts exclude original paths, and global MCP or Hooks are not loaded. PDF and image text extraction runs on your Mac."
         )
     }
 
-    static var writesTitle: String { Copy.t("写什么", "What It Writes") }
+    static var writesTitle: String { Copy.t("存储与权限", "Storage and permissions") }
     static var writes: String {
         Copy.t(
-            "拖入的副本写在「写入区域」（默认 Inbox）。Recipe 结果写在「输出结果」下的任务编号 / output。不覆盖原文件。终端发送走那个 Agent 自己的权限，不是副本沙箱。",
-            "Dropped copies go to Incoming files (Inbox by default). Recipe results go under Results / job-id / output. Originals are never overwritten. Sending to a terminal uses that agent’s own permissions, not the copy sandbox."
+            "材料副本保存在「写入区域」，生成的文件保存在「输出结果」，可在设置中更改位置。快捷动作不覆盖原文件。「对话」使用 Agent 自身权限，不受副本沙箱限制。",
+            "Copies are saved in Incoming files and generated files in Results. Change these locations in Settings. Actions do not overwrite originals. Chat uses the agent’s own permissions and is not restricted to the copy sandbox."
         )
     }
 
-    static var dropOutTitle: String { Copy.t("拖出去", "Dragging Out") }
+    static var dropOutTitle: String { Copy.t("导出结果", "Export results") }
     static var dropOut: String {
         Copy.t(
-            "多选时一次拖出所选项，复制不是挪走。Finder / 桌面、上传框、多数聊天和编辑器能接文件或文字。网站抓取拖出是文件夹：链接、正文 md、截图。接不住就弹回架子。",
-            "Multi-select drags every selected item. DropAgent copies the file and does not move it. Finder, Desktop, upload fields, and most chats or editors can accept a file or text. A captured page drags out as a folder: link, markdown, and screenshot. If the destination cannot accept it, the item returns to the shelf."
+            "点击「复制文件」，或拖到 Finder、桌面、上传框及支持文件的应用。材料多选时可一起拖出，DropAgent 中的副本会保留。网页结果导出为包含链接、正文和截图的文件夹。",
+            "Choose Copy file or drag to Finder, Desktop, an upload field, or an app that accepts files. Selected materials can be dragged together; copies remain in DropAgent. Captured pages export as folders containing the link, text, and snapshot."
         )
     }
 }

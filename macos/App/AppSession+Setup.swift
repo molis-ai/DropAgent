@@ -52,8 +52,26 @@ extension AppSession {
     }
 
     func dismissSetupCard() {
-        guard prefs.setupCardDismissed == false else { return }
+        guard prefs.setupCardDismissed == false else {
+            setupCardRequested = false
+            return
+        }
         prefs.setupCardDismissed = true
+        prefs.save()
+        setupCardRequested = false
+    }
+
+    func requestSetupCard() {
+        guard suppressSetupCard == false else { return }
+        guard SetupCardPolicy.captureReady(setup) == false else { return }
+        setupCardRequested = true
+        beginSetupWatch()
+        refreshSetup()
+    }
+
+    func dismissFirstActionHint() {
+        guard prefs.firstActionHintDismissed == false else { return }
+        prefs.firstActionHintDismissed = true
         prefs.save()
     }
 
@@ -91,12 +109,27 @@ extension AppSession {
     private func authorizeAccessibilityNow() async {
         guard authorizingID == nil else { return }
         authorizingID = "ax"
+        askedAccessibility = true
         StatusChrome.hideForPrompt()
         PageAdmit.requestTrustIfNeeded()
-        openSystemPane(Self.accessibilityPanes)
+        let trusted = PageAdmit.isTrusted()
+        let foreign = setup.accessibilityForeignCopy
+        if trusted {
+            StatusChrome.finishPromptKeepHidden()
+            authorizingID = nil
+            refreshSetup()
+            return
+        }
+        if foreign {
+            openSystemPane(Self.accessibilityPanes)
+        }
         StatusChrome.finishPromptKeepHidden()
         authorizingID = nil
         refreshSetup()
+    }
+
+    func openAccessibilitySettings() {
+        openSystemPane(Self.accessibilityPanes)
     }
 
     private func authorizeCaptureFailure() async {
@@ -145,10 +178,16 @@ extension AppSession {
                 return
             }
         }
-        let state = await PageAdmit.requestAutomationOffMain(bundleIdentifier: bundle)
+        let state = await requestAutomationLettingPromptThrough(bundleIdentifier: bundle)
         if openSettingsIfDenied && state == .denied {
             openSystemPane(Self.automationPanes)
         }
+    }
+
+    func requestAutomationLettingPromptThrough(bundleIdentifier: String) async -> PageAdmitAutomation {
+        StatusChrome.lowerForPermission()
+        defer { StatusChrome.restore() }
+        return await PageAdmit.requestAutomationOffMain(bundleIdentifier: bundleIdentifier)
     }
 
     private func openBrowser(bundleIdentifier: String) async -> Bool {

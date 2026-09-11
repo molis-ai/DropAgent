@@ -16,7 +16,7 @@ enum SettingsForm {
                         .foregroundStyle(Palette.text)
                         .textSelection(.enabled)
                     Text(taken ? Copy.t("这个组合被占用。", "This shortcut is already in use.") : caption)
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .foregroundStyle(taken ? Palette.muted : Palette.faint)
                         .textSelection(.enabled)
                 }
@@ -29,34 +29,22 @@ enum SettingsForm {
                     }
                 }) {
                     Text(recording ? Copy.t("按下…", "Press…") : chord.label)
-                        .font(.system(size: 12, weight: .semibold).monospaced())
-                        .foregroundStyle(Palette.text)
-                        .padding(.horizontal, 10)
-                        .frame(height: 28)
-                        .background(recording ? Palette.panelPress : Palette.panel)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .contentShape(Rectangle())
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QuietButtonStyle(selected: recording))
                 .accessibilityIdentifier("shortcut-\(slot.rawValue)")
                 if chord != slot.defaultChord {
                     Button(action: { session.resetHotKey(slot) }) {
                         Text(Copy.t("默认", "Default"))
-                            .font(.system(size: 11))
-                            .foregroundStyle(Palette.muted)
-                            .padding(.horizontal, 8)
-                            .frame(height: 28)
-                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QuietButtonStyle())
                 }
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.panel2.opacity(0.65))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.line))
+        .background(Palette.panel2)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     static func guideLine(title: String, keys: String, caption: String) -> some View {
@@ -66,7 +54,7 @@ enum SettingsForm {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.text)
                 Text(caption)
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundStyle(Palette.faint)
             }
             Spacer(minLength: 8)
@@ -76,13 +64,12 @@ enum SettingsForm {
                 .padding(.horizontal, 10)
                 .frame(height: 28)
                 .background(Palette.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.panel2.opacity(0.65))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.line))
+        .background(Palette.panel2)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     static func guideCard(title: String, body: String) -> some View {
@@ -92,16 +79,15 @@ enum SettingsForm {
                 .foregroundStyle(Palette.text)
                 .textSelection(.enabled)
             Text(body)
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(Palette.faint)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.panel2.opacity(0.65))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.line))
+        .background(Palette.panel2)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     static func toggleRow(
@@ -118,7 +104,7 @@ enum SettingsForm {
                     .foregroundStyle(Palette.text)
                     .textSelection(.enabled)
                 Text(caption)
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundStyle(Palette.faint)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
@@ -132,20 +118,19 @@ enum SettingsForm {
             ))
                 .toggleStyle(.switch)
                 .labelsHidden()
-                .tint(Palette.text)
+                .tint(Palette.accent)
                 .accessibilityLabel(title)
                 .accessibilityIdentifier(identifier)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.panel2.opacity(0.65))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.line))
+        .background(Palette.panel2)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     static func sectionTitle(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 11, weight: .medium))
+            .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(Palette.muted)
             .textSelection(.enabled)
     }
@@ -168,7 +153,7 @@ enum SettingsForm {
                 .textSelection(.enabled)
                 .lineLimit(2)
             Text(caption)
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(Palette.faint)
             HStack(spacing: 8) {
                 Button(action: choose) {
@@ -187,12 +172,8 @@ enum SettingsForm {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.panel2.opacity(0.65))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Palette.line)
-        )
+        .background(Palette.panel2)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     static func segmented<Value: Equatable>(
@@ -200,34 +181,44 @@ enum SettingsForm {
         selected: Value,
         onPick: @escaping (Value) -> Void
     ) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+        SettingsSegments(items: items, selected: selected, onPick: onPick)
+    }
+}
+
+private struct SettingsSegments<Value: Equatable>: View {
+    let items: [(Value, String)]
+    let selected: Value
+    let onPick: (Value) -> Void
+    @Namespace private var selection
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 let on = item.0 == selected
-                Text(item.1)
-                    .font(.system(size: 12, weight: on ? .semibold : .regular))
-                    .foregroundStyle(Palette.text)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(on ? Palette.panel : Color.clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .contentShape(Rectangle())
-                    .onTapGesture { onPick(item.0) }
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                    .accessibilityLabel(item.1)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
-                    .padding(2)
-                if index < items.count - 1 {
-                    Divider().overlay(Palette.line)
-                        .frame(height: 16)
+                Button { onPick(item.0) } label: {
+                    Text(item.1)
+                        .font(.system(size: 12, weight: on ? .semibold : .medium))
+                        .foregroundStyle(on ? Palette.text : Palette.muted)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 32)
+                        .contentShape(RoundedRectangle(cornerRadius: 7))
                 }
+                .buttonStyle(RowButtonStyle())
+                .background {
+                    if on {
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(Palette.panel)
+                            .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
+                            .matchedGeometryEffect(id: "selected", in: selection)
+                    }
+                }
+                .accessibilityAddTraits(on ? .isSelected : [])
+                .accessibilityLabel(item.1)
             }
         }
-        .background(Palette.panel2)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Palette.line)
-        )
+        .padding(3)
+        .background(Palette.panel2, in: RoundedRectangle(cornerRadius: 10))
+        .animation(reduceMotion ? nil : Palette.selectionMotion, value: selected)
     }
 }

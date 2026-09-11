@@ -8,6 +8,10 @@ extension AppSession {
         ActionBarLayout.slots(order: prefs.actionOrder, shortcuts: prefs.shortcuts)
     }
 
+    var poolSlots: [ActionSlot] {
+        ActionBarLayout.poolSlots(order: prefs.actionOrder, shortcuts: prefs.shortcuts)
+    }
+
     func barSlots(organizing: Bool) -> [ActionSlot] {
         actionSlots.filter { slot in
             if organizing { return true }
@@ -93,6 +97,7 @@ extension AppSession {
             }
         }
         paneFocus = .input
+        dismissFirstActionHint()
         var skipped = 0
         for item in selectedItems where item.status == .idle || item.status == .confirm || item.status == .failed || item.status == .sent {
             guard action.kindSet.contains(item.kind) else {
@@ -135,6 +140,8 @@ extension AppSession {
     func openShortcutComposer(edit id: String? = nil) {
         onPanelInteraction?()
         actionBarEditing = false
+        errorText = nil
+        shortcutPoolNotice = nil
         if let id, let action = shortcut(id: id) {
             shortcutDraft = .edit(action)
         } else {
@@ -151,15 +158,17 @@ extension AppSession {
         let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let prompt = draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard name.isEmpty == false, prompt.isEmpty == false, draft.kinds.isEmpty == false else {
-            errorText = Copy.t("名字、类型和那句话都要填。", "Name, types, and the instruction are required.")
+            errorText = Copy.t("请填写动作名称、适用类型和指令。", "Enter an action name, supported types, and instruction.")
             return
         }
         draft.name = name
         draft.prompt = prompt
+        errorText = nil
         if let id = draft.id, let index = prefs.shortcuts.firstIndex(where: { $0.id == id }) {
             prefs.shortcuts[index].name = name
             prefs.shortcuts[index].kinds = ItemKind.allCases.filter { draft.kinds.contains($0) }
             prefs.shortcuts[index].prompt = prompt
+            shortcutPoolNotice = nil
         } else {
             let action = ShortcutAction(
                 name: name,
@@ -167,13 +176,31 @@ extension AppSession {
                 prompt: prompt
             )
             prefs.shortcuts.append(action)
-            if prefs.actionOrder.contains(action.storedRecipe) == false {
-                prefs.actionOrder.append(action.storedRecipe)
+            if settingsOpen == false {
+                shortcutPoolNotice = ShortcutPoolNotice(id: action.id, name: action.name)
+            } else {
+                shortcutPoolNotice = nil
             }
         }
         prefs.save()
         shortcutDraft = nil
         objectWillChange.send()
+    }
+
+    func pinPooledShortcutToBar() {
+        guard let notice = shortcutPoolNotice else { return }
+        showSlot(.shortcut(notice.id))
+        shortcutPoolNotice = nil
+    }
+
+    func dismissShortcutPoolNotice() {
+        shortcutPoolNotice = nil
+    }
+
+    func openActionPoolInSettings() {
+        shortcutPoolNotice = nil
+        settingsSection = .actions
+        settingsOpen = true
     }
 
     func hideSlot(_ slot: ActionSlot) {
@@ -250,6 +277,9 @@ extension AppSession {
         prefs.actionOrder.removeAll { $0 == RecipeID.storedShortcut(id: id) }
         if RecipeID.shortcutStoredID(confirmStoredRecipe) == id {
             cancelConfirm()
+        }
+        if shortcutPoolNotice?.id == id {
+            shortcutPoolNotice = nil
         }
         prefs.save()
         objectWillChange.send()

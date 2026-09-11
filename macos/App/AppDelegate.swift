@@ -253,6 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var panelGeneration = 0
     var panelRecessed = false
     var exportingFromPanel = false
+    var applyingPanelFrame = false
     var recessWork: DispatchWorkItem?
 
     var isDiagnosticLaunch: Bool {

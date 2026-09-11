@@ -14,6 +14,7 @@ struct FileCard: View {
     var onDelete: (() -> Void)?
     var onBeginDrag: (() -> Void)?
     @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var clickTask: Task<Void, Never>?
     @State private var clickCount = 0
 
@@ -22,10 +23,17 @@ struct FileCard: View {
             if item.kind == .clip, let clip = ItemPeek.clipLines(for: item) {
                 clipCopy(clip)
             } else if let snippet = ItemPeek.cardText(for: item), ItemPeek.showsTextCard(item) {
-                Text(snippet)
-                    .font(.system(size: 12))
+                Text(item.title)
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Palette.text)
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.trailing, 30)
+                    .padding(.bottom, 4)
+                Text(snippet)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.muted)
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 FileKindMark(item: item, compact: true)
                     .padding(.top, 6)
@@ -38,6 +46,7 @@ struct FileCard: View {
                             .foregroundStyle(Palette.text)
                             .lineLimit(1)
                             .truncationMode(.middle)
+                            .padding(.trailing, 28)
                         Text(caption)
                             .font(.system(size: 11))
                             .foregroundStyle(Palette.muted)
@@ -50,14 +59,15 @@ struct FileCard: View {
         }
         .padding(10)
         .frame(width: LivePanelChrome.fileCardWidth, height: LivePanelChrome.fileCardHeight, alignment: .topLeading)
-        .background(Palette.panel)
+        .background(selected ? Palette.panelPress : hovering ? Palette.panelHover : Palette.panel)
         .overlay(
             RoundedRectangle(cornerRadius: LivePanelChrome.cardRadius, style: .continuous)
-                .stroke(selected ? Color(red: 168 / 255, green: 185 / 255, blue: 238 / 255) : Color.clear, lineWidth: 1)
+                .strokeBorder(selected ? Palette.accent.opacity(0.65) : Palette.line.opacity(0.5), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: LivePanelChrome.cardRadius, style: .continuous))
         .background(ExpansionTooltipOff())
-        .shadow(color: Color.black.opacity(0.05), radius: 8, y: 4)
+        .animation(reduceMotion ? nil : Palette.motion, value: hovering)
+        .animation(reduceMotion ? nil : Palette.selectionMotion, value: selected)
         .overlay(alignment: .topTrailing) {
             if let onHide, let onDelete, item.status != .running, hovering || selected {
                 RowEditButtons(

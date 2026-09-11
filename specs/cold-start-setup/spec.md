@@ -45,7 +45,7 @@
 
 ## 使用场景
 
-1. 第一次双击 DropAgent：面板出来，卡叠在左右栏上（头仍在）。本机有 Chrome 没开、辅助功能未开、装了 Grok。人先点「去授权」开辅助功能，再点 Chrome「打开并授权」，系统弹出「DropAgent 想要控制 Google Chrome」。允许后 Chrome 行打勾。点「以后再说」进空架子，仍可拖文件。
+1. 第一次双击 DropAgent：面板出来，空架子可见。动作区第一拍「这是一个架子。」本机有 Chrome 没开、辅助功能未开、装了 Grok。下一步到抓页授权。人先点「允许」开辅助功能，再点 Chrome「打开并允许」，系统弹出「DropAgent 想要控制 Google Chrome」。允许后 Chrome 行打点。点「跳过」进空架子，仍可拖文件。
 2. 本机权限和 Safari 控制都已有、没装任何 CLI：卡仍出现，终端行写「未发现终端 Agent。可以先把文件放在架子上。」人点「以后再说」，齿轮留墨点；设置里同一行可点如何安装。
 3. 人点了以后再说，后来在 Chrome 里 ⌃⌥W：若自动化仍未给，失败条「去授权」弹出控制 Chrome 的系统框，而不是一个没有 DropAgent 的设置页。
 4. 人在设置里关掉辅助功能：就绪卡不自动再蹦出来；齿轮有墨点；抓页失败条仍能要权。
@@ -59,7 +59,7 @@
 
 | 表面 | 何时 | 出口 |
 |------|------|------|
-| 就绪卡 | 面板可见，且未 dismiss，且抓页权限未齐 | 「以后再说」或抓页权限变齐后自动收起 |
+| 就绪卡 | 人点「去准备」，且未 dismiss，且抓页权限未齐 | 「以后再说」或抓页权限变齐后自动收起 |
 | 设置「使用准备」 | 齿轮打开，永远在工作区之上 | 无独立出口；「完成」关设置 |
 
 不是新窗口。卡盖住左列表 / 右 AI（终端仍留在视图树，避免拆 PTY），头上芯片 / 齿轮 / 最小化 / 关闭仍可用。点齿轮视为暂时去设置，**不是** dismiss；关设置后若仍未 dismiss 且未齐，卡回来。
@@ -67,10 +67,12 @@
 ### 何时出卡、何时不再出
 
 ```text
-shouldShowCard = !isDiagnostic && panelVisible && !setupCardDismissed && !captureReady
+shouldShowCard = !isDiagnostic && panelVisible && !setupCardDismissed && !captureReady && requested
 ```
 
-`captureReady`：辅助功能已信任，**且**清单里每个已装的 AppleScript 浏览器 `allowed == true`。
+`requested` 是本次进程的显式请求（空态「去准备」、预览 / e2e），不写盘。第一次打开不再自动出卡；抓页授权在引导的第二拍。详见 `specs/onboarding-flow/spec.md`。
+
+`captureReady`：辅助功能已信任，**且**至少一家已装 AppleScript 浏览器 `allowed == true`（没有浏览器行则只看辅助功能）。
 
 不把「有终端」和「快捷键可用」算进 `captureReady`。没有 CLI 仍可当置物架；键被占用只能说明，第一版改不了。
 
@@ -97,7 +99,7 @@ gearNeedsAttention = !hasAgent || !accessibilityTrusted || 任一已装 AppleScr
 | 终端 Agent | `installedEngines` 非空，展示当前芯片短名（auto 则当前探测到的） | 无 CLI：「可以先把文件放在架子上。」按钮「如何安装」走现有 `openTUIInstall`。有 CLI 不弹窗。 |
 | 打开面板 ⌃⌥D | `hotKeyToggleOK` | 「被占用，点菜单栏图标打开。」无按钮。 |
 | 抓当前页 ⌃⌥W | `hotKeyCaptureOK` | 「被占用，用菜单抓页。」无按钮。 |
-| 辅助功能 | `AXIsProcessTrusted` | 「去授权」→ `PageAdmit.requestTrustIfNeeded()`（已信任则立即返回）。 |
+| 辅助功能 | 当前进程真能用辅助功能：`AXIsProcessTrusted` / `AXIsProcessTrustedWithOptions(prompt:false)` 为真，或对 system-wide 元素的一次只读 AX 调用返回 `success` / `noValue` | 「去授权」→ `PageAdmit.requestTrustIfNeeded()`（已信任则立即返回）。 |
 | `{浏览器名}` | 对该 bundle 探测 `allowed` | 见下 |
 
 浏览器 Kind 仅 `usesAppleScript == true`：Safari、Chrome、Edge、Brave。一行一个 Kind。
@@ -109,7 +111,7 @@ gearNeedsAttention = !hasAgent || !accessibilityTrusted || 任一已装 AppleScr
 - 静默探测对未要过权的 Chrome 本机返回 `errAEEventNotPermitted`（`-1743`），Safari 已允许则是 `noErr`。清单不得因此写成「系统已拒绝」或把按钮换成「在自动化里打开」。正在跑的未允许行只显示「去授权」。
 - `ask=true` 之后仍是 denied，再打开自动化页（这时列表里才可能有 Chrome 开关）。
 - Canary / Beta 等映射到同一 Kind：不拆多行。要权打正在跑的那份 bundle。
-- 辅助功能：`AXIsProcessTrusted` 为假时不得假装打勾。系统列表里开着的可能是另一份身份（`.build` 裸二进制 vs `dist/DropAgent.app`、adhoc 重签换 CDHash）。有其他 DropAgent 在跑时，行文案写清「列表里那份不是当前这份」；开完开关后仍假，则完全退出当前这份再打开。
+- 辅助功能：不得在未授权时假装打勾。adhoc 签名时 `AXIsProcessTrusted` 常在系统开关已开之后仍返回假，所以还要做一次不弹窗的实际 AX 读取；两者任一为真才打勾。系统列表里开着的仍可能是另一份身份（`.build` 裸二进制 vs `dist/DropAgent.app`、adhoc 重签换 CDHash）。有其他 DropAgent 在跑且当前进程读不到 AX 时，行文案写清「列表里那份不是当前这份」；实际读取也失败，则完全退出当前这份再打开。探测在主线程做，不要被后台队列写成假。
 
 ### 要权怎么发（根因修复）
 
@@ -140,7 +142,7 @@ gearNeedsAttention = !hasAgent || !accessibilityTrusted || 任一已装 AppleScr
 ### 和 first-open / 设置页的关系
 
 - first-open：照旧，诊断启动不弹面板、不写 `opened`。本项不改那份标记语义。
-- first-open 非目标「不做多页新手引导」仍然成立：一张卡 + 一个以后再说。
+- first-open 非目标「不做多页新手引导」仍然成立：不是新窗口。动作区一次一拍，随时可跳过，架子始终可拖。
 - 设置页在现有三块之上加「使用准备」，控件、字号、分段标题跟工作区块一致。
 
 ## 端到端方案（模块、数据、调用）
@@ -225,7 +227,7 @@ static func requestAutomation(bundleIdentifier:) -> AutomationState
 `SetupCardPolicy`（纯函数，可测）：
 
 ```text
-shouldShowCard(dismissed:captureReady:isDiagnostic:panelVisible:)
+shouldShowCard(dismissed:captureReady:isDiagnostic:panelVisible:requested:)
 captureReady(status:)
 gearNeedsAttention(hasAgent:status:)
 ```
@@ -284,7 +286,7 @@ gearNeedsAttention(hasAgent:status:)
 
 ## 验收标准
 
-1. 空 `DROPAGENT_ROOT`、非诊断、辅助功能未齐或已装浏览器未允许：第一次打开面板看得到就绪卡；头仍在；「以后再说」进架子且再开面板不再出卡。
+第一次打开面板看得到空架子和第一拍，不自动出就绪卡。抓页未齐时第二拍有授权。点「去准备」才出卡。头仍在。
 2. 卡开着时拖到菜单栏图标或顶边，条目仍进架子。
 3. 无 CLI：卡上终端行说明可先放架子，有如何安装；不阻止以后再说。有 CLI：绿，展示短名，不弹窗。
 4. 辅助功能已开时点浏览器「去授权 / 打开并授权」：系统出现 DropAgent 控制该浏览器的对话框（真机）。允许后该行变绿。之后系统设置 → 自动化里能看到 DropAgent，并带该浏览器开关。

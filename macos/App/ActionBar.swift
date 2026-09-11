@@ -21,6 +21,11 @@ struct ShortcutAction: Codable, Equatable, Identifiable {
     var storedRecipe: String { RecipeID.storedShortcut(id: id) }
 }
 
+struct ShortcutPoolNotice: Equatable {
+    var id: String
+    var name: String
+}
+
 enum ActionSlot: Equatable, Identifiable {
     case recipe(RecipeID)
     case shortcut(String)
@@ -123,6 +128,21 @@ enum ActionBarLayout {
             if case .recipe(let recipe) = slot, recipe == .shortcut { continue }
             seen.insert(slot.id)
             result.append(slot)
+        }
+        return result
+    }
+
+    static func poolSlots(order: [String], shortcuts: [ShortcutAction]) -> [ActionSlot] {
+        let onBar = Set(slots(order: order, shortcuts: shortcuts).map(\.id))
+        var result: [ActionSlot] = []
+        for recipe in RecipeID.barRecipes {
+            let slot = ActionSlot.recipe(recipe)
+            if onBar.contains(slot.id) == false {
+                result.append(slot)
+            }
+        }
+        for action in shortcuts where onBar.contains(action.storedRecipe) == false {
+            result.append(.shortcut(action.id))
         }
         return result
     }

@@ -16,11 +16,14 @@ struct PanelHeader: View {
                 .accessibilityAddTraits(.isHeader)
             if showsHeaderSearch {
                 HeaderSearchField(session: session)
-                    .frame(minWidth: 64, maxWidth: 240)
+                    .frame(minWidth: 200, maxWidth: 280)
                     .padding(.leading, 12)
-                    .layoutPriority(-1)
+                    .layoutPriority(1)
             }
-            Spacer(minLength: 0)
+            WindowDragHandle()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(0)
+                .accessibilityHidden(true)
             if showsStatusChip {
                 statusChip
             }
@@ -31,41 +34,32 @@ struct PanelHeader: View {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: session.settingsOpen ? "gearshape.fill" : "gearshape")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(session.settingsOpen ? Palette.text : Palette.faint)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
                     if session.gearNeedsAttention && session.settingsOpen == false {
                         Circle()
                             .fill(Palette.text)
                             .frame(width: 5, height: 5)
-                            .offset(x: -6, y: 6)
+                            .offset(x: -4, y: 4)
                             .accessibilityHidden(true)
                     }
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(IconButtonStyle(selected: session.settingsOpen))
             .accessibilityLabel(Copy.t("设置", "Settings"))
-            .accessibilityHint(Copy.t("打开使用准备、工作区、颜色和语言", "Open setup, workspace, appearance, and language"))
+            .accessibilityHint(Copy.t("管理权限、动作、Agent 和外观", "Manage permissions, actions, agents, and appearance"))
             .accessibilityIdentifier("settings")
             Button(action: onMinimize) {
                 Image(systemName: "minus")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Palette.faint)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(IconButtonStyle())
             .accessibilityLabel(Copy.t("最小化", "Minimize"))
             .accessibilityHint(Copy.t("把面板收起来，和点菜单栏图标一样", "Hide the panel, same as clicking the menu bar icon"))
             .accessibilityIdentifier("minimize")
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Palette.faint)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(IconButtonStyle())
             .accessibilityLabel(Copy.t("关闭", "Close"))
         }
         .padding(.horizontal, 16)
@@ -87,7 +81,7 @@ struct PanelHeader: View {
             if let engine = session.settings.tuiEngine.engine {
                 return Copy.t("未发现 \(engine.shortTitle)", "\(engine.shortTitle) not found")
             }
-            return Copy.t("未发现终端", "No terminal")
+            return Copy.t("选择 Agent", "Choose agent")
         }()
         let label = session.isCapturing
             ? Copy.t("抓取中", "Capturing")
@@ -95,10 +89,10 @@ struct PanelHeader: View {
         let spoken = session.isCapturing
             ? Copy.t("正在抓当前页", "Capturing the current page")
             : session.hasAgent
-                ? Copy.t("\(session.tuiTitle) 已连接", "\(session.tuiTitle) connected")
+                ? Copy.t("\(session.tuiTitle) 可用", "\(session.tuiTitle) available")
                 : missing
         let symbol = session.isCapturing ? "dot.radiowaves.left.and.right"
-            : session.hasAgent ? "checkmark.circle.fill" : "circle.slash"
+            : session.hasAgent ? "terminal" : "plus.circle"
         let chip = HStack(spacing: 6) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .medium))
@@ -116,8 +110,12 @@ struct PanelHeader: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(session.isCapturing ? Color.clear : Palette.panel2.opacity(0.7))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .background(session.isCapturing ? Color.clear : Palette.panel2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(session.isCapturing ? Color.clear : Palette.line)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(spoken)
@@ -161,6 +159,10 @@ struct PanelHeader: View {
             }
         }
         Divider()
+        Button(Copy.t("管理 Agent…", "Manage agents…")) {
+            session.settingsSection = .machine
+            session.settingsOpen = true
+        }
         Button(Copy.t("指定可执行文件…", "Choose executable…")) { session.pickTUIExecutable() }
         ForEach(AgentEngine.tuiCases) { engine in
             Button(Copy.t("如何安装 \(engine.shortTitle)", "How to install \(engine.shortTitle)")) {

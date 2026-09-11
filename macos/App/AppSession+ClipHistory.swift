@@ -67,6 +67,43 @@ extension AppSession {
         refreshClips()
     }
 
+    func makeClipCurrent(_ id: ClipID, on pasteboard: NSPasteboard = .general) {
+        onPanelInteraction?()
+        guard let record = clipRecords.first(where: { $0.id == id }) else { return }
+        guard record.filesMissing == false else { return }
+        guard let payload = clipboardPayload(for: record) else { return }
+        pasteboard.clearContents()
+        switch payload {
+        case .empty:
+            return
+        case .text(let text):
+            pasteboard.setString(text, forType: .string)
+            if ClipDraft.isHTTPURL(text), let url = URL(string: text) {
+                pasteboard.writeObjects([url as NSURL])
+            }
+        case .image(let data):
+            if let image = NSImage(data: data) {
+                pasteboard.writeObjects([image])
+            }
+            pasteboard.setData(data, forType: .png)
+        case .files(let urls):
+            pasteboard.writeObjects(urls as [NSURL])
+            if urls.count > 1 {
+                pasteboard.setPropertyList(
+                    urls.map(\.path),
+                    forType: NSPasteboard.PasteboardType("NSFilenamesPboardType")
+                )
+            }
+        }
+        notePasteboard(pasteboard)
+        if clipSelection.contains(id) == false {
+            clipSelection = [id]
+        }
+        if clipHistoryOpen {
+            clipMenu.relayout()
+        }
+    }
+
     func clipDragGroup(starting id: ClipID) -> [ClipRecord] {
         let selected = clipRecords.filter { clipSelection.contains($0.id) && $0.filesMissing == false }
         if selected.contains(where: { $0.id == id }), selected.count > 1 {

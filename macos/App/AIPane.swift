@@ -16,6 +16,12 @@ struct AIPane: View {
                             .foregroundStyle(Palette.muted)
                             .lineLimit(1)
                     }
+                    Button { session.toggleOther() } label: {
+                        Image(systemName: "chevron.up")
+                    }
+                    .buttonStyle(IconButtonStyle())
+                    .accessibilityLabel(Copy.t("收起对话", "Collapse chat"))
+                    .accessibilityIdentifier("collapse-chat")
                 }
             }
             if showsLog {
@@ -29,7 +35,7 @@ struct AIPane: View {
             if session.showsComposer {
                 ComposerBar(session: session)
                 Text(Copy.t("发给 \(session.tuiTitle) 是终端会话，不是副本沙箱。", "Sending to \(session.tuiTitle) is a terminal session, not the copy sandbox."))
-                    .font(.system(size: 10))
+                    .font(.system(size: 11.5))
                     .foregroundStyle(Palette.faint)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)

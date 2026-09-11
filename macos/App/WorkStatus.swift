@@ -96,10 +96,8 @@ struct WorkRunningView: View {
             Spacer(minLength: 8)
             Button(action: onCancel) {
                 Text(Copy.t("取消", "Cancel"))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Palette.muted)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QuietButtonStyle())
             .accessibilityLabel(Copy.t("取消这次副本任务", "Cancel this copy job"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -6,6 +6,28 @@ struct ResultStack: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if session.guidedSample != nil, session.selectedResult?.status != .failed {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Palette.accent)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(Copy.t("新文件已生成", "Your new file is ready"))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Palette.text)
+                        Text(Copy.t("第 3 步，共 3 步 · 复制文件，或拖到 Finder、桌面、上传框。", "Step 3 of 3 · Copy the file or drag it to Finder, your desktop, or an upload field."))
+                            .font(.system(size: 12))
+                            .foregroundStyle(Palette.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Button(Copy.t("完成引导", "Finish guide")) { session.dismissFirstActionHint() }
+                        .buttonStyle(QuietButtonStyle())
+                        .accessibilityIdentifier("onboard-result-dismiss")
+                }
+                .padding(16)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("onboard-result")
+            }
             ColumnHead(title: Copy.t("结果区", "Results")) {
                 HStack(spacing: 8) {
                     Spacer(minLength: 0)
@@ -16,19 +38,17 @@ struct ResultStack: View {
                         Button {
                             session.importSelectedResults()
                         } label: {
-                            Label(Copy.t("放到上面当材料", "Use as material"), systemImage: "square.and.arrow.down")
-                                .font(.system(size: 12, weight: .medium))
+                            Label(Copy.t("用作材料", "Use as input"), systemImage: "square.and.arrow.down")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Copy.t("放到上面当材料", "Use as material"))
+                        .buttonStyle(QuietButtonStyle())
+                        .accessibilityLabel(Copy.t("用作材料", "Use as input"))
                         .background(AccessibleID(identifier: "import-result").frame(width: 0, height: 0).allowsHitTesting(false))
                         .accessibilityIdentifier("import-result")
                         if session.selectedResult?.output != nil {
                             Button { session.copySelected() } label: {
-                                Text(Copy.t("复制", "Copy"))
-                                    .font(.system(size: 12, weight: .medium))
+                                Text(Copy.t("复制文件", "Copy file"))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(PrimaryButtonStyle())
                             .accessibilityIdentifier("take-copy")
                             if session.hasAgent {
                                 Button {
@@ -36,9 +56,8 @@ struct ResultStack: View {
                                     session.aiTab = .tty
                                 } label: {
                                     Text(Copy.t("终端", "Terminal"))
-                                        .font(.system(size: 12, weight: .medium))
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(QuietButtonStyle())
                                 .accessibilityIdentifier("take-tty")
                             }
                         }

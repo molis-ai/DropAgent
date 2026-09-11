@@ -6,17 +6,22 @@ struct RecipeConfirmationView: View {
 
     var body: some View {
         let batch = session.selectedItems.filter { $0.status == .confirm }
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(Copy.t("\(batch.count) 项", "\(batch.count) items"))
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.muted)
                 Text("\(session.displayedActionName(batch.first?.recipe))\(optionSuffix)")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Palette.text)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 0)
+                Text(Copy.t("\(batch.count) 份材料", "\(batch.count) materials"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.muted)
             }
+            Text(outputDescription)
+                .font(.system(size: 12))
+                .foregroundStyle(Palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
             if let recipe = session.confirmRecipeID,
                RecipeCatalog.choices(for: recipe).choices.isEmpty == false
             {
@@ -28,28 +33,36 @@ struct RecipeConfirmationView: View {
                 network: session.recipeNetworkFact,
                 isolation: session.recipeIsolationFact
             )
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Button { Task { await session.confirmRun() } } label: {
                     HStack(spacing: 6) {
-                        Text(Copy.t("在副本中运行", "Run on a copy"))
+                        Text(session.confirmRecipeID == .pdfText || session.confirmRecipeID == .imageText
+                             ? Copy.t("开始提取", "Start extraction") : Copy.t("开始处理", "Run action"))
                         Image(systemName: "arrow.right")
                     }
-                    .font(.system(size: 12, weight: .semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(!session.canConfirmRun || !session.runningItems.isEmpty)
                 .accessibilityIdentifier("confirm-run")
                 Button { session.cancelConfirm() } label: {
-                    Text(Copy.t("取消", "Cancel"))
-                        .font(.system(size: 12))
-                        .foregroundStyle(Palette.muted)
+                    Text(Copy.t("返回", "Back"))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QuietButtonStyle())
                 .accessibilityIdentifier("cancel-confirm")
                 Spacer(minLength: 0)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 16)
+        .padding(.bottom, 6)
+    }
+
+    private var outputDescription: String {
+        if let recipe = session.confirmRecipeID, recipe != .shortcut {
+            let name = RecipeCatalog.spec(recipe).outputFileName
+            return Copy.t("将生成 \(name)。原文件保持不变。", "Creates \(name). Your original file stays unchanged.")
+        }
+        return Copy.t("将在结果区生成一个新文件。原文件保持不变。", "Creates a new file in Results. Your original stays unchanged.")
     }
 
     private var optionSuffix: String {

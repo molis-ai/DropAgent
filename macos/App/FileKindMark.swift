@@ -53,8 +53,8 @@ struct FileKindMark: View {
         }
     }
 
-    private var fill: Color { Palette.tagFill(kind: kind, tag: tag) }
-    private var ink: Color { Palette.tagInk(kind: kind, tag: tag) }
+    private var fill: Color { Palette.tagFill }
+    private var ink: Color { Palette.tagInk }
 
     private var tile: some View {
         ZStack {

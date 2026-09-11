@@ -41,6 +41,7 @@ extension AppDelegate {
         var from = target
         from.origin.y += 8
         panel.alphaValue = 0
+        applyingPanelFrame = true
         panel.setFrame(from, display: true)
         panel.makeKeyAndOrderFront(nil)
         NSAnimationContext.runAnimationGroup({ context in
@@ -49,6 +50,7 @@ extension AppDelegate {
             panel.animator().setFrame(target, display: true)
         }, completionHandler: { [weak self] in
             Task { @MainActor in
+                self?.applyingPanelFrame = false
                 self?.panel?.invalidateShadow()
             }
         })
@@ -73,6 +75,7 @@ extension AppDelegate {
         var to = start
         to.origin.y += 6
         panel.level = PanelIdle.activeLevel
+        applyingPanelFrame = true
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.12
             panel.animator().alphaValue = 0
@@ -83,6 +86,7 @@ extension AppDelegate {
                 panel.orderOut(nil)
                 PanelIdle.applyActive(to: panel)
                 panel.setFrame(start, display: false)
+                self.applyingPanelFrame = false
                 self.refreshStatus()
             }
         })
@@ -206,9 +210,11 @@ extension AppDelegate {
         panel.collectionBehavior = PanelIdle.spaceBehavior
         panel.hidesOnDeactivate = false
         panel.isMovable = false
+        panel.isMovableByWindowBackground = false
         panel.hasShadow = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.delegate = self
+        panel.onUserMoved = { [weak self] in self?.rememberPanelOrigin() }
         panel.onMouseInsideChange = { [weak self] inside in
             guard let self else { return }
             let overClip = self.session.clipMenu.containsPointer(NSEvent.mouseLocation)
@@ -222,6 +228,9 @@ extension AppDelegate {
         }
         let hide: () -> Void = { [weak self] in self?.hidePanel() }
         let host = PaperHostView(rootView: PanelRootView(session: session, onClose: hide, onMinimize: hide))
+        // This panel owns its frame. Hosting constraints can otherwise enlarge
+        // the window beyond the screen as the SwiftUI content changes.
+        host.sizingOptions = []
         host.frame = NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
         panel.contentView = host
         Palette.applyPaperChrome(to: panel, host: host)
@@ -247,26 +256,45 @@ extension AppDelegate {
     }
 
     func positionPanel() {
-        guard let panel, let screen = statusItem?.button?.window?.screen ?? NSScreen.main else { return }
-        let visible = screen.visibleFrame
-        let target = session.panelWidth
-        let width: CGFloat = min(target, max(LivePanelChrome.shelfOnlyMin, visible.width - 16))
-        let buttonRect: NSRect
-        if let button = statusItem?.button, let window = button.window {
-            let rect = window.convertToScreen(button.convert(button.bounds, to: nil))
-            buttonRect = rect.height > 1 ? rect : NSRect(x: visible.maxX - 28, y: visible.maxY, width: 28, height: 22)
+        guard let panel, panel.userMoving == false else { return }
+        let button = statusItem?.button
+        let buttonScreen = button?.window?.screen
+        let saved = session.prefs.savedPanelOrigin
+        let screen: NSScreen?
+        if let saved {
+            screen = PanelPlacement.screen(forSavedX: saved.x, top: saved.top, fallback: buttonScreen)
         } else {
-            buttonRect = NSRect(x: visible.maxX - 28, y: visible.maxY, width: 28, height: 22)
+            screen = buttonScreen ?? NSScreen.main
         }
-        let top = buttonRect.minY - 6
-        let maxHeight = max(LivePanelChrome.dockMinHeight, top - (visible.minY + 8))
-        let height: CGFloat = min(session.panelHeight, maxHeight)
-        var x = buttonRect.maxX - width
-        x = min(max(visible.minX + 8, x), max(visible.minX + 8, visible.maxX - width - 8))
-        let y = top - height
-        panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
-        hosting?.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        guard let screen else { return }
+        let visible = screen.visibleFrame
+        let size = NSSize(width: session.panelWidth, height: session.panelHeight)
+        let frame: NSRect
+        if let saved {
+            frame = PanelPlacement.placed(savedX: saved.x, savedTop: saved.top, size: size, visible: visible)
+        } else {
+            let buttonRect: NSRect
+            if let button, let window = button.window {
+                let rect = window.convertToScreen(button.convert(button.bounds, to: nil))
+                buttonRect = rect.height > 1 ? rect : NSRect(x: visible.maxX - 28, y: visible.maxY, width: 28, height: 22)
+            } else {
+                buttonRect = NSRect(x: visible.maxX - 28, y: visible.maxY, width: 28, height: 22)
+            }
+            frame = PanelPlacement.underStatusItem(button: buttonRect, visible: visible, size: size)
+        }
+        applyingPanelFrame = true
+        panel.setFrame(frame, display: true)
+        hosting?.frame = NSRect(origin: .zero, size: frame.size)
+        applyingPanelFrame = false
         panel.invalidateShadow()
+    }
+
+    func rememberPanelOrigin() {
+        guard applyingPanelFrame == false, let panel, panel.isVisible else { return }
+        var prefs = session.prefs
+        prefs.savedPanelOrigin = (panel.frame.minX, panel.frame.maxY)
+        prefs.save()
+        session.prefs = prefs
     }
 
     func refreshStatus() {

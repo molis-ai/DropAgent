@@ -47,18 +47,47 @@ struct RecipeChooser: View {
     @State private var startFrames: [String: CGRect] = [:]
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                recipeButton(
-                    title: session.actionBarEditing ? Copy.t("完成", "Done") : Copy.t("整理", "Arrange"),
-                    symbol: session.actionBarEditing ? "checkmark" : "line.3.horizontal",
-                    enabled: true,
-                    selected: session.actionBarEditing,
-                    help: Copy.t("隐藏或拖动手把调整顺序", "Hide actions or drag handles to reorder"),
-                    identifier: "recipe-arrange"
-                ) {
-                    session.setActionBarEditing(!session.actionBarEditing)
+        VStack(alignment: .leading, spacing: 6) {
+            if session.showsFirstActionHint {
+                if session.guidedSample != nil {
+                    SampleActionGuide(session: session)
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    JourneyEcho(strong: Onboarding.coach)
+                    Spacer(minLength: 8)
+                    JourneyLink(title: Onboarding.coachDismiss, kind: .skip) {
+                        session.dismissFirstActionHint()
+                    }
+                    .accessibilityIdentifier("onboard-coach-dismiss")
                 }
+                .accessibilityIdentifier("onboard-coach")
+                }
+            }
+            if let notice = session.shortcutPoolNotice {
+                poolNotice(notice)
+            }
+            if !session.hasRecipe && session.guidedSample == nil {
+                HStack(spacing: 8) {
+                    Text(Copy.t("总结、翻译等动作需要本机 Agent。图片与 PDF 可直接提取文字。", "Connect a local agent for summaries and translation. Images and PDFs can extract text now."))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Palette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    Button(Copy.t("设置 Agent", "Set up agent")) {
+                        session.settingsSection = .machine
+                        session.settingsOpen = true
+                    }
+                    .buttonStyle(QuietButtonStyle(subtle: true))
+                }
+                .padding(.horizontal, 6)
+            }
+            actionRow
+        }
+    }
+
+    private var actionRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
                 ForEach(session.barSlots(organizing: session.actionBarEditing)) { slot in
                     slotChip(slot)
                         .opacity(draggingID == slot.id ? 0 : 1)
@@ -88,11 +117,21 @@ struct RecipeChooser: View {
                     session.toggleOther()
                 }
                 recipeButton(
-                    title: Copy.t("添加", "Add"),
+                    title: session.actionBarEditing ? Copy.t("完成", "Done") : Copy.t("整理", "Arrange"),
+                    symbol: session.actionBarEditing ? "checkmark" : "line.3.horizontal",
+                    enabled: true,
+                    selected: session.actionBarEditing,
+                    help: Copy.t("隐藏或拖动手把调整顺序", "Hide actions or drag handles to reorder"),
+                    identifier: "recipe-arrange"
+                ) {
+                    session.setActionBarEditing(!session.actionBarEditing)
+                }
+                recipeButton(
+                    title: Copy.t("新建动作", "New action"),
                     symbol: "plus",
                     enabled: true,
                     selected: session.shortcutDraft != nil,
-                    help: Copy.t("添加快捷动作", "Add a shortcut action"),
+                    help: Copy.t("创建可重复使用的自定义动作", "Create a reusable custom action"),
                     identifier: "recipe-add"
                 ) {
                     session.openShortcutComposer()
@@ -111,6 +150,36 @@ struct RecipeChooser: View {
         .accessibilityIdentifier("acts")
     }
 
+    private func poolNotice(_ notice: ShortcutPoolNotice) -> some View {
+        HStack(spacing: 8) {
+            Text(Copy.t("「\(notice.name)」已保存", "“\(notice.name)” has been saved"))
+                .font(.system(size: 12))
+                .foregroundStyle(Palette.text)
+            Button(Copy.t("加入动作栏", "Add to bar")) {
+                session.pinPooledShortcutToBar()
+            }
+            .buttonStyle(QuietButtonStyle())
+            .accessibilityIdentifier("pool-notice-pin")
+            Button(Copy.t("打开设置", "Open settings")) {
+                session.openActionPoolInSettings()
+            }
+            .buttonStyle(QuietButtonStyle())
+            .accessibilityIdentifier("pool-notice-settings")
+            Spacer(minLength: 0)
+            Button {
+                session.dismissShortcutPoolNotice()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .buttonStyle(IconButtonStyle(size: 24))
+            .accessibilityLabel(Copy.t("好", "OK"))
+            .accessibilityIdentifier("pool-notice-dismiss")
+        }
+        .padding(.horizontal, 10)
+        .accessibilityIdentifier("shortcut-pool-notice")
+    }
+
     private func slotChip(_ slot: ActionSlot) -> some View {
         HStack(spacing: 0) {
             grabArea(slot)
@@ -120,10 +189,8 @@ struct RecipeChooser: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.muted)
-                        .frame(width: 16, height: 32)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(IconButtonStyle(size: 24))
                 .accessibilityIdentifier("action-hide-\(slot.id)")
             }
         }
@@ -282,20 +349,12 @@ struct RecipeChooser: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(enabled ? Palette.accent : Palette.faint)
                 Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Palette.text)
                     .lineLimit(1)
                     .fixedSize()
             }
-            .padding(.horizontal, 7)
-            .frame(height: 32)
-            .background(selected ? Palette.panelPress : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QuietButtonStyle(selected: selected))
         .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.42)
         .help(help)
         .accessibilityIdentifier(identifier)
         .accessibilityLabel(title)
@@ -324,14 +383,8 @@ struct RecipeOptionChips: View {
                     let on = current == choice.id
                     Button { session.setChoice(choice.id, for: recipe) } label: {
                         Text(choice.title)
-                            .font(.system(size: 12, weight: on ? .semibold : .regular))
-                            .foregroundStyle(Palette.text)
-                            .padding(.horizontal, 10)
-                            .frame(height: 28)
-                            .background(on ? Palette.panelPress : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TagButtonStyle(selected: on))
                     .accessibilityIdentifier("recipe-opt-\(choice.id)")
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
@@ -365,18 +418,20 @@ struct RecipeFacts: View {
     let isolation: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            row(Copy.t("读", "Read"), Copy.t("\(count) 份材料的副本", "Copies of \(count) materials"))
-            row(Copy.t("写", "Write"), write)
+        VStack(alignment: .leading, spacing: 8) {
+            row(Copy.t("读取", "Read"), Copy.t("\(count) 份材料的副本", "Copies of \(count) materials"))
+            row(Copy.t("写入", "Write"), write)
             row(Copy.t("网络", "Network"), network)
             row(Copy.t("隔离", "Isolation"), isolation)
         }
+        .padding(14)
+        .background(Palette.panel2, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func row(_ key: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
             Text(key)
-                .frame(width: 36, alignment: .leading)
+                .frame(width: 64, alignment: .leading)
                 .foregroundStyle(Palette.muted)
             Text(value)
                 .foregroundStyle(Palette.text)
