@@ -11,7 +11,7 @@ A macOS menu bar shelf for the coding agent you already have. Stage first, run o
 
 左侧选材料，右侧看内容，指令常驻下方。结果可一键展开原文对照。剪贴板历史默认可见，点选只预览，需要处理时再加入材料。
 
-已发布版本 **0.1.0**。[下载 macOS 安装包](https://github.com/molis-ai/DropAgent/releases/tag/v0.1.0)（macOS 14+，Apple Silicon）。本文截图来自当前源码工作台；v0.1.0 下载包仍为此前布局，新界面可从源码打包。
+已发布版本 **0.2.0**。[下载 macOS 安装包](https://github.com/molis-ai/DropAgent/releases/tag/v0.2.0)（macOS 14+，Apple Silicon）。
 
 ## 它解决什么
 
@@ -56,13 +56,13 @@ A macOS menu bar shelf for the coding agent you already have. Stage first, run o
 
 ### 下载安装包
 
-1. 从 [v0.1.0 Release](https://github.com/molis-ai/DropAgent/releases/tag/v0.1.0) 下载 `DropAgent-v0.1.0-macos-arm64.zip`。
+1. 从 [v0.2.0 Release](https://github.com/molis-ai/DropAgent/releases/tag/v0.2.0) 下载 `DropAgent-v0.2.0-macos-arm64.zip`。
 2. 解压，把 `DropAgent.app` 拖进「应用程序」，然后打开。安装包不需要 Xcode 或 Swift。
 3. 点菜单栏的 DropAgent 图标，从「试用示例 PDF」开始。
 
 要求 macOS 14 或更新版本、Apple Silicon（M 系列）Mac。本次二进制不支持 Intel。
 
-v0.1.0 使用 adhoc 签名，尚未经过 Apple 公证。若系统拦截，确认下载自本仓库后，按 [Apple 的说明](https://support.apple.com/zh-cn/102445)，在尝试打开后前往「系统设置 → 隐私与安全性 → 仍要打开」。无需关闭系统整体安全保护。
+v0.2.0 使用 adhoc 签名，尚未经过 Apple 公证。若系统拦截，确认下载自本仓库后，按 [Apple 的说明](https://support.apple.com/zh-cn/102445)，在尝试打开后前往「系统设置 → 隐私与安全性 → 仍要打开」。无需关闭系统整体安全保护。
 
 第一次成功**不要求**已装 Grok / Codex。有 Agent 再跑总结、翻译。
 
