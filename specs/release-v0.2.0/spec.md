@@ -55,3 +55,11 @@ DROPAGENT_ROOT=/tmp/dropagent-v0.2.0-wheel /tmp/dropagent-v0.2.0-install/DropAge
 ## 假设与开放问题
 
 仍无 Developer ID；安装路径继续说明未公证。Intel 不在本次二进制范围。
+
+## 已发布
+
+- [v0.2.0 Release](https://github.com/molis-ai/DropAgent/releases/tag/v0.2.0) 于 2026-09-13 公开发布，标为 Latest，非草稿、非预发布。
+- 标签对应源码提交 `e00d2bffd47e7b2364d740a816f917e26e448852`。
+- 附件为 `DropAgent-v0.2.0-macos-arm64.zip`（3,275,306 字节）与 `SHA256SUMS.txt`。已从 GitHub 重新下载，校验和 `fff3d6185ff248011bfc71d97043cdf319814b78990a201aee30facb275d38f4` 通过且与本地分发 ZIP 字节一致。
+- 分发 App 版本 0.2.0 / build 2，bundle ID `local.dropagent`，arm64，adhoc 签名。`DropAgentCheck`（release）通过；ZIP 解出的 App 通过 `--e2e --workbench-only` 与 `--e2e --wheel-only`。
+- 未实测 Intel、macOS 14 真机、Developer ID / 公证；内核检查中可选 live capture 仍可能 `captureFailed`。
