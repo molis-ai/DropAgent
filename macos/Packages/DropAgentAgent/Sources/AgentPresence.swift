@@ -8,9 +8,9 @@ public enum TUIEnginePreference: String, Codable, CaseIterable, Sendable {
     case opencode
     case cursor
     case codex
-    case llm
-    case aichat
-    case sgpt
+    case kimi
+    case codebuddy
+    case qwen
 
     public var engine: AgentEngine? {
         AgentEngine(rawValue: rawValue)
@@ -39,9 +39,9 @@ public enum AgentPresence: Equatable, Sendable {
     case opencode(path: URL, isolation: IsolationGrade)
     case cursor(path: URL, isolation: IsolationGrade)
     case codex(path: URL, isolation: IsolationGrade)
-    case llm(path: URL, isolation: IsolationGrade)
-    case aichat(path: URL, isolation: IsolationGrade)
-    case sgpt(path: URL, isolation: IsolationGrade)
+    case kimi(path: URL, isolation: IsolationGrade)
+    case codebuddy(path: URL, isolation: IsolationGrade)
+    case qwen(path: URL, isolation: IsolationGrade)
     case custom(id: String, title: String, path: URL, kind: RuntimeKind, isolation: IsolationGrade)
 
     public var executable: URL? {
@@ -51,7 +51,7 @@ public enum AgentPresence: Equatable, Sendable {
         case .custom(_, _, let path, _, _):
             return path
         case .grok(let path, _), .claude(let path, _), .gemini(let path, _), .opencode(let path, _),
-             .cursor(let path, _), .codex(let path, _), .llm(let path, _), .aichat(let path, _), .sgpt(let path, _):
+             .cursor(let path, _), .codex(let path, _), .kimi(let path, _), .codebuddy(let path, _), .qwen(let path, _):
             return path
         }
     }
@@ -64,7 +64,7 @@ public enum AgentPresence: Equatable, Sendable {
             return isolation
         case .grok(_, let isolation), .claude(_, let isolation), .gemini(_, let isolation),
              .opencode(_, let isolation), .cursor(_, let isolation), .codex(_, let isolation),
-             .llm(_, let isolation), .aichat(_, let isolation), .sgpt(_, let isolation):
+             .kimi(_, let isolation), .codebuddy(_, let isolation), .qwen(_, let isolation):
             return isolation
         }
     }
@@ -78,16 +78,15 @@ public enum AgentPresence: Equatable, Sendable {
         case .opencode: return .opencode
         case .cursor: return .cursor
         case .codex: return .codex
-        case .llm: return .llm
-        case .aichat: return .aichat
-        case .sgpt: return .sgpt
+        case .kimi: return .kimi
+        case .codebuddy: return .codebuddy
+        case .qwen: return .qwen
         }
     }
 
     public var kind: RuntimeKind {
         switch self {
         case .custom(_, _, _, let kind, _): return kind
-        case .llm, .aichat, .sgpt: return .cli
         default: return .tui
         }
     }
@@ -122,9 +121,9 @@ public enum AgentPresence: Equatable, Sendable {
         case .opencode: return .opencode(path: path, isolation: isolation)
         case .cursor: return .cursor(path: path, isolation: isolation)
         case .codex: return .codex(path: path, isolation: isolation)
-        case .llm: return .llm(path: path, isolation: isolation)
-        case .aichat: return .aichat(path: path, isolation: isolation)
-        case .sgpt: return .sgpt(path: path, isolation: isolation)
+        case .kimi: return .kimi(path: path, isolation: isolation)
+        case .codebuddy: return .codebuddy(path: path, isolation: isolation)
+        case .qwen: return .qwen(path: path, isolation: isolation)
         }
     }
 

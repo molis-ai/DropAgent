@@ -111,16 +111,13 @@ public struct JobService: Sendable {
             if control.isCancelled {
                 throw AgentError.cancelled
             }
+            var lastMessage = ""
             if requiresAgent {
                 let promptFile = dir.appendingPathComponent("prompt.txt")
                 let listed = relativeNames.map { "- \($0)" }.joined(separator: "\n")
                 let body: String
                 if let custom {
-                    let guardrail = """
-                    阅读当前工作目录里的材料。只使用相对路径，不要访问目录之外的文件。
-                    不要修改已有文件。
-                    """
-                    body = guardrail + "\n" + custom.prompt + "\n最终回复为 Markdown。\n"
+                    body = RecipeCatalog.fileGuardrail(outputFileName: outputName) + "\n" + custom.prompt + "\n"
                 } else {
                     body = RecipeCatalog.prompt(for: recipe, choiceID: optionID)
                 }
@@ -144,10 +141,7 @@ public struct JobService: Sendable {
                     }
                 }
                 if control.isCancelled { throw AgentError.cancelled }
-                if result.lastMessage.isEmpty == false, FileManager.default.fileExists(atPath: outputFile.path) == false {
-                    try result.lastMessage.write(to: outputFile, atomically: true, encoding: .utf8)
-                }
-                try RecipeOutput.finalizeFile(outputFile)
+                lastMessage = result.lastMessage
             } else {
                 switch recipe {
                 case .imageText:
@@ -171,6 +165,14 @@ public struct JobService: Sendable {
                     throw JobError.notStartable
                 }
             }
+            try RecipeOutput.collect(
+                into: outputFile,
+                work: work,
+                lastMessage: lastMessage,
+                inputNames: relativeNames,
+                input: input
+            )
+            try JobWorkspace.appendEvent(dir: dir, message: "写入 output/")
             let mismatch = items.contains(where: hashMismatch)
             try restoreInputs(items)
             _ = shelf.addResult(
@@ -191,7 +193,7 @@ public struct JobService: Sendable {
         } catch {
             let reason = Self.failureCopy(error, lastEvent: items.first.flatMap { shelf.item(id: $0.id)?.event } ?? "")
             try restoreInputs(items)
-            let existing = FileManager.default.fileExists(atPath: outputFile.path) ? outputFile : nil
+            let existing = RecipeOutput.hasDeliverable(outputFile) ? outputFile : nil
             _ = shelf.addResult(
                 ResultRecord(
                     sourceItemIDs: items.map(\.id),
@@ -345,6 +347,8 @@ private extension JobService {
             return lastEvent
         }
         switch error {
+        case JobError.missingOutput:
+            return "这次没有生成文件"
         case AgentError.notFound:
             return "没找到 Codex"
         case ImageTextError.unreadable:

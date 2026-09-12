@@ -6,7 +6,7 @@ extension AppSession {
     var selectedItems: [Item] { shelf.selectedItems() }
     var hasAgent: Bool { presence.executable != nil }
     var canSendToTUI: Bool {
-        guard hasAgent, isCapturing == false else { return false }
+        guard paneFocus != .clipboard, hasAgent, isCapturing == false else { return false }
         if paneFocus == .result {
             return selectedResult?.output != nil
         }
@@ -135,7 +135,7 @@ extension AppSession {
     }
 
     func canRunRecipe(_ recipe: RecipeID) -> Bool {
-        guard recipeFitsSelection(recipe) else { return false }
+        guard paneFocus == .input, runningItems.isEmpty, recipeFitsSelection(recipe) else { return false }
         if RecipeCatalog.spec(recipe).requiresAgent { return hasRecipe }
         return true
     }

@@ -10,7 +10,7 @@ struct ErrorBanner: View {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.circle")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Palette.text)
+                        .foregroundStyle(Palette.danger)
                         .accessibilityHidden(true)
                     Text(error)
                         .font(.system(size: 12))

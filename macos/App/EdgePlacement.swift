@@ -6,8 +6,8 @@ enum WheelRelease {
         live == .empty ? snapshot : live
     }
 
-    static func panelTakesDrop(overPanel: Bool) -> Bool {
-        overPanel
+    static func panelTakesDrop(overPanel: Bool, wheelOwnsDrop: Bool = false) -> Bool {
+        overPanel && !wheelOwnsDrop
     }
 }
 

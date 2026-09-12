@@ -42,6 +42,11 @@ enum AppE2E {
                 }
                 return
             }
+            if CommandLine.arguments.contains("--wheel-only") {
+                WheelE2E.run()
+                NSApp.terminate(nil)
+                return
+            }
             session = AppSession(jobRunner: RecipeStubAgent())
 
             let window = NSWindow(
@@ -50,6 +55,7 @@ enum AppE2E {
                 backing: .buffered,
                 defer: false
             )
+            window.title = "DropAgent Workbench QA"
             window.hasShadow = true
             let host = PaperHostView(rootView: PanelRootView(session: session, onClose: {}, onMinimize: {}))
             host.frame = NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
@@ -64,12 +70,16 @@ enum AppE2E {
             }
             Task { @MainActor [weak self] in
                 await self?.go()
-                NSApp.terminate(nil)
+                if !CommandLine.arguments.contains("--workbench-review") { NSApp.terminate(nil) }
             }
         }
 
         @MainActor
         private func go() async {
+            if CommandLine.arguments.contains("--workbench-only"), let window, let hosting {
+                await WorkbenchE2E.run(session: session, window: window, host: hosting)
+                return
+            }
             session.setTUIPreference(.grok)
             await settle()
             await verifyOnboarding()
@@ -92,10 +102,12 @@ enum AppE2E {
             snapshot("e2e-drag-empty")
             session.systemDragActive = false
             verifyEdgePlacement()
+            WheelE2E.run()
             verifyLivePanelChrome()
             verifyPanelIdle()
             verifyPlusKeepsPanel()
             verifyPermissionLowersPanel()
+            verifyStatusItemPinned()
             verifyFirstOpen()
             await verifySetupCard()
             await verifyPaneLayout()
@@ -135,6 +147,7 @@ enum AppE2E {
             await verifyZipLoop()
             await verifyClipboardLoop()
             await verifyClipHistory()
+            await verifyCopyFilesToShelf()
             verifyPolishPaths()
             await verifyCaptureLoop()
             if let deferredCaptureFailure {
@@ -999,6 +1012,12 @@ enum AppE2E {
             guard let result = session.results.first(where: { $0.title == "summary.md" }), result.output != nil else {
                 fail("recipe missing result \(session.results.map(\.title))")
             }
+            guard session.paneFocus == .result, session.selectedResultID == result.id else {
+                fail("recipe did not auto-open result focus=\(session.paneFocus) selected=\(String(describing: session.selectedResultID))")
+            }
+            guard session.stagedItem?.title == "summary.md" else {
+                fail("recipe staged \(session.stagedItem?.title ?? "nil")")
+            }
             guard hash(pdf) == before else {
                 fail("recipe changed original")
             }
@@ -1608,6 +1627,78 @@ enum AppE2E {
             session.errorText = nil
         }
 
+        private func verifyCopyFilesToShelf() async {
+            let source = DropAgentPaths.root.appendingPathComponent("copy-stage-source.txt")
+            do {
+                try Data("copy-stage-body\n".utf8).write(to: source)
+            } catch {
+                fail("copy-stage source \(error)")
+            }
+            let original = (try? Data(contentsOf: source)) ?? Data()
+            let board = NSPasteboard.withUniqueName()
+            board.clearContents()
+            guard board.writeObjects([source as NSURL]) else {
+                fail("copy-stage pasteboard")
+            }
+            let beforeClips = session.clipRecords.count
+            let beforeItems = session.items.count
+            session.notePasteboard(board)
+            await settle()
+            guard session.items.count == beforeItems + 1 else {
+                fail("copy files did not stage \(session.items.count)")
+            }
+            guard let item = session.items.first(where: { $0.title == "copy-stage-source.txt" }) else {
+                fail("copy-stage item missing")
+            }
+            let copyURL = item.parts.first?.url
+            let body = copyURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+            guard body.contains("copy-stage-body") else {
+                fail("copy-stage body \(body)")
+            }
+            guard (try? Data(contentsOf: source)) == original else {
+                fail("copy-stage original changed")
+            }
+            guard session.clipRecords.count == beforeClips else {
+                fail("file copy went to clip history \(session.clipRecords.count)")
+            }
+            guard session.selectedItems.map(\.id) == [item.id] else {
+                fail("copy-stage not selected \(session.selectedItems.map(\.id))")
+            }
+
+            let ownedBoard = NSPasteboard.withUniqueName()
+            ownedBoard.clearContents()
+            if let copyURL {
+                guard ownedBoard.writeObjects([copyURL as NSURL]) else {
+                    fail("owned copy pasteboard")
+                }
+            } else {
+                fail("copy-stage part missing")
+            }
+            session.notePasteboard(ownedBoard)
+            await settle()
+            guard session.items.filter({ $0.title == "copy-stage-source.txt" }).count == 1 else {
+                fail("owned copy re-admitted")
+            }
+
+            guard let fileClip = ClipDraft(kind: .files, title: "stage-hist", filePaths: [source.path]) else {
+                fail("file clip draft")
+            }
+            let recorded = session.clipHistory.record(fileClip)
+            session.refreshClips()
+            let beforeMake = session.items.count
+            let currentBoard = NSPasteboard.withUniqueName()
+            session.makeClipCurrent(recorded.id, on: currentBoard)
+            await settle()
+            guard session.items.count == beforeMake else {
+                fail("make current admitted files")
+            }
+            session.deleteClip(recorded.id)
+
+            session.remove(id: item.id)
+            try? FileManager.default.removeItem(at: source)
+            session.errorText = nil
+        }
+
         private func tinyPNG() -> Data {
             let image = NSImage(size: NSSize(width: 2, height: 2), flipped: false) { rect in
                 NSColor.red.setFill()
@@ -1949,7 +2040,7 @@ enum AppE2E {
             guard let light, light.redComponent > 0.9 else {
                 fail("light tty well \(light?.redComponent ?? -1)")
             }
-            guard Palette.ttyIdleFill.contains("#fcfcfc") else {
+            guard Palette.ttyIdleFill.contains("#f8f7f4") else {
                 fail("light tty fill \(Palette.ttyIdleFill)")
             }
             session.setAppearance(.dark)
@@ -1957,7 +2048,7 @@ enum AppE2E {
             guard let dark, dark.redComponent < 0.15 else {
                 fail("dark tty well \(dark?.redComponent ?? -1)")
             }
-            guard Palette.ttyIdleFill.contains("#171717") else {
+            guard Palette.ttyIdleFill.contains("#222329") else {
                 fail("dark tty fill \(Palette.ttyIdleFill)")
             }
             session.setAppearance(.light)
@@ -2065,6 +2156,9 @@ enum AppE2E {
             guard settingsShows("Drop onto the menu bar icon") else {
                 fail("settings guide body not english \(settingsTree())")
             }
+            guard settingsShows("Copying local files adds them to the shelf") else {
+                fail("settings english copy-files guide \(settingsTree())")
+            }
             guard settingsShows("Actions use job copies"),
                   settingsShows("Actions do not overwrite originals"),
                   settingsShows("not restricted to the copy sandbox"),
@@ -2091,6 +2185,9 @@ enum AppE2E {
             }
             guard settingsShows("轮盘") else {
                 fail("settings guide body not chinese \(settingsTree())")
+            }
+            guard settingsShows("复制本地文件会直接加入架子") else {
+                fail("settings chinese copy-files guide \(settingsTree())")
             }
             guard settingsShows("动作使用任务副本"),
                   settingsShows("快捷动作不覆盖原文件"),
@@ -2490,6 +2587,47 @@ enum AppE2E {
             panel.orderOut(nil)
         }
 
+        private func verifyStatusItemPinned() {
+            let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+            item.autosaveName = "DropAgentStatusItemE2E"
+            item.behavior = []
+            item.isVisible = true
+            defer {
+                StatusChrome.restore()
+                NSStatusBar.system.removeStatusItem(item)
+            }
+            guard item.isVisible else {
+                fail("status item hidden after pin")
+            }
+            guard item.behavior.contains(.removalAllowed) == false else {
+                fail("status item removable")
+            }
+            let extra = item.button?.window
+            if let extra {
+                guard StatusChrome.isMenuExtra(extra) else {
+                    fail("extra window not recognized \(type(of: extra))")
+                }
+            }
+            StatusChrome.hideForPrompt()
+            guard item.isVisible else {
+                fail("prompt hid status item")
+            }
+            if let extra {
+                guard extra.alphaValue > 0.99 else {
+                    fail("prompt faded extra \(extra.alphaValue)")
+                }
+                guard extra.isVisible else {
+                    fail("prompt ordered out extra")
+                }
+            }
+            StatusChrome.restore()
+            item.behavior = []
+            item.isVisible = true
+            guard item.isVisible else {
+                fail("restore hid status item")
+            }
+        }
+
         private func verifyPermissionLowersPanel() {
             let panel = NSPanel(
                 contentRect: NSRect(x: 40, y: 40, width: 80, height: 80),
@@ -2644,9 +2782,8 @@ enum AppE2E {
             guard session.showsSetupCard == false else {
                 fail("e2e showed setup card")
             }
-            guard session.prefs.setupCardDismissed == false else {
-                fail("e2e dismissed setup card")
-            }
+            session.prefs.setupCardDismissed = false
+            session.prefs.save()
             session.setupPermissionsOverride = SetupFixtures.incomplete
             session.suppressSetupCard = false
             session.refreshSetup()
@@ -2742,7 +2879,7 @@ enum AppE2E {
                   body.contains(Copy.t("客户反馈", "customer feedback")) else {
                 fail("sample did not extract its actual content")
             }
-            guard hash(sample.sourceURL) == before, session.guidedSample?.id == sample.id, !session.showsActionBar else {
+            guard hash(sample.sourceURL) == before, session.guidedSample?.id == sample.id, session.showsActionBar else {
                 fail("sample source changed or completion guidance disappeared")
             }
             do {

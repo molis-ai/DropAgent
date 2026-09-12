@@ -173,17 +173,17 @@ private final class WheelSliceView: NSView {
         layer?.shadowPath = local.cgPath
         layer?.shadowColor = NSColor.black.cgColor
         layer?.shadowOffset = CGSize(width: 0, height: -5)
-        layer?.shadowRadius = hot ? 18 : 10
-        layer?.shadowOpacity = slice.enabled ? (hot ? 0.4 : 0.22) : 0.08
+        layer?.shadowRadius = hot ? 12 : 7
+        layer?.shadowOpacity = slice.enabled ? (hot ? 0.24 : 0.14) : 0.08
         chrome.needsDisplay = true
     }
 
     func setHot(_ hot: Bool, animated: Bool) {
         let changed = self.hot != hot
         self.hot = hot
-        layer?.shadowRadius = hot ? 18 : 10
-        layer?.shadowOpacity = slice.enabled ? (hot ? 0.4 : 0.22) : 0.08
-        layer?.shadowColor = (hot ? Palette.textNS : NSColor.black).cgColor
+        layer?.shadowRadius = hot ? 12 : 7
+        layer?.shadowOpacity = slice.enabled ? (hot ? 0.24 : 0.14) : 0.08
+        layer?.shadowColor = NSColor.black.cgColor
         chrome.needsDisplay = true
         guard changed else { return }
         let scale: CGFloat = hot && slice.enabled ? EdgePlacement.bounceScale : 1
@@ -194,7 +194,7 @@ private final class WheelSliceView: NSView {
             spring.toValue = scale
             spring.mass = 0.45
             spring.stiffness = 420
-            spring.damping = 10.5
+            spring.damping = 22
             spring.duration = min(spring.settlingDuration, 0.6)
             layer?.add(spring, forKey: "bounce")
         }
@@ -205,36 +205,36 @@ private final class WheelSliceView: NSView {
     }
 
     fileprivate func drawChrome() {
-        if slice.enabled == false {
-            NSColor.black.withAlphaComponent(0.1).setFill()
-            localPath.fill()
-        } else if hot {
-            Palette.textNS.setFill()
-            localPath.fill()
-        } else {
-            Palette.paperNS.withAlphaComponent(0.18).setFill()
+        let tone: NSColor
+        switch slice.action {
+        case .shelf: tone = Palette.current(light: 0xA7803E, dark: 0xC9A566)
+        case .send: tone = Palette.current(light: 0x9270B1, dark: 0xBC9ADA)
+        case .recipe(let recipe):
+            switch recipe {
+            case .summarize: tone = Palette.current(light: 0x647DB5, dark: 0x91A8DC)
+            case .extract: tone = Palette.current(light: 0x5684AA, dark: 0x8AB2D5)
+            case .translate: tone = Palette.current(light: 0x5684AA, dark: 0x8AB2D5)
+            default: tone = Palette.current(light: 0x9270B1, dark: 0xBC9ADA)
+            }
+        }
+        Palette.paperNS.withAlphaComponent(0.96).setFill()
+        localPath.fill()
+        if hot && slice.enabled {
+            tone.withAlphaComponent(Palette.isDark ? 0.18 : 0.10).setFill()
             localPath.fill()
         }
-        NSColor.white.withAlphaComponent(hot ? 0.1 : 0.5).setStroke()
-        localPath.lineWidth = 1.2
+        (hot ? tone.withAlphaComponent(0.7) : Palette.current(light: 0xE8E8E6, dark: 0x2B2B2F)).setStroke()
+        localPath.lineWidth = hot ? 1.4 : 0.8
         localPath.stroke()
-
-        let ink: NSColor
-        if slice.enabled == false {
-            ink = Palette.mutedNS.withAlphaComponent(0.65)
-        } else if hot {
-            ink = Palette.paperNS
-        } else {
-            ink = Palette.textNS
-        }
+        let ink = slice.enabled ? Palette.textNS : Palette.mutedNS.withAlphaComponent(0.5)
         let center = NSPoint(x: bounds.midX, y: bounds.midY)
-        drawSymbol(slice.symbol, at: NSPoint(x: center.x, y: center.y + 9), color: ink)
-        drawLabel(slice.title, at: NSPoint(x: center.x, y: center.y - 12), color: ink)
+        drawSymbol(slice.symbol, at: NSPoint(x: center.x, y: center.y + 10), color: slice.enabled ? tone : ink)
+        drawLabel(slice.title, at: NSPoint(x: center.x, y: center.y - 13), color: ink)
     }
 
     private func drawSymbol(_ name: String, at point: NSPoint, color: NSColor) {
         guard let raw = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return }
-        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
             .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
         guard let image = raw.withSymbolConfiguration(config) else { return }
         let size = image.size
@@ -249,16 +249,20 @@ private final class WheelSliceView: NSView {
     }
 
     private func drawLabel(_ title: String, at point: NSPoint, color: NSColor) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byWordWrapping
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 10.5, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: 10.5, weight: .medium),
             .foregroundColor: color,
-            .kern: 0.2,
+            .paragraphStyle: paragraph,
         ]
-        let size = title.size(withAttributes: attrs)
-        title.draw(
-            at: NSPoint(x: point.x - size.width / 2, y: point.y - size.height / 2),
-            withAttributes: attrs
-        )
+        let label = title.replacingOccurrences(of: "转为 Markdown", with: "转为\nMarkdown")
+        let size = NSSize(width: 72, height: 28)
+        let text = NSAttributedString(string: label, attributes: attrs)
+        let height = text.boundingRect(with: size, options: [.usesLineFragmentOrigin]).height
+        text.draw(in: NSRect(x: point.x - size.width / 2, y: point.y - height / 2, width: size.width, height: height))
+
     }
 }
 

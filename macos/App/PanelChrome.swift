@@ -84,8 +84,8 @@ final class DropAgentPanel: NSPanel {
 
 enum LivePanelChrome {
     static var styleMask: NSWindow.StyleMask { .borderless }
-    static let panelWidth: CGFloat = 1040
-    static let panelHeight: CGFloat = 640
+    static let panelWidth: CGFloat = 1160
+    static let panelHeight: CGFloat = 568
     static let dockMinHeight: CGFloat = 168
     static let dockGap: CGFloat = 10
     static let dockShadowPad: CGFloat = 36
@@ -225,7 +225,9 @@ enum StatusChrome {
         NSApp.activate(ignoringOtherApps: true)
         blockActivateRestore = true
         if stored.isEmpty == false { return }
-        stored = NSApp.windows.filter { $0.level >= .statusBar }.map { window in
+        stored = NSApp.windows.filter { window in
+            window.level >= .statusBar && StatusChrome.isMenuExtra(window) == false
+        }.map { window in
             Snapshot(
                 window: window,
                 level: window.level,
@@ -251,5 +253,9 @@ enum StatusChrome {
 
     static func finishPromptKeepHidden() {
         blockActivateRestore = false
+    }
+
+    static func isMenuExtra(_ window: NSWindow) -> Bool {
+        NSStringFromClass(type(of: window)).contains("NSStatusBarWindow")
     }
 }

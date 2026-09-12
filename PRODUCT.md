@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-delegated: static HTML/CSS/JS for the design prototype. Shipping product is a macOS menu bar extra (AppKit + SwiftUI). This repository currently holds requirements and the HTML prototype only.
+delegated: static HTML/CSS/JS for the design prototype. Shipping product is a macOS menu bar extra (AppKit + SwiftUI). The repository includes the Swift 6 AppKit/SwiftUI application and its design prototype. The current native layout follows specs/linear-workbench/spec.md.
 
 ## Users
 
@@ -34,7 +34,7 @@ Lives in the macOS menu bar. Also needs a six-slice drop wheel around the pointe
 
 - Inputs: files, folders, PDF, images, text/Markdown, URL, website capture (title, URL, markdown body, screenshot), multi-file sets.
 - Global hotkey while Safari/Chrome (Edge best-effort) is frontmost adds the current page to the shelf as one WEB item containing URL, `page.md`, and `snapshot.png`. Dropping or pasting an http(s) URL onto the shelf does the same fetch (no front-window screenshot). Dropping onto the AI pane sends the link only. No browser extension. Does not auto-run. Partial capture is allowed; missing body or screenshot is labeled. DropAgent fetches the page itself (network). Logged-in article body is not promised in v1. Details: `02-prototype-design.md` section 7.
-- A third global hotkey adds the front app’s selected local files: Finder selection (AppleScript); other apps simulate ⌘C and keep only files, restoring the clipboard, then fall back to the open local file (`AXDocument`). Browsers are refused (use page capture). Originals stay put. No per-app plugins.
+- A third global hotkey adds the front app’s selected local files: Finder selection (AppleScript); other apps simulate ⌘C and keep only files, restoring the clipboard, then fall back to the open local file (`AXDocument`). Browsers are refused (use page capture). Originals stay put. No per-app plugins. Copying local files in Finder or another app also stages them on the shelf; text and images stay in clipboard history.
 - First open shows an empty shelf with an immediate sample-PDF action, file selection, and skip. The sample follows normal admission → on-device PDF text extraction with confirmation → a draggable pdf.md result. No agent, capture permission, or network is required. Contextual guidance continues through the actual file and result, and can be dismissed. Settings → Guide can replay the sample. Capture permissions stay in Settings or the relevant failure recovery; system requests are never automatic during onboarding.
 - Settings lists every shortcut (global toggle/capture and in-panel hide/paste/copy/delete are editable; up/down is display-only) and a capability guide: drop targets, accepted types, shelf URL capture vs AI-pane link, what is read, where files are written, and drag-out payloads. Appearance can hide the drop wheel. Originals are never overwritten. Dropping on the wheel does not open or close the panel.
 - Shelf can hold items without running.

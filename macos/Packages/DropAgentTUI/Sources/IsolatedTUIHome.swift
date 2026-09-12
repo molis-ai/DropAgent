@@ -32,7 +32,7 @@ public enum IsolatedTUIHome {
             try IsolatedGeminiHome.prepare(at: home)
         case .opencode:
             try IsolatedOpenCodeHome.prepare(at: home)
-        case .cursor, .llm, .aichat, .sgpt:
+        case .cursor, .kimi, .codebuddy, .qwen:
             try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         }
     }
@@ -43,7 +43,7 @@ public enum IsolatedTUIHome {
             try IsolatedCodexHome.copyLogin(into: home)
         case .grok:
             try IsolatedGrokHome.copyLogin(into: home)
-        case .claude, .gemini, .opencode, .cursor, .llm, .aichat, .sgpt:
+        case .claude, .gemini, .opencode, .cursor, .kimi, .codebuddy, .qwen:
             break
         }
     }

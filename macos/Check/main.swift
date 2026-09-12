@@ -45,6 +45,7 @@ enum DropAgentCheck {
             try tui()
             try pasteboard()
             try clipHistory()
+            try clipboardStaging()
             try await pasteboardDragLandsFile()
             try await pasteboardMultiDrag()
             try await pasteboardWebFolderLands()
@@ -1644,6 +1645,10 @@ private func agent() throws {
     let decoded = try JSONDecoder().decode(AgentSettings.self, from: Data(#"{"executableOverride":"/opt/codex"}"#.utf8))
     expectEqual(decoded.executableOverride, "/opt/codex")
     expectEqual(decoded.tuiEngine, .auto)
+    let oldCLI = try JSONDecoder().decode(AgentSettings.self, from: Data(#"{"tuiEngine":"llm"}"#.utf8))
+    expectEqual(oldCLI.tuiEngine, .auto)
+    let oldChat = try JSONDecoder().decode(AgentSettings.self, from: Data(#"{"tuiEngine":"aichat"}"#.utf8))
+    expectEqual(oldChat.tuiEngine, .auto)
 
     let bothRoot = try tempDir()
     let grokBin = try plantHelpBinary(
@@ -1721,6 +1726,11 @@ private func agent() throws {
     expectEqual(AgentEngine.identified(binaryName: "cursor-agent", help: "Cursor Agent\n  -p, --print", path: "/usr/local/bin/cursor-agent"), .cursor)
     expectEqual(AgentEngine.identified(binaryName: "agent", help: "Grok Build TUI", path: "/opt/bin/agent"), .grok)
     expectEqual(AgentEngine.identified(binaryName: "agent", help: "Cursor CLI --print", path: "/Users/me/.local/bin/agent"), .cursor)
+    expectEqual(AgentEngine.identified(binaryName: "kimi", help: ""), .kimi)
+    expectEqual(AgentEngine.identified(binaryName: "kimi-code", help: ""), .kimi)
+    expectEqual(AgentEngine.identified(binaryName: "codebuddy", help: ""), .codebuddy)
+    expectEqual(AgentEngine.identified(binaryName: "cbc", help: ""), .codebuddy)
+    expectEqual(AgentEngine.identified(binaryName: "qwen", help: "Qwen Code\nConnect Kimi as a provider"), .qwen)
     expectEqual(CLICommand.posixQuote("it's"), "'it'\\''s'")
 
     let extraRoot = try tempDir()
@@ -1792,10 +1802,71 @@ private func agent() throws {
     expectEqual(customPresence.executable, customBin)
     expect(extra.installedEngines(settings: customSettings).contains { $0.runtimeKey == "custom:c1" }, "custom listed")
 
-    let llmBin = try plantHelpBinary(in: extraRoot, name: "llm", help: "llm [prompt]\n")
-    expectEqual(extra.tuiPresence(settings: AgentSettings(tuiEngine: .llm)).executable, llmBin)
-    expectEqual(extra.recipePresence(settings: AgentSettings(tuiEngine: .llm)).engine, .llm)
-    expectEqual(HeadlessCLI.arguments(engine: .llm, help: "", request: request, prompt: "hello"), ["hello"])
+    let kimiBin = try plantHelpBinary(in: extraRoot, name: "kimi", help: "  -p, --prompt <prompt>\n")
+    let codebuddyBin = try plantHelpBinary(in: extraRoot, name: "codebuddy", help: "  -p, --print\n  --dangerously-skip-permissions\n")
+    let qwenBin = try plantHelpBinary(in: extraRoot, name: "qwen", help: "  -p, --prompt <prompt>\n  --yolo\n")
+    expectEqual(extra.tuiPresence(settings: AgentSettings()).engine, .grok)
+    expectEqual(extra.tuiPresence(settings: AgentSettings(tuiEngine: .kimi)).executable, kimiBin)
+    expectEqual(extra.recipePresence(settings: AgentSettings(tuiEngine: .kimi)).engine, .kimi)
+    expectEqual(extra.tuiPresence(settings: AgentSettings(tuiEngine: .codebuddy)).executable, codebuddyBin)
+    expectEqual(extra.recipePresence(settings: AgentSettings(tuiEngine: .codebuddy)).engine, .codebuddy)
+    expectEqual(extra.tuiPresence(settings: AgentSettings(tuiEngine: .qwen)).executable, qwenBin)
+    expectEqual(extra.recipePresence(settings: AgentSettings(tuiEngine: .qwen)).engine, .qwen)
+    let kimiJob = HeadlessCLI.arguments(
+        engine: .kimi,
+        help: "  -p, --prompt <prompt>\n  --yolo\n",
+        request: request,
+        prompt: "hello"
+    )
+    expect(kimiJob.contains("--prompt") || kimiJob.contains("-p"), "kimi prompt")
+    expect(!kimiJob.contains("--yolo"), "kimi no yolo")
+    let codebuddyJob = HeadlessCLI.arguments(
+        engine: .codebuddy,
+        help: "  -p, --print\n  --dangerously-skip-permissions\n",
+        request: request,
+        prompt: "hello"
+    )
+    expect(codebuddyJob.contains("--print") || codebuddyJob.contains("-p"), "codebuddy print")
+    expect(!codebuddyJob.contains("--dangerously-skip-permissions"), "codebuddy no skip")
+    let qwenJob = HeadlessCLI.arguments(
+        engine: .qwen,
+        help: "  -p, --prompt <prompt>\n  --yolo\n",
+        request: request,
+        prompt: "hello"
+    )
+    expect(qwenJob.contains("--prompt") || qwenJob.contains("-p"), "qwen prompt")
+    expect(!qwenJob.contains("--yolo"), "qwen no yolo")
+    expectEqual(
+        HeadlessCLI.arguments(
+            presence: .custom(id: "cli", title: "LLM", path: customBin, kind: .cli, isolation: .tui),
+            help: "",
+            request: request,
+            prompt: "hello"
+        ),
+        ["hello"]
+    )
+
+    expectEqual(RuntimeCommand.parse("  "), .failure(.empty))
+    expectEqual(RuntimeCommand.parse("kimi -p hi"), .failure(.hasArguments))
+    expectEqual(RuntimeCommand.parse("  kimi  "), .success("kimi"))
+    expectEqual(
+        RuntimeCommand.resolve(
+            command: "kimi",
+            pathEnvironment: extraRoot.path,
+            home: extraHome,
+            fileManager: FixtureFileManager()
+        ),
+        kimiBin
+    )
+    expect(
+        RuntimeCommand.resolve(
+            command: "missing-runtime",
+            pathEnvironment: extraRoot.path,
+            home: extraHome,
+            fileManager: FixtureFileManager()
+        ) == nil,
+        "missing command"
+    )
 
     func event(_ json: String) -> String? {
         CodexJSONL.event(from: Data(json.utf8))?.message
@@ -1819,6 +1890,10 @@ final class FakeAgent: AgentRunning, @unchecked Sendable {
     var lastPrompt = ""
     var outputText = "这是总结"
     var mutateWorkCopy = false
+    var skipOutputFile = false
+    var extraWorkFileName: String?
+    var extraWorkBody: String?
+    var lastMessageOverride: String?
     var failCode: Int32?
     var failEvent: String?
     init(presence: AgentPresence) { self.presence = presence }
@@ -1838,6 +1913,14 @@ final class FakeAgent: AgentRunning, @unchecked Sendable {
         }
         if let failCode {
             throw AgentError.failed(failCode)
+        }
+        if let name = extraWorkFileName, let body = extraWorkBody {
+            try body.write(to: request.workdir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        }
+        if skipOutputFile {
+            let message = lastMessageOverride ?? "工具调用完成"
+            onEvent?(AgentEvent(message: message))
+            return AgentRunResult(exitCode: 0, events: [AgentEvent(message: message)], lastMessage: message)
         }
         try FileManager.default.createDirectory(at: request.outputFile.deletingLastPathComponent(), withIntermediateDirectories: true)
         try outputText.write(to: request.outputFile, atomically: true, encoding: .utf8)
@@ -1972,6 +2055,7 @@ private func job() async throws {
     expectEqual(env.0.results().first?.sourceItemIDs, [env.3.id])
     expect(!agent.lastPrompt.contains(env.2.path), "prompt has original path")
     expect(agent.lastPrompt.contains("source.pdf"), "relative name")
+    expect(agent.lastPrompt.contains("写成文件：summary.md"), "prompt asks for output file")
     let workFile = agent.lastRequest!.workdir.appendingPathComponent("source.pdf")
     expect(try workFile.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true, "symlink")
     expectEqual(try String(contentsOf: workFile, encoding: .utf8), "mutated-copy")
@@ -2078,6 +2162,43 @@ private func job() async throws {
     expectEqual(RecipeOutput.finalize("```json\n{\"a\":1}\n```", fileName: "extracted.json"), "{\"a\":1}")
     expectEqual(RecipeOutput.finalize("hello", fileName: "summary.md"), "hello")
     expectEqual(RecipeOutput.finalize("{\"a\":1}", fileName: "extracted.json"), "{\"a\":1}")
+    expect(RecipeOutput.looksLikeDeliverable("这是总结"), "stdout summary is a deliverable")
+    expect(RecipeOutput.looksLikeDeliverable("工具调用完成") == false, "progress is not a deliverable")
+    expect(RecipeOutput.looksLikeDeliverable("在写结果") == false, "codex progress is not a deliverable")
+
+    let harvestEnv = try setup()
+    let harvestAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
+    harvestAgent.skipOutputFile = true
+    harvestAgent.extraWorkFileName = "summary.md"
+    harvestAgent.extraWorkBody = "work里的总结"
+    _ = try await JobService(shelf: harvestEnv.0, agent: harvestAgent, jobsRoot: harvestEnv.1)
+        .start(itemIDs: [harvestEnv.3.id], recipe: .summarize)
+    expectEqual(harvestEnv.0.results().first?.status, .done)
+    expectEqual(harvestEnv.0.results().first?.title, "summary.md")
+    expectEqual(try String(contentsOf: harvestEnv.0.results().first!.output!, encoding: .utf8), "work里的总结")
+
+    let missEnv = try setup()
+    let missAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
+    missAgent.skipOutputFile = true
+    do {
+        _ = try await JobService(shelf: missEnv.0, agent: missAgent, jobsRoot: missEnv.1)
+            .start(itemIDs: [missEnv.3.id], recipe: .summarize)
+        fail("progress-only agent must fail without a file")
+    } catch let error as JobError {
+        expectEqual(error, .missingOutput)
+    }
+    expectEqual(missEnv.0.results().first?.status, .failed)
+    expect(missEnv.0.results().first?.output == nil, "missing output is not an empty file")
+    expectEqual(missEnv.0.results().first?.failureReason, "这次没有生成文件")
+
+    let stdoutEnv = try setup()
+    let stdoutAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
+    stdoutAgent.skipOutputFile = true
+    stdoutAgent.lastMessageOverride = "翻译后的 Markdown"
+    _ = try await JobService(shelf: stdoutEnv.0, agent: stdoutAgent, jobsRoot: stdoutEnv.1)
+        .start(itemIDs: [stdoutEnv.3.id], recipe: .summarize)
+    expectEqual(stdoutEnv.0.results().first?.status, .done)
+    expectEqual(try String(contentsOf: stdoutEnv.0.results().first!.output!, encoding: .utf8), "翻译后的 Markdown")
 
     for recipe in RecipeID.allCases
         where recipe != .summarize && recipe != .extract && recipe != .brief && recipe != .imageText && recipe != .pdfText && recipe != .shortcut
@@ -2170,6 +2291,23 @@ private func job() async throws {
         expect(workIsDir.boolValue, "work copy is directory")
         expectEqual(try String(contentsOf: workBundle.appendingPathComponent("notes.md"), encoding: .utf8), "folder-notes")
         expect(try workBundle.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true, "folder work not symlink")
+        let folderSkip = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
+        folderSkip.skipOutputFile = true
+        do {
+            _ = try await JobService(
+                shelf: folderShelf,
+                agent: folderSkip,
+                jobsRoot: folderRoot.appendingPathComponent("Jobs-skip")
+            ).start(itemIDs: [admittedFolder.id], recipe: .summarize)
+            fail("folder original notes must not count as the deliverable")
+        } catch let error as JobError {
+            expectEqual(error, .missingOutput)
+        }
+        expectEqual(folderShelf.results().count, 2)
+        expectEqual(folderShelf.results().first?.status, .failed)
+        expect(folderShelf.results().first?.output == nil, "folder material copy is not harvested")
+        expectEqual(folderShelf.results().last?.status, .done)
+        expectEqual(folderShelf.results().last?.title, "summary.md")
     } else {
         fail("folder admit for summarize")
     }
@@ -2214,6 +2352,8 @@ private func job() async throws {
     expectEqual(customEnv.0.results().first?.title, "source-抽付款日.md")
     expectEqual(customEnv.0.results().first?.recipe, "抽付款日")
     expect(customAgent.lastPrompt.contains("抽出付款节点"), "custom prompt \(customAgent.lastPrompt)")
+    expect(customAgent.lastPrompt.contains("写成文件：source-抽付款日.md"), "custom prompt asks for file")
+    expect(!customAgent.lastPrompt.contains(customEnv.2.path), "custom prompt original path")
     expect(customAgent.lastRequest?.network == false, "shortcut network off")
     expectEqual(try Data(contentsOf: customEnv.2), Data("original-bytes".utf8))
     do {
@@ -2929,17 +3069,51 @@ private func tui() throws {
     expect(!cursorPrepared.session.arguments.contains("--yolo"), "cursor tui no yolo")
     expect(!cursorPrepared.session.arguments.contains("--force"), "cursor tui no force")
 
-    let llmPrepared = try TUIService(
+    let kimiPrepared = try TUIService(
         shelf: shelf,
-        agent: FakeAgent(presence: .llm(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
-        inboxRoot: root.appendingPathComponent("LLMInbox")
+        agent: FakeAgent(presence: .kimi(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
+        inboxRoot: root.appendingPathComponent("KimiInbox")
+    ).send(itemIDs: [item2.id], text: "用 Kimi 看")
+    expect(kimiPrepared.session.arguments.contains { $0.contains("用 Kimi 看") }, "kimi prompt")
+    expect(!kimiPrepared.session.arguments.contains("-p"), "kimi tui no -p")
+    expect(!kimiPrepared.session.arguments.contains("--prompt"), "kimi tui no --prompt")
+    expect(!kimiPrepared.session.arguments.contains("--yolo"), "kimi tui no yolo")
+    expect(!kimiPrepared.session.environment.contains { $0.hasPrefix("KIMI_CODE_HOME=") }, "kimi no fake home")
+
+    let codebuddyPrepared = try TUIService(
+        shelf: shelf,
+        agent: FakeAgent(presence: .codebuddy(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
+        inboxRoot: root.appendingPathComponent("CodeBuddyInbox")
+    ).send(itemIDs: [item2.id], text: "用 CodeBuddy 看")
+    expect(codebuddyPrepared.session.arguments.contains { $0.contains("用 CodeBuddy 看") }, "codebuddy prompt")
+    expect(!codebuddyPrepared.session.arguments.contains("--dangerously-skip-permissions"), "codebuddy tui no skip")
+
+    let qwenPrepared = try TUIService(
+        shelf: shelf,
+        agent: FakeAgent(presence: .qwen(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .tui)),
+        inboxRoot: root.appendingPathComponent("QwenInbox")
+    ).send(itemIDs: [item2.id], text: "用 Qwen 看")
+    expect(qwenPrepared.session.arguments.contains("--prompt"), "qwen prompt")
+    expect(!qwenPrepared.session.arguments.contains("--yolo"), "qwen tui no yolo")
+    expect(!qwenPrepared.session.environment.contains { $0.hasPrefix("GEMINI_CONFIG_DIR=") }, "qwen no gemini home")
+
+    let cliPrepared = try TUIService(
+        shelf: shelf,
+        agent: FakeAgent(presence: .custom(
+            id: "cli",
+            title: "LLM",
+            path: URL(fileURLWithPath: "/usr/bin/true"),
+            kind: .cli,
+            isolation: .tui
+        )),
+        inboxRoot: root.appendingPathComponent("CLIInbox")
     ).send(itemIDs: [item2.id], text: "译成中文")
-    expectEqual(llmPrepared.session.arguments, ["-l"])
-    expectEqual(llmPrepared.session.executable, CLICommand.shellExecutable())
-    expect(llmPrepared.feedOnLaunch, "cli feeds shell")
-    expect(llmPrepared.injection.contains("/usr/bin/true"), "cli binary")
-    expect(llmPrepared.injection.contains("译成中文"), "cli prompt")
-    expect(!llmPrepared.injection.contains(original.path), "cli no original")
+    expectEqual(cliPrepared.session.arguments, ["-l"])
+    expectEqual(cliPrepared.session.executable, CLICommand.shellExecutable())
+    expect(cliPrepared.feedOnLaunch, "cli feeds shell")
+    expect(cliPrepared.injection.contains("/usr/bin/true"), "cli binary")
+    expect(cliPrepared.injection.contains("译成中文"), "cli prompt")
+    expect(!cliPrepared.injection.contains(original.path), "cli no original")
 
     let originalBundle = root.appendingPathComponent("bundle", isDirectory: true)
     try FileManager.default.createDirectory(at: originalBundle, withIntermediateDirectories: true)
@@ -3445,6 +3619,75 @@ private func clipHistory() throws {
 
     let urlDraft = ClipDraft(kind: .url, title: "example.com", text: "https://example.com/x")
     expectEqual(urlDraft?.fingerprint.hasPrefix("u:"), Optional(true))
+}
+
+private func clipboardStaging() throws {
+    let root = try tempDir()
+    let inbox = root.appendingPathComponent("Inbox", isDirectory: true)
+    let jobs = root.appendingPathComponent("Jobs", isDirectory: true)
+    let outside = root.appendingPathComponent("quote.pdf")
+    try Data("quote".utf8).write(to: outside)
+    let owned = inbox.appendingPathComponent("owned.pdf")
+    try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+    try Data("owned".utf8).write(to: owned)
+    let jobFile = jobs.appendingPathComponent("out.md")
+    try FileManager.default.createDirectory(at: jobs, withIntermediateDirectories: true)
+    try Data("job".utf8).write(to: jobFile)
+
+    expectEqual(
+        ClipboardStaging.filesToAdmit(
+            payload: .files([outside]),
+            inboxRoot: inbox,
+            jobsRoot: jobs,
+            suppress: false
+        ),
+        [outside]
+    )
+    expect(
+        ClipboardStaging.filesToAdmit(
+            payload: .files([owned, jobFile]),
+            inboxRoot: inbox,
+            jobsRoot: jobs,
+            suppress: false
+        ).isEmpty,
+        "owned copies should not stage"
+    )
+    expectEqual(
+        ClipboardStaging.filesToAdmit(
+            payload: .files([owned, outside]),
+            inboxRoot: inbox,
+            jobsRoot: jobs,
+            suppress: false
+        ),
+        [outside]
+    )
+    expect(
+        ClipboardStaging.filesToAdmit(
+            payload: .files([outside]),
+            inboxRoot: inbox,
+            jobsRoot: jobs,
+            suppress: true
+        ).isEmpty,
+        "suppress skips staging"
+    )
+    expect(
+        ClipboardStaging.filesToAdmit(
+            payload: .text("hello"),
+            inboxRoot: inbox,
+            jobsRoot: jobs,
+            suppress: false
+        ).isEmpty,
+        "text stays on clipboard"
+    )
+    expect(
+        ClipboardStaging.filesToAdmit(
+            payload: .image(Data([0x89, 0x50, 0x4E, 0x47])),
+            inboxRoot: inbox,
+            jobsRoot: jobs,
+            suppress: false
+        ).isEmpty,
+        "image stays on clipboard"
+    )
 }
 
 private func captureService() async throws {

@@ -86,7 +86,8 @@ struct RecipeChooser: View {
     }
 
     private var actionRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 4) {
+        ScrollView(.horizontal, showsIndicators: true) {
             HStack(spacing: 6) {
                 ForEach(session.barSlots(organizing: session.actionBarEditing)) { slot in
                     slotChip(slot)
@@ -105,37 +106,6 @@ struct RecipeChooser: View {
                             }
                         )
                 }
-                recipeButton(
-                    title: Copy.otherShort,
-                    symbol: "ellipsis",
-                    enabled: session.hasAgent,
-                    selected: session.otherOpen,
-                    help: Copy.t("打开对话浮窗，发给当前终端", "Open the chat float and send to the current terminal"),
-                    identifier: "recipe-other"
-                ) {
-                    session.setActionBarEditing(false)
-                    session.toggleOther()
-                }
-                recipeButton(
-                    title: session.actionBarEditing ? Copy.t("完成", "Done") : Copy.t("整理", "Arrange"),
-                    symbol: session.actionBarEditing ? "checkmark" : "line.3.horizontal",
-                    enabled: true,
-                    selected: session.actionBarEditing,
-                    help: Copy.t("隐藏或拖动手把调整顺序", "Hide actions or drag handles to reorder"),
-                    identifier: "recipe-arrange"
-                ) {
-                    session.setActionBarEditing(!session.actionBarEditing)
-                }
-                recipeButton(
-                    title: Copy.t("新建动作", "New action"),
-                    symbol: "plus",
-                    enabled: true,
-                    selected: session.shortcutDraft != nil,
-                    help: Copy.t("创建可重复使用的自定义动作", "Create a reusable custom action"),
-                    identifier: "recipe-add"
-                ) {
-                    session.openShortcutComposer()
-                }
             }
             .padding(.leading, 2)
             .coordinateSpace(name: "action-bar")
@@ -148,6 +118,29 @@ struct RecipeChooser: View {
         }
         .scrollDisabled(draggingID != nil)
         .accessibilityIdentifier("acts")
+                recipeButton(
+                    title: Copy.t("对话", "Chat"),
+                    symbol: "terminal",
+                    tone: .plum,
+                    enabled: session.hasAgent,
+                    selected: session.otherOpen,
+                    help: Copy.t("展开对话，发给当前终端", "Expand chat and send to the current terminal"),
+                    identifier: "recipe-other"
+                ) {
+                    session.setActionBarEditing(false)
+                    session.toggleOther()
+                }
+            Menu {
+                Button(session.actionBarEditing ? Copy.t("完成整理", "Done arranging") : Copy.t("整理动作", "Arrange actions")) {
+                    session.setActionBarEditing(!session.actionBarEditing)
+                }.accessibilityIdentifier("recipe-arrange")
+                Button(Copy.t("新建动作", "New action")) { session.openShortcutComposer() }
+                    .accessibilityIdentifier("recipe-add")
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: 13)).foregroundStyle(Palette.muted).frame(width: 24, height: 30)
+            }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .help(Copy.t("管理动作", "Manage actions"))
+        }
     }
 
     private func poolNotice(_ notice: ShortcutPoolNotice) -> some View {
@@ -207,6 +200,7 @@ struct RecipeChooser: View {
             recipeButton(
                 title: slotTitle(slot),
                 symbol: slotSymbol(slot),
+                tone: slotTone(slot),
                 enabled: session.actionBarEditing || session.canRunSlot(slot),
                 selected: false,
                 help: session.slotHelp(slot),
@@ -310,7 +304,11 @@ struct RecipeChooser: View {
     private func slotTitle(_ slot: ActionSlot) -> String {
         switch slot {
         case .recipe(let recipe):
-            return Copy.recipeShort(recipe)
+            switch recipe {
+            case .extract: return Copy.t("提取", "Extract")
+            case .toMarkdown: return Copy.t("转 MD", "To MD")
+            default: return Copy.recipeShort(recipe)
+            }
         case .shortcut(let id):
             return session.shortcut(id: id)?.name ?? Copy.t("快捷", "Shortcut")
         }
@@ -334,9 +332,17 @@ struct RecipeChooser: View {
         }
     }
 
+    private func slotTone(_ slot: ActionSlot) -> Palette.IconTone {
+        switch slot {
+        case .recipe(let recipe): return RecipeGlyph.tone(recipe)
+        case .shortcut: return .ochre
+        }
+    }
+
     private func recipeButton(
         title: String,
         symbol: String,
+        tone: Palette.IconTone = .slate,
         enabled: Bool,
         selected: Bool,
         help: String,
@@ -346,14 +352,14 @@ struct RecipeChooser: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: symbol)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(enabled ? Palette.accent : Palette.faint)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(enabled ? tone.ink : Palette.faint)
                 Text(title)
                     .lineLimit(1)
                     .fixedSize()
             }
         }
-        .buttonStyle(QuietButtonStyle(selected: selected))
+        .buttonStyle(ActionButtonStyle(selected: selected))
         .disabled(!enabled)
         .help(help)
         .accessibilityIdentifier(identifier)
@@ -396,14 +402,25 @@ struct RecipeOptionChips: View {
 }
 
 enum RecipeGlyph {
+    static func tone(_ recipe: RecipeID) -> Palette.IconTone {
+        switch recipe {
+        case .summarize, .imageText: return .slate
+        case .pdfText, .redact: return .clay
+        case .extract, .translate: return .blue
+        case .toMarkdown: return .plum
+        case .brief: return .ochre
+        case .shortcut: return .ochre
+        }
+    }
+
     static func symbol(_ id: RecipeID) -> String {
         switch id {
         case .summarize: return "text.alignleft"
         case .extract: return "curlybraces"
         case .imageText: return "text.viewfinder"
-        case .pdfText: return "doc.text"
+        case .pdfText: return "text.viewfinder"
         case .translate: return "globe"
-        case .redact: return "eye.slash"
+        case .redact: return "shield"
         case .toMarkdown: return "doc.richtext"
         case .brief: return "square.stack"
         case .shortcut: return "bolt"
@@ -418,7 +435,7 @@ struct RecipeFacts: View {
     let isolation: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
             row(Copy.t("读取", "Read"), Copy.t("\(count) 份材料的副本", "Copies of \(count) materials"))
             row(Copy.t("写入", "Write"), write)
             row(Copy.t("网络", "Network"), network)
@@ -429,9 +446,9 @@ struct RecipeFacts: View {
     }
 
     private func row(_ key: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 16) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(key)
-                .frame(width: 64, alignment: .leading)
+                .frame(width: 34, alignment: .leading)
                 .foregroundStyle(Palette.muted)
             Text(value)
                 .foregroundStyle(Palette.text)

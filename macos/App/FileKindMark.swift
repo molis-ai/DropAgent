@@ -22,7 +22,7 @@ enum FileKindGlyph {
         case .web: return "globe"
         case .markdown: return "text.alignleft"
         case .clip: return "doc.on.clipboard"
-        case .folder: return "folder.fill"
+        case .folder: return "folder"
         case .file: return "doc"
         }
     }
@@ -53,8 +53,23 @@ struct FileKindMark: View {
         }
     }
 
-    private var fill: Color { Palette.tagFill }
-    private var ink: Color { Palette.tagInk }
+    private var tone: Palette.IconTone {
+        switch tag.uppercased() {
+        case "JSON", "HTML", "HTM", "SWIFT", "PY", "CSS", "YAML", "YML", "XML": return .blue
+        case "ZIP": return .ochre
+        default: break
+        }
+        switch kind {
+        case .pdf: return .clay
+        case .image: return .plum
+        case .url, .web: return .blue
+        case .folder, .file: return .ochre
+        case .markdown, .clip: return .slate
+        }
+    }
+
+    private var fill: Color { tone.fill }
+    private var ink: Color { tone.ink }
 
     private var tile: some View {
         ZStack {

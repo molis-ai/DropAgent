@@ -116,11 +116,17 @@ extension RecipeCatalog {
 
     public static func prompt(for id: RecipeID, choiceID: String? = nil) -> String {
         let choice = resolvedChoiceID(id, optionID: choiceID)
-        let guardrail = """
-        阅读当前工作目录里的材料。只使用相对路径，不要访问目录之外的文件。
-        不要修改已有文件。
+        return fileGuardrail(outputFileName: outputFileName(for: id))
+            + "\n" + instruction(for: id, choiceID: choice) + "\n"
+    }
+
+    public static func fileGuardrail(outputFileName: String) -> String {
         """
-        return guardrail + "\n" + instruction(for: id, choiceID: choice) + "\n"
+        阅读当前工作目录里的材料。只使用相对路径，不要访问目录之外的文件。
+        不要修改已有材料文件。
+        把完整结果写成文件：\(outputFileName)
+        不要只在对话里口头回复；结果区只会收取这一份文件。
+        """
     }
 
     private static func instruction(for id: RecipeID, choiceID: String) -> String {
@@ -128,24 +134,24 @@ extension RecipeCatalog {
         case .summarize:
             switch choiceID {
             case "short":
-                return "用中文写一份约 200 字的短总结，作为最终回复（Markdown）。"
+                return "用中文写一份约 200 字的短总结（Markdown）。"
             case "long":
-                return "用中文写一份约 1000 字的长总结，作为最终回复（Markdown）。"
+                return "用中文写一份约 1000 字的长总结（Markdown）。"
             case "outline":
-                return "用中文只写提纲，不要展开成段落，作为最终回复（Markdown）。"
+                return "用中文只写提纲，不要展开成段落（Markdown）。"
             default:
-                return "用中文写一份约 500 字的简洁 Markdown 总结，作为最终回复。"
+                return "用中文写一份约 500 字的简洁 Markdown 总结。"
             }
         case .extract:
             switch choiceID {
             case "points":
-                return "提取要点列表。最终回复为 Markdown。"
+                return "提取要点列表，写成 Markdown。"
             case "todos":
-                return "提取待办事项。最终回复为 Markdown。"
+                return "提取待办事项，写成 Markdown。"
             case "quotes":
-                return "提取引用与数据。最终回复为 Markdown。"
+                return "提取引用与数据，写成 Markdown。"
             default:
-                return "提取结构化信息，最终回复必须是 JSON 对象。"
+                return "提取结构化信息，写成 JSON 对象。"
             }
         case .imageText:
             return "用本机识别图片中的文字，不要调用终端 Agent，不要补写图里没有的内容。"
@@ -159,34 +165,34 @@ extension RecipeCatalog {
             case "ko": target = "한국어"
             default: target = "中文"
             }
-            return "源语言自动识别。翻译成 \(target) 并尽量保留原有结构，最终回复为 Markdown。"
+            return "源语言自动识别。翻译成 \(target) 并尽量保留原有结构，写成 Markdown。"
         case .redact:
             switch choiceID {
             case "contact":
-                return "把电话、邮箱、地址等联系方式替换为 [REDACTED]，最终回复为 Markdown。"
+                return "把电话、邮箱、地址等联系方式替换为 [REDACTED]，写成 Markdown。"
             case "ids":
-                return "把金额、证件号、账号等替换为 [REDACTED]，最终回复为 Markdown。"
+                return "把金额、证件号、账号等替换为 [REDACTED]，写成 Markdown。"
             default:
-                return "把姓名、电话、邮箱、密钥、金额等敏感信息替换为 [REDACTED]，最终回复为 Markdown。"
+                return "把姓名、电话、邮箱、密钥、金额等敏感信息替换为 [REDACTED]，写成 Markdown。"
             }
         case .toMarkdown:
             switch choiceID {
             case "body":
-                return "转成只要正文的 Markdown，去掉导航和页眉页脚，作为最终回复。"
+                return "转成只要正文的 Markdown，去掉导航和页眉页脚。"
             case "toc":
-                return "转成带目录的结构清楚的 Markdown，作为最终回复。"
+                return "转成带目录的结构清楚的 Markdown。"
             default:
-                return "转成尽量保留原有结构的 Markdown，作为最终回复。"
+                return "转成尽量保留原有结构的 Markdown。"
             }
         case .brief:
             switch choiceID {
             case "page":
-                return "把这些材料整合成一页 Markdown，作为最终回复。"
+                return "把这些材料整合成一页 Markdown。"
             default:
-                return "把这些材料整合成一份完整 Markdown，作为最终回复。"
+                return "把这些材料整合成一份完整 Markdown。"
             }
         case .shortcut:
-            return "按用户给出的说明处理当前工作目录里的材料，最终回复为 Markdown。"
+            return "按用户给出的说明处理当前工作目录里的材料，写成 Markdown。"
         }
     }
 }

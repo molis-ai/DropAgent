@@ -167,14 +167,17 @@ extension AppSession {
             && Set(selectedItems.map(\.id)) == sourceIDs
         refresh()
         if followsJob {
-            adoptNewestResult()
+            adoptNewestResult(matching: sourceIDs)
             aiTab = .work
         }
     }
 
-    func adoptNewestResult() {
+    func adoptNewestResult(matching sourceIDs: Set<ItemID>? = nil) {
         refresh()
-        guard let newest = results.first else { return }
+        let newest = results.first { record in
+            sourceIDs == nil || Set(record.sourceItemIDs) == sourceIDs
+        } ?? results.first
+        guard let newest else { return }
         selectedResultID = newest.id
         paneFocus = .result
     }

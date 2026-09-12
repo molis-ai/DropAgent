@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsRuntime: View {
     @ObservedObject var session: AppSession
+    @State private var commandDraft = ""
+    @State private var commandError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -44,11 +46,42 @@ struct SettingsRuntime: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.line))
             }
+            HStack(spacing: 8) {
+                TextField(
+                    Copy.t("命令名或路径，例如 kimi", "Command name or path, e.g. kimi"),
+                    text: $commandDraft
+                )
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, design: .monospaced))
+                .padding(.horizontal, 8)
+                .frame(height: 28)
+                .background(Palette.panel)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .onSubmit { addCommand() }
+                .accessibilityIdentifier("settings-runtime-command")
+                Button(action: addCommand) {
+                    Text(Copy.t("添加", "Add"))
+                }
+                .buttonStyle(QuietButtonStyle())
+                .accessibilityIdentifier("settings-add-runtime-command")
+            }
+            if let commandError {
+                Text(commandError)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.warning)
+            }
             Button(action: { session.pickTUIExecutable() }) {
-                Text(Copy.t("添加 Runtime…", "Add Runtime…"))
+                Text(Copy.t("选择可执行文件…", "Choose executable…"))
             }
             .buttonStyle(QuietButtonStyle(expand: true))
             .accessibilityIdentifier("settings-add-runtime")
+        }
+    }
+
+    private func addCommand() {
+        commandError = session.addRuntimeCommand(commandDraft)
+        if commandError == nil {
+            commandDraft = ""
         }
     }
 }

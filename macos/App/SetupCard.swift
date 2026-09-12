@@ -294,7 +294,7 @@ struct SetupChecklist: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: ready ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(ready ? Palette.text : Palette.faint)
+                            .foregroundStyle(ready ? Palette.accent : Palette.faint)
                         Text(title)
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(Palette.text)

@@ -29,6 +29,8 @@ extension AppSession {
             settings.tuiOverrides[engine.rawValue] = url.path
             settings.tuiEngine = TUIEnginePreference(rawValue: engine.rawValue) ?? .auto
             settings.selectedCustomID = nil
+        } else if let existing = settings.customRuntimes.first(where: { $0.executable == url.path }) {
+            settings.selectedCustomID = existing.id
         } else {
             let custom = CustomRuntime(
                 title: url.deletingPathExtension().lastPathComponent,
@@ -40,6 +42,23 @@ extension AppSession {
         }
         resetTUISession()
         saveSettings()
+    }
+
+    func addRuntimeCommand(_ raw: String) -> String? {
+        switch RuntimeCommand.parse(raw) {
+        case .failure(.empty):
+            return Copy.t("写命令名或可执行文件路径。", "Enter a command name or executable path.")
+        case .failure(.hasArguments):
+            return Copy.t("只写命令本身，不要带参数。", "Enter the command only, without arguments.")
+        case .success(let command):
+            let path = ProcessInfo.processInfo.environment["PATH"] ?? ""
+            let home = FileManager.default.homeDirectoryForCurrentUser
+            guard let url = RuntimeCommand.resolve(command: command, pathEnvironment: path, home: home) else {
+                return Copy.t("本机没找到这个命令。", "That command was not found on this Mac.")
+            }
+            adoptExecutable(url)
+            return nil
+        }
     }
 
     func setTUIPreference(_ preference: TUIEnginePreference) {

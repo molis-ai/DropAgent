@@ -4,7 +4,7 @@
 
 ## 做什么
 
-对选中条目做**副本任务**：建 `Jobs/<id>`、按 Recipe 调 Agent、写 `output/`、记 `events.jsonl`、跑完校验原件 Hash、把输入 `patch` 回 idle、`Shelf.addResult` 追加产出。
+对选中条目做**副本任务**：建 `Jobs/<id>`、按 Recipe 调 Agent、把完整结果收到 `output/`、记 `events.jsonl`、跑完校验原件 Hash、把输入 `patch` 回 idle、`Shelf.addResult` 追加产出。人还停在这次材料上时，App 选中该结果并打开内容台。
 
 ## 不做什么
 
@@ -32,7 +32,9 @@ Application Support/DropAgent/Jobs/<id>/
   events.jsonl
 ```
 
-复制，不用 symlink。Prompt 只含 `work/` 相对路径。
+复制，不用 symlink。Prompt 只含 `work/` 相对路径，并要求把完整结果写成约定文件名，不要只口头回复。
+
+Agent 退出后 `RecipeOutput.collect` 按这个顺序收取：`output/` 里已有可用正文 → `work/` 里同名新文件 → `work/` 里非材料的新文本 → 看起来像交付的 stdout。进度句（如「工具调用完成」「在写结果」）不当交付。收不到文件则 `JobError.missingOutput`，结果区失败卡不挂空文件。本机 `imageText` / `pdfText` 仍写 `ocr.md` / `pdf.md`，走同一收取。
 
 ## Recipe（第一版六个 CLI 名字 + 本机文字提取）
 

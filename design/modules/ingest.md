@@ -4,7 +4,7 @@
 
 ## 做什么
 
-把外面来的东西变成合法 `Item`，交给 `Shelf.add`。来源：文件 URL、剪贴板、拖入/粘贴的网址、当前页（转 Capture）。历史列表里「放到架子」也走 `admitPayload`。
+把外面来的东西变成合法 `Item`，交给 `Shelf.add`。来源：文件 URL、剪贴板、拖入/粘贴的网址、当前页（转 Capture）、别处复制的本地文件（App 盯板后把外部路径交给 `admit`）。历史列表里「放到架子」也走 `admitPayload`。
 
 ## 不做什么
 
@@ -17,6 +17,7 @@ admit(urls: [URL], capturePages: Bool = true) -> AdmitResult
 admitClipboard() throws -> [Item]
 admitPasteboard(_:) -> AdmitResult
 admitProviders(_:) async -> AdmitResult
+ClipboardStaging.filesToAdmit(payload:inboxRoot:jobsRoot:suppress:)
 deleteOwnedCopy(_ item: Item)            // Shelf.remove + 删 Inbox 副本；不碰 sourceURL 原件
 captureDroppedPages(ids:) async          // IngestCapture
 admitCurrentPage(token:) async throws -> Item  // IngestCapture

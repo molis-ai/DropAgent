@@ -9,7 +9,7 @@
 
 ## 1. 要做成什么样
 
-Mac 菜单栏小工具。上面是文件架，下面是结果区；点「其他」才出对话浮窗。东西先进来，可以先放着；要么用当前芯片对应的 CLI 在副本里跑 Recipe，要么把材料和一句话打进当前所选 TUI。结果在工具里能看，再拖走或复制。原件不被覆盖。
+Mac 菜单栏小工具。上面是文件架，下面是结果区；点「其他」才出对话区。东西先进来，可以先放着；要么用当前芯片对应的 CLI 在副本里跑 Recipe，要么把材料和一句话打进当前所选 TUI。结果在工具里能看，再拖走或复制。原件不被覆盖。
 
 两套代码、同一套边界：
 
@@ -36,7 +36,7 @@ macos/
     DropAgentJob/          副本任务：Jobs/<id>、Recipe、Hash、事件日志。
     DropAgentAgent/        探测本机 Agent、隔离档位文案。不跑 UI、不持有架子。
     DropAgentTUI/          把材料和用户那句话送进对应 TUI 会话。不解析屏幕。
-    DropAgentPasteboard/   拖出 / 复制：按条目组装系统剪贴板。另管最近 10 条剪贴板历史（落盘、不去架子）。
+    DropAgentPasteboard/   拖出 / 复制：按条目组装系统剪贴板。另管最近 10 条剪贴板历史（落盘、不去架子）。别处复制的本地文件由 App 盯板后走 Ingest，不进这段历史。
     DropAgentCapture/      读前台浏览器 URL+标题，或按已有 URL 抓正文 md、截图。被 Ingest 调用。
 ```
 
@@ -139,7 +139,7 @@ D. 拿走
 
 Shelf 列表存 Application Support 下的 `shelf.json`。不进 iCloud、不做多设备同步（第一版）。
 
-剪贴板历史存 `Clipboard/history.json` 与图片 blob。最多 10 条。不是架子 Item，进货仍走 Ingest。
+剪贴板历史存 `Clipboard/history.json` 与图片 blob。最多 10 条。不是架子 Item，进货仍走 Ingest。别处复制的本地文件直接 `Ingest.admit(urls:)`，不写进这段历史。
 
 ---
 
@@ -147,7 +147,7 @@ Shelf 列表存 Application Support 下的 `shelf.json`。不进 iCloud、不做
 
 | 模块 | 做什么 | 不做什么 |
 |------|--------|----------|
-| App | 窗口、拖入命中（文件行 / 对话浮窗 / 图标）、快捷键、拼 UI | 业务规则 |
+| App | 窗口、拖入命中（文件行 / 对话区 / 图标）、快捷键、拼 UI | 业务规则 |
 | Shelf | 增删改、多选、查询 | 跑 Agent、抓网页 |
 | Ingest | 把外部东西变成 Item | 决定跑 Recipe 还是 TUI |
 | Capture | URL+标题、md、截图 | 加入架子 |
@@ -177,24 +177,25 @@ Shelf 列表存 Application Support 下的 `shelf.json`。不进 iCloud、不做
 | 菜单栏图标 | `Ingest.admit` → 只进架子（http(s) 随后抓页） |
 | 鼠标旁拖放轮盘 | 同上 |
 | 面板文件行 | 同上 |
-| 对话浮窗 | `Ingest.admit(..., capturePages: false)` 得到 Item，立刻 `TUI.send`（框里有字带上） |
+| 对话区 | `Ingest.admit(..., capturePages: false)` 得到 Item，立刻 `TUI.send`（框里有字带上） |
 | 粘贴快捷键（默认 ⌘V） | `Ingest.admitClipboard`；http(s) 随后 `captureDroppedPages` |
+| 别处复制的本地文件 | 盯系统剪贴板 → `ClipboardStaging.filesToAdmit` → `Ingest.admit(urls:)`；本 App 复制的 Inbox / Jobs 文件只记历史 |
 | 抓页快捷键 | `Ingest.admitCurrentPage` |
 | 加入选中文件快捷键 | `FrontAdmit.collect` → `Ingest.admit(urls:)` |
 
-没有 Agent 时：对话浮窗落点仍 `admit` 进架子，并提示不能发送；不假装跑成功。
+没有 Agent 时：对话区落点仍 `admit` 进架子，并提示不能发送；不假装跑成功。
 
 ---
 
 ## 7. Agent 与安全
 
-探测顺序：`PATH` 与常见安装路径上的预置二进制 → 用户在设置里指定或添加的 Runtime。TUI 与 Recipe 都跟芯片，默认 `auto`（Grok → Claude → Gemini → OpenCode → Cursor CLI → Codex；没有 TUI 才落到 llm / aichat / sgpt）。文件名 `agent` 用 `--help` 区分 Grok 与 Cursor CLI，不要把 `~/.grok/bin/agent` 认成 Cursor。Recipe 只使用该 CLI `--help` 能证明的无界面 / 可收口入口；没有入口就禁用动作，不许解析 TUI、不许模拟按键。纯 CLI 发送走面板里的默认 shell 命令，不打开 Terminal.app。
+探测顺序：`PATH` 与常见安装路径上的预置二进制 → 用户在设置里指定或添加的 Runtime。TUI 与 Recipe 都跟芯片，默认 `auto`（Grok → Claude → Gemini → OpenCode → Cursor CLI → Codex → Kimi Code → CodeBuddy → Qwen Code）。文件名 `agent` 用 `--help` 区分 Grok 与 Cursor CLI，不要把 `~/.grok/bin/agent` 认成 Cursor。Recipe 只使用该 CLI `--help` 能证明的无界面 / 可收口入口；没有入口就禁用动作，不许解析 TUI、不许模拟按键。自定义纯 CLI 发送走面板里的默认 shell 命令，不打开 Terminal.app。
 
 | 路径 | 对外文案 | 实现要点 |
 |------|---------|----------|
 | Recipe | Workspace（该 CLI 官方工作区限制，探测到才这么写） | 芯片对应 CLI 的官方无界面入口，cwd=`work/`，不加载用户全局 MCP/Hooks |
 | 文字提取 | 本机识别 / 抽字，不发送 | 图片：Vision 写 `ocr.md`。PDF：PDFKit 写 `pdf.md`。都不调 CLI |
-| 发给 TUI | 「在终端执行，不是副本沙箱」 | 把**副本**路径和文本送进所选 TUI（Grok / Claude / Gemini / OpenCode / Cursor CLI / Codex）；纯 CLI 则在默认 shell 里发出译好的命令。仍不把原件路径塞进会话；隔离 home，不加载用户 MCP/Hooks |
+| 发给 TUI | 「在终端执行，不是副本沙箱」 | 把**副本**路径和文本送进所选 TUI（Grok / Claude / Gemini / OpenCode / Cursor CLI / Codex / Kimi Code / CodeBuddy / Qwen Code）；自定义纯 CLI 则在默认 shell 里发出译好的命令。仍不把原件路径塞进会话；隔离 home，不加载用户 MCP/Hooks |
 | 无 TUI | 未发现终端 Agent | 禁止 send；CLI Recipe 禁止 Job.start；文字提取仍可跑 |
 | 芯片 CLI 无执行入口 | 说明该 CLI 没有无界面执行入口 | CLI Recipe 禁止 Job.start；有 TUI 时仍可发送；文字提取仍可跑 |
 
@@ -265,3 +266,7 @@ Recipe 跑完：对 `sourceURL` 若是本地文件，再读一遍 Hash，必须�
 - 具体快捷键组合  
 - MAS 沙箱方案  
 - 多设备同步
+
+### 文件工作台装配（2026-09-12）
+
+`PanelRootView` 拼 `WorkbenchSidebar` / `WorkbenchDetail`，后者挂 `ContentStage`、确认状态、常驻 `RecipeChooser` 与保持实例的 `AIPane`。`AppSession+Workbench` 持有剪贴板焦点与入架、结果对照；历史不是 Item，调用 `Ingest.admitPayload` 后才成为材料。`PaneFocus` 区分 input / result / clipboard，键盘、复制、删除、运行和发送门禁都按焦点处理。

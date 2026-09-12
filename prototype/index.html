@@ -6,28 +6,39 @@
   <title>DropAgent 原型</title>
   <style>
     :root {
-      --desk: #060606;
-      --field-one: rgba(97, 97, 97, .38);
-      --field-two: rgba(50, 50, 50, .42);
-      --panel: #fcfcfc;
-      --panel-2: #f3f3f3;
-      --panel-hover: #e9e9e9;
-      --panel-press: #e5e5e5;
-      --line: #dddddd;
-      --rule: #d2d2d2;
-      --text: #1a1a1a;
-      --brand: #1a1a1a;
-      --muted: #5b5b5b;
-      --faint: #626262;
-      --icon: #797979;
-      --field: #f1f1f1;
-      --field-focus: #fcfcfc;
-      --solid: #171717;
-      --solid-ink: #ffffff;
-      --tty: #fcfcfc;
-      --tty-ink: #1a1a1a;
-      --tty-muted: #626262;
-      --danger: #4f4f4f;
+      --desk: #222329;
+      --field-one: rgba(100, 108, 135, .22);
+      --field-two: rgba(61, 63, 78, .30);
+      --panel: #f8f7f4;
+      --panel-2: #efeeeb;
+      --panel-hover: #eaeaef;
+      --panel-press: #e3e6ee;
+      --line: #dadae1;
+      --rule: #dadae1;
+      --text: #383a43;
+      --brand: #383a43;
+      --muted: #626575;
+      --faint: #636676;
+      --icon: #636676;
+      --field: #f1f0ed;
+      --field-focus: #f8f7f4;
+      --solid: #586582;
+      --solid-ink: #faf9f6;
+      --tty: #f8f7f4;
+      --tty-ink: #383a43;
+      --tty-muted: #636676;
+      --danger: #8c594b;
+      --solid-pressed: #4b5874;
+      --slate: #586582;
+      --slate-fill: #e7eaf2;
+      --blue: #526a82;
+      --blue-fill: #e6ecf3;
+      --ochre: #7d6337;
+      --ochre-fill: #f2ebdf;
+      --plum: #795c78;
+      --plum-fill: #efe6ef;
+      --clay: #8c594b;
+      --clay-fill: #f2e7e1;
       --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
       --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
       --ease: cubic-bezier(.16, 1, .3, 1);
@@ -49,8 +60,8 @@
     }
     button, input, textarea { font: inherit; }
     input { user-select: text; caret-color: var(--text); }
-    ::selection { background: rgba(38, 38, 38, .14); color: var(--text); }
-    :focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+    ::selection { background: #d6dceb; color: var(--text); }
+    :focus-visible { outline: 2px solid var(--solid); outline-offset: 3px; }
     * { scrollbar-width: thin; scrollbar-color: rgba(103, 103, 103, .38) transparent; }
     *::-webkit-scrollbar { width: 8px; height: 8px; }
     *::-webkit-scrollbar-track { background: transparent; }
@@ -287,7 +298,7 @@
       width: 188px;
       padding: 6px;
       border-radius: 9px;
-      background: rgba(249, 249, 249, .98);
+      background: var(--panel);
       box-shadow: 0 16px 38px rgba(47, 47, 47, .14);
     }
     .engine-menu button {
@@ -305,9 +316,9 @@
       text-align: left;
       cursor: pointer;
     }
-    .engine-menu button:hover { background: #eeeeee; color: #272727; }
+    .engine-menu button:hover { background: var(--panel-hover); color: var(--text); }
     .engine-menu button:disabled { color: var(--faint); cursor: not-allowed; }
-    .engine-menu button.on { background: #e6e6e6; color: #272727; font-weight: 640; }
+    .engine-menu button.on { background: var(--panel-press); color: var(--text); font-weight: 640; }
     .agent-pill .status-ico {
       display: inline-flex;
       width: 13px;
@@ -345,7 +356,7 @@
       position: relative;
     }
     .file-card:hover { transform: translateY(-1px); }
-    .file-card.sel { border-color: #737373; }
+    .file-card.sel { border-color: var(--solid); }
     .file-card.kind-pdf, .file-card.kind-image, .file-card.kind-md, .file-card.kind-dir, .file-card.kind-file {
       flex-direction: row; align-items: center; gap: 10px;
     }
@@ -367,7 +378,11 @@
       align-self: flex-start;
     }
     .kind-chip svg { width: 10px; height: 10px; }
-    .tone-pdf, .tone-image, .tone-url, .tone-web, .tone-md, .tone-clip, .tone-dir, .tone-file, .tone-code { background: #ebebeb; color: #505050; }
+    .tone-pdf, .tag-pdf { background: var(--clay-fill); color: var(--clay); }
+    .tone-image, .tag-image { background: var(--plum-fill); color: var(--plum); }
+    .tone-url, .tone-web, .tone-code, .tag-url, .tag-web { background: var(--blue-fill); color: var(--blue); }
+    .tone-md, .tone-clip, .tag-md, .tag-clip { background: var(--slate-fill); color: var(--slate); }
+    .tone-dir, .tone-file, .tag-dir, .tag-file { background: var(--ochre-fill); color: var(--ochre); }
     .file-card .thumb { border-radius: 5px; background: #ebebeb; overflow: hidden; }
     .file-card .thumb i, .file-card .thumb b, .file-card .thumb em {
       position: absolute; display: block; border-radius: 1px; font: 0/0 a;
@@ -404,6 +419,12 @@
     .acts .act:hover { background: var(--panel-hover); }
     .acts .act:disabled { opacity: .42; cursor: not-allowed; }
     .acts .act .ico { width: 14px; height: 14px; color: var(--solid); }
+    .acts .act[data-recipe="提取结构化信息"] .ico,
+    .acts .act[data-recipe="翻译文件"] .ico { color: var(--blue); }
+    .acts .act[data-recipe="转换为 Markdown"] .ico,
+    .acts .act[data-recipe="整合多份材料"] .ico,
+    .acts .act[data-act="other"] .ico { color: var(--plum); }
+    .acts .act:disabled .ico { color: var(--faint); }
     .acts .act.on { background: var(--panel-press); }
     .acts .act.ghost { margin-left: 6px; color: var(--muted); }
     .import-btn {
@@ -520,7 +541,7 @@
       flex: none;
       align-self: center;
     }
-    .setup-row.ok .mark { background: var(--text); }
+    .setup-row.ok .mark { background: var(--solid); }
     .setup-row .cap {
       margin: 4px 0 0 15px;
       font-size: 11.5px;
@@ -908,8 +929,6 @@
       height: 18px;
       padding: 0 5px;
       border-radius: 4px;
-      background: #e4e4e4;
-      color: #3f3f3f;
       font-family: var(--mono);
       font-size: 9px;
       font-weight: 650;
@@ -918,7 +937,6 @@
       align-items: center;
       min-width: 0;
     }
-    .tag-pdf, .tag-image, .tag-url, .tag-web, .tag-md, .tag-clip, .tag-dir, .tag-file { background: #ebebeb; color: #505050; }
     .row .name {
       grid-column: 2;
       font-size: 13px;
@@ -1412,7 +1430,7 @@
       font-size: 11px;
       font-weight: 650;
     }
-    .result-take .primary:hover { background: #171717; transform: translateY(-1px); }
+    .result-take .primary:hover { background: var(--solid-pressed); transform: translateY(-1px); }
 
     .pty-well {
       min-height: 148px;
@@ -1628,12 +1646,12 @@
     }
     .chip:hover, .clip-chip:hover { background: rgba(237, 237, 237, .08); transform: translateY(-1px); }
     .chip:active, .clip-chip:active { cursor: grabbing; }
-    .chip[data-kind="pdf"] .kind { color: #ababab; }
-    .chip[data-kind="image"] .kind { color: #bbbbbb; }
-    .chip[data-kind="url"] .kind { color: #ababab; }
-    .chip[data-kind="web"] .kind { color: #bfbfbf; }
-    .chip[data-kind="md"] .kind { color: #c3c3c3; }
-    .clip-chip .kind, .chip[data-kind="clip"] .kind { color: #b6b6b6; }
+    .chip[data-kind="pdf"] .kind { color: #e0b5a5; }
+    .chip[data-kind="image"] .kind { color: #d1b6cf; }
+    .chip[data-kind="url"] .kind { color: #a9c2d9; }
+    .chip[data-kind="web"] .kind { color: #a9c2d9; }
+    .chip[data-kind="md"] .kind { color: #b5c0e0; }
+    .clip-chip .kind, .chip[data-kind="clip"] .kind { color: #b5c0e0; }
 
     .chip .kind, .clip-chip .kind {
       font-family: var(--mono);
@@ -1713,7 +1731,7 @@
         /* Native-panel polish: whole action rows, legible filenames, restrained motion. */
     .recipes { gap: 6px; }
     .recipe-row button { width: 100%; flex: 1; min-height: 50px; padding: 8px 10px; justify-content: flex-start; gap: 12px; text-align: left; }
-    .recipe-row button .ico { width: 18px; height: 18px; color: #171717; margin: 0 6px; }
+    .recipe-row button .ico { width: 18px; height: 18px; color: var(--solid); margin: 0 6px; }
     .recipe-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; }
     .recipe-copy strong { font-size: 13px; }
     .recipe-blurb { font-size: 11px; display: block; }
@@ -1721,12 +1739,12 @@
     .row, .row.picking { grid-template-columns: 1fr; gap: 7px; padding: 10px; border: 1px solid transparent; border-radius: 9px; }
     .row .tag { grid-row: auto; justify-self: start; }
     .row .name, .row.picking .name { grid-column: 1; white-space: normal; overflow-wrap: anywhere; }
-    .row.sel { background: var(--panel); border-color: #737373; }
+    .row.sel { background: var(--panel); border-color: var(--solid); }
     .row .meta { grid-column: 1; }
     .row.picking .pick { position: absolute; top: 12px; right: 50px; }
     .recipe-row button { background: transparent; border-color: transparent; box-shadow: none; }
     .recipe-row button:hover { background: var(--panel-hover); }
-    button:focus-visible { outline: 2px solid #171717; outline-offset: 2px; }
+    button:focus-visible { outline: 2px solid var(--solid); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
     /* Native refresh: action hierarchy and the first useful file. */
@@ -1834,6 +1852,9 @@
               <button type="button" data-pick="OpenCode">OpenCode</button>
               <button type="button" data-pick="Cursor CLI">Cursor CLI</button>
               <button type="button" data-pick="Codex">Codex</button>
+              <button type="button" data-pick="Kimi Code">Kimi Code</button>
+              <button type="button" data-pick="CodeBuddy">CodeBuddy</button>
+              <button type="button" data-pick="Qwen Code">Qwen Code</button>
               <button type="button" data-pick="">未发现终端</button>
             </div>
           </div>
@@ -1930,8 +1951,8 @@
           <div class="setup-row pair"><div class="row-copy"><div class="row-title">上一条 / 下一条</div><div class="cap">只在面板里，不能改。</div></div><div class="settings-keys">↑  ↓</div></div>
           <div class="settings-sec">能做什么</div>
           <div class="setup-row"><div class="row-title">添加材料</div><div class="settings-body">拖到菜单栏图标、材料区或轮盘的「加入架子」，即可添加副本。轮盘还可选择总结、提取信息、翻译和转为 Markdown。拖到「对话」浮窗或轮盘的「发给终端」，会发送给当前 Agent。</div></div>
-          <div class="setup-row"><div class="row-title">从其他应用添加</div><div class="settings-body">「加入选中的文件」可读取 Finder 或桌面的选中项，支持多选。在 VS Code 等编辑器中，会尝试获取选中文件或当前本地文件，并还原剪贴板。浏览器页面请用「抓取当前页」。</div></div>
-          <div class="setup-row"><div class="row-title">支持的内容</div><div class="settings-body">支持文件、文件夹、PDF、图片、文本、Markdown 和链接。点击「添加文件」或搜索本机文件。剪贴板按钮可查看最近十条记录；⌘V 直接粘贴当前内容。</div></div>
+          <div class="setup-row"><div class="row-title">从其他应用添加</div><div class="settings-body">「加入选中的文件」可读取 Finder 或桌面的选中项，支持多选。在 VS Code 等编辑器中，会尝试获取选中文件或当前本地文件，并还原剪贴板。在别处复制本地文件也会直接加入架子。浏览器页面请用「抓取当前页」。</div></div>
+          <div class="setup-row"><div class="row-title">支持的内容</div><div class="settings-body">支持文件、文件夹、PDF、图片、文本、Markdown 和链接。点击「添加文件」或搜索本机文件。复制本地文件会直接加入架子。剪贴板按钮可查看最近十条文字或图片；⌘V 直接粘贴当前内容。</div></div>
           <div class="setup-row"><div class="row-title">抓取网页</div><div class="settings-body">拖入或粘贴网址，会按地址获取正文和页面截图；需要登录的页面可能只保留链接。要抓取当前窗口，请将 Safari、Chrome 或 Edge 置于最前，再使用「抓取当前页」。浏览器标签无法拖入时，可复制网址。发送到「对话」只传递链接。</div></div>
           <div class="setup-row"><div class="row-title">读取范围</div><div class="settings-body">网页抓取读取前台浏览器的地址、标题、正文和窗口截图，按需申请辅助功能与自动化权限。动作使用任务副本，提示词不含原件路径，也不加载全局 MCP 或 Hooks。PDF 与图片文字提取在本机完成。</div></div>
           <div class="setup-row"><div class="row-title">存储与权限</div><div class="settings-body">材料副本保存在「写入区域」，生成的文件保存在「输出结果」，可在设置中更改位置。快捷动作不覆盖原文件。「对话」使用 Agent 自身权限，不受副本沙箱限制。</div></div>
@@ -2184,11 +2205,11 @@
     }
     const recipeIcons = {
       "总结": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h6"/></svg>',
-      "抽取": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3 3 8l3 5M10 3l3 5-3 5"/></svg>',
-      "文字提取": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5"/><path d="M5 11V5h2.2c1.3 0 2.2.7 2.2 1.8S8.5 8.6 7.2 8.6H5M9.5 11 8 8.6"/></svg>',
+      "提取信息": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3 3 8l3 5M10 3l3 5-3 5"/></svg>',
+      "提取文字": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5"/><path d="M5 11V5h2.2c1.3 0 2.2.7 2.2 1.8S8.5 8.6 7.2 8.6H5M9.5 11 8 8.6"/></svg>',
       "翻译": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M3 8h10M8 2.5c-2 2-2 9 0 11M8 2.5c2 2 2 9 0 11"/></svg>',
       "脱敏": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4Z"/><path d="M3 13 13 3"/></svg>',
-      "转 MD": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v9H3zM5 7v4M8 6v5M11 8v3"/></svg>',
+      "转为 Markdown": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v9H3zM5 7v4M8 6v5M11 8v3"/></svg>',
       "整合": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5h7v8H3zM6 3h7v8"/></svg>',
       "其他": '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12.5" cy="8" r="1.1"/></svg>'
     };

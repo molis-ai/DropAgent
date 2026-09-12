@@ -162,18 +162,7 @@ public final class AgentService: AgentRunning, @unchecked Sendable {
             urls.append(URL(fileURLWithPath: override))
         }
         let binaryNames = engine.binaryNames
-        var directories: [URL] = pathEnvironment.split(separator: ":").map {
-            URL(fileURLWithPath: String($0), isDirectory: true)
-        }
-        directories.append(contentsOf: [
-            home.appendingPathComponent(".grok/bin", isDirectory: true),
-            home.appendingPathComponent(".local/bin", isDirectory: true),
-            home.appendingPathComponent(".opencode/bin", isDirectory: true),
-            home.appendingPathComponent(".cursor/bin", isDirectory: true),
-            home.appendingPathComponent("bin", isDirectory: true),
-            URL(fileURLWithPath: "/opt/homebrew/bin", isDirectory: true),
-            URL(fileURLWithPath: "/usr/local/bin", isDirectory: true),
-        ])
+        let directories = searchDirectories(pathEnvironment: pathEnvironment, home: home)
         for directory in directories {
             for binary in binaryNames {
                 urls.append(directory.appendingPathComponent(binary))
@@ -186,6 +175,34 @@ public final class AgentService: AgentRunning, @unchecked Sendable {
         }
         var seen = Set<String>()
         return urls.filter { seen.insert($0.path).inserted }
+    }
+
+    public static func searchDirectories(pathEnvironment: String, home: URL) -> [URL] {
+        var directories: [URL] = pathEnvironment.split(separator: ":").map {
+            URL(fileURLWithPath: String($0), isDirectory: true)
+        }
+        directories.append(contentsOf: [
+            home.appendingPathComponent(".grok/bin", isDirectory: true),
+            home.appendingPathComponent(".local/bin", isDirectory: true),
+            home.appendingPathComponent(".opencode/bin", isDirectory: true),
+            home.appendingPathComponent(".cursor/bin", isDirectory: true),
+            home.appendingPathComponent(".kimi-code/bin", isDirectory: true),
+            home.appendingPathComponent(".codebuddy/bin", isDirectory: true),
+            home.appendingPathComponent(".qwen/bin", isDirectory: true),
+            home.appendingPathComponent("bin", isDirectory: true),
+            URL(fileURLWithPath: "/opt/homebrew/bin", isDirectory: true),
+            URL(fileURLWithPath: "/usr/local/bin", isDirectory: true),
+            URL(
+                fileURLWithPath: "/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin",
+                isDirectory: true
+            ),
+            home.appendingPathComponent(
+                "Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin",
+                isDirectory: true
+            ),
+        ])
+        var seen = Set<String>()
+        return directories.filter { seen.insert($0.path).inserted }
     }
 
     private func merge(_ settings: AgentSettings) -> AgentSettings {

@@ -20,6 +20,7 @@ public enum JobError: Error, Equatable, Sendable {
     case emptySelection
     case notStartable
     case missingItem
+    case missingOutput
 }
 
 public struct CustomJobSpec: Equatable, Sendable {

@@ -558,6 +558,15 @@ enum PanelPreview {
             session.setupPermissionsOverride = nil
             session.refreshSetup()
 
+            for result in session.results { session.removeResult(result.id) }
+            session.admit(urls: [shotFile, bundle, jsonFile, notes])
+            session.aiTab = .work
+            await settle()
+            snapshot(host, name: "21-mixed-files")
+            session.setAppearance(.dark)
+            await settle()
+            snapshot(host, name: "21-mixed-files-dark")
+
             fputs("preview written to \(out.path)\n", stdout)
         }
 

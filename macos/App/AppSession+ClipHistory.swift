@@ -6,6 +6,7 @@ import Foundation
 extension AppSession {
     func refreshClips() {
         clipRecords = clipHistory.records()
+        clipSelection.formIntersection(Set(clipRecords.map(\.id)))
         if clipHistoryOpen {
             clipMenu.relayout()
         }
@@ -29,7 +30,7 @@ extension AppSession {
     func closeClipHistory() {
         clipHistoryOpen = false
         clipMultiSelect = false
-        clipSelection = []
+        if paneFocus != .clipboard { clipSelection = [] }
         clipDragging = false
         clipMenu.hide()
     }
@@ -95,7 +96,7 @@ extension AppSession {
                 )
             }
         }
-        notePasteboard(pasteboard)
+        notePasteboard(pasteboard, stageFiles: false)
         if clipSelection.contains(id) == false {
             clipSelection = [id]
         }
@@ -176,7 +177,7 @@ extension AppSession {
         }
     }
 
-    func notePasteboard(_ pasteboard: NSPasteboard = .general) {
+    func notePasteboard(_ pasteboard: NSPasteboard = .general, stageFiles: Bool = true) {
         let change = pasteboard.changeCount
         let isGeneral = pasteboard.name == .general
         if isGeneral {
@@ -188,6 +189,26 @@ extension AppSession {
             return
         }
         let payload = ClipboardPayload.from(pasteboard: pasteboard)
+        let toStage = ClipboardStaging.filesToAdmit(
+            payload: payload,
+            inboxRoot: DropAgentPaths.inbox,
+            jobsRoot: DropAgentPaths.jobs,
+            suppress: stageFiles == false || isAdmittingFiles
+        )
+        if toStage.isEmpty == false {
+            let result = ingest.admit(urls: toStage)
+            follow(result)
+            if result.admitted.isEmpty == false {
+                shelf.setSelection(Set(result.admitted.map(\.id)))
+            }
+            if isGeneral { currentClipFingerprint = nil }
+            refreshClips()
+            return
+        }
+        if isAdmittingFiles, case .files = payload {
+            if isGeneral { currentClipFingerprint = nil }
+            return
+        }
         guard let draft = clipDraft(from: payload) else {
             if isGeneral { currentClipFingerprint = nil }
             return

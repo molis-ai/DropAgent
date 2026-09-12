@@ -22,7 +22,7 @@ enum WheelLayout {
             WheelSlice(action: .recipe(.summarize), title: Copy.recipeShort(.summarize), symbol: RecipeGlyph.symbol(.summarize), enabled: hasRecipe),
             WheelSlice(action: .recipe(.extract), title: Copy.recipeShort(.extract), symbol: RecipeGlyph.symbol(.extract), enabled: hasRecipe),
             WheelSlice(action: .recipe(.translate), title: Copy.recipeShort(.translate), symbol: RecipeGlyph.symbol(.translate), enabled: hasRecipe),
-            WheelSlice(action: .recipe(.toMarkdown), title: Copy.recipeShort(.toMarkdown), symbol: RecipeGlyph.symbol(.toMarkdown), enabled: hasRecipe),
+            WheelSlice(action: .recipe(.toMarkdown), title: Copy.t("转 MD", "To MD"), symbol: RecipeGlyph.symbol(.toMarkdown), enabled: hasRecipe),
         ]
     }
 }

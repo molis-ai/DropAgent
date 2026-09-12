@@ -32,6 +32,15 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         }
     }
 
+    var iconTone: Palette.IconTone {
+        switch self {
+        case .setup, .guide: return .slate
+        case .actions, .shortcuts: return .ochre
+        case .machine: return .blue
+        case .appearance: return .plum
+        }
+    }
+
     var detail: String {
         switch self {
         case .setup: return Copy.t("按需要开启功能。暂存文件和本机文字提取无需这些权限。", "Enable features when you need them. Staging and on-device extraction work without these permissions.")
@@ -112,7 +121,9 @@ struct SettingsPane: View {
                     session.settingsSection = section
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: section.symbol).frame(width: 16)
+                        Image(systemName: section.symbol)
+                            .foregroundStyle(section.iconTone.ink)
+                            .frame(width: 16)
                         Text(section.title)
                         Spacer(minLength: 0)
                     }

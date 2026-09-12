@@ -6,10 +6,10 @@ struct RecipeConfirmationView: View {
 
     var body: some View {
         let batch = session.selectedItems.filter { $0.status == .confirm }
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(session.displayedActionName(batch.first?.recipe))\(optionSuffix)")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Palette.text)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
@@ -53,7 +53,7 @@ struct RecipeConfirmationView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 16)
+        .padding(.top, 12)
         .padding(.bottom, 6)
     }
 

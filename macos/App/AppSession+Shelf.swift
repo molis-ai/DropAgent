@@ -28,7 +28,23 @@ extension AppSession {
         refresh()
     }
 
+    func selectMaterial(_ id: ItemID, extending: Bool = false) {
+        onPanelInteraction?()
+        stopStageEdit()
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        let wasInput = paneFocus == .input
+        paneFocus = .input
+        comparingResult = false
+        folderPreviewURL = nil
+        if extending && wasInput { shelf.toggleSelect(id: id, command: true) }
+        else { shelf.setSelection([id]) }
+        aiTab = .work
+        refresh()
+    }
+
     func toggleSelect(id: ItemID, command: Bool) {
+        comparingResult = false
+        folderPreviewURL = nil
         onPanelInteraction?()
         stopStageEdit()
         NSApp.keyWindow?.makeFirstResponder(nil)
@@ -58,6 +74,7 @@ extension AppSession {
         onPanelInteraction?()
         stopStageEdit()
         NSApp.keyWindow?.makeFirstResponder(nil)
+        if selectedResultID != id { comparisonSourceID = nil }
         selectedResultID = id
         paneFocus = .result
         aiTab = .work
@@ -72,6 +89,7 @@ extension AppSession {
             paneFocus = .input
             return
         }
+        if selectedResultID != id { comparisonSourceID = nil }
         selectedResultID = id
         paneFocus = .result
         aiTab = .work
@@ -110,6 +128,9 @@ extension AppSession {
     }
 
     func reselectResultSources(_ record: ResultRecord) {
+        stopStageEdit()
+        comparingResult = false
+        folderPreviewURL = nil
         let ids = Set(record.sourceItemIDs.filter { shelf.item(id: $0) != nil })
         guard !ids.isEmpty else {
             errorText = Copy.t("原材料已不在架子上，请重新添加。", "The source materials are no longer on the shelf. Add them again.")
@@ -127,6 +148,8 @@ extension AppSession {
     }
 
     func hideResult(_ id: ResultID) {
+        stopStageEdit()
+        comparisonSourceID = nil
         let index = results.firstIndex(where: { $0.id == id }) ?? 0
         shelf.removeResults(ids: [id])
         if selectedResultID == id {
@@ -170,6 +193,10 @@ extension AppSession {
     }
 
     func removeSelected() {
+        if paneFocus == .clipboard {
+            for id in clipSelection { deleteClip(id) }
+            return
+        }
         if paneFocus == .result, let id = selectedResultID {
             removeResult(id)
             return
@@ -182,6 +209,12 @@ extension AppSession {
 
     func moveSelection(offset: Int) {
         stopStageEdit()
+        if paneFocus == .clipboard {
+            guard !clipRecords.isEmpty else { return }
+            let current = clipRecords.firstIndex { clipSelection.contains($0.id) } ?? -1
+            selectClipboard(clipRecords[min(clipRecords.count - 1, max(0, current + offset))].id)
+            return
+        }
         if paneFocus == .result, results.isEmpty == false {
             let current = results.firstIndex(where: { $0.id == selectedResultID }) ?? (offset > 0 ? -1 : results.count)
             let index = min(results.count - 1, max(0, current + offset))
@@ -189,6 +222,8 @@ extension AppSession {
             return
         }
         paneFocus = .input
+        comparingResult = false
+        folderPreviewURL = nil
         shelf.moveSelection(offset: offset)
         if let item = selectedItems.first {
             if item.status == .sent, canOpenTerminalTab {
@@ -201,6 +236,7 @@ extension AppSession {
     }
 
     func currentResult() -> Item? {
+        guard paneFocus != .clipboard else { return nil }
         if paneFocus == .result, let record = selectedResult {
             return record.takeawayItem()
         }

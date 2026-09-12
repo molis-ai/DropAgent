@@ -16,6 +16,7 @@ enum AITab: String {
 }
 
 enum PaneFocus: String {
+    case clipboard
     case input
     case result
 }
@@ -57,6 +58,12 @@ final class AppSession: ObservableObject {
     @Published var results: [ResultRecord] = []
     @Published var selectedResultID: ResultID?
     @Published var paneFocus: PaneFocus = .input
+    @Published var comparingResult = false
+    @Published var comparisonSourceID: ItemID?
+    @Published var folderPreviewURL: URL?
+    @Published var clipboardExpanded = true
+    @Published var materialsExpanded = true
+    @Published var resultsExpanded = true
     @Published var presence: AgentPresence = .none
     @Published var recipePresence: AgentPresence = .none
     @Published var installedEngines: [AgentPresence] = []
@@ -239,13 +246,7 @@ final class AppSession: ObservableObject {
     }
 
     var panelHeight: CGFloat {
-        if settingsOpen || showsSetupCard {
-            return LivePanelChrome.panelHeight + LivePanelChrome.dockShadowPad * 2
-        }
-        return min(
-            max(dockHeight, LivePanelChrome.dockMinHeight + LivePanelChrome.dockShadowPad * 2),
-            LivePanelChrome.panelHeight + LivePanelChrome.floatMaxHeight + LivePanelChrome.dockGap + LivePanelChrome.dockShadowPad * 2
-        )
+        LivePanelChrome.panelHeight + LivePanelChrome.dockShadowPad * 2
     }
 
     var showsComposer: Bool {
@@ -262,11 +263,11 @@ final class AppSession: ObservableObject {
     }
 
     var showsActionBar: Bool {
-        paneFocus == .input && selectedItems.isEmpty == false && settingsOpen == false && showsSetupCard == false
-            && !selectedItems.contains { $0.status == .confirm || $0.status == .running }
+        !settingsOpen && !showsSetupCard
     }
 
     var stagedItem: Item? {
+        guard paneFocus != .clipboard else { return nil }
         if paneFocus == .result, let record = selectedResult {
             return record.takeawayItem()
         }
@@ -295,7 +296,7 @@ final class AppSession: ObservableObject {
     }
 
     func beginStageEdit() {
-        guard let item = stagedItem else { return }
+        guard let item = stagedItem, item.status != .running, item.status != .confirm else { return }
         guard StageEdit.editableURL(item, inboxRoot: DropAgentPaths.inbox, jobsRoot: DropAgentPaths.jobs) != nil else { return }
         stageEditing = true
     }
@@ -333,6 +334,7 @@ final class AppSession: ObservableObject {
         case AgentError.cancelled: return ""
         case JobError.notStartable: return Copy.t("这项现在不能跑这个动作", "This item cannot run that action now")
         case JobError.emptySelection, TUIError.empty: return Copy.t("先选文件，或写一句话再发送", "Select a file, or write something and send")
+        case JobError.missingOutput: return Copy.t("这次没有生成文件", "No file was produced")
         case PDFTextError.unreadable: return Copy.t("打不开这份 PDF", "This PDF cannot be opened")
         case PDFTextError.locked: return Copy.t("这份 PDF 有密码，抽不出文字", "This PDF is password-protected")
         default: return Copy.t("没能完成这一步", "Could not finish this step")

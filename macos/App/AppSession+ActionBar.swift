@@ -49,6 +49,7 @@ extension AppSession {
     }
 
     func canRunSlot(_ slot: ActionSlot) -> Bool {
+        guard paneFocus == .input, runningItems.isEmpty, !selectedItems.contains(where: { $0.status == .confirm }) else { return false }
         switch slot {
         case .recipe(let recipe):
             return canRunRecipe(recipe)

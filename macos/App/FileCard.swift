@@ -231,7 +231,7 @@ private final class StripExpansionTooltipsView: NSView {
     }
 }
 
-private struct RowDrag: ViewModifier {
+struct RowDrag: ViewModifier {
     let item: Item
     let group: [Item]
     var onBegin: (() -> Void)?

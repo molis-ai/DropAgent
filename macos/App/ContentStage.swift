@@ -5,9 +5,10 @@ import SwiftUI
 struct ContentStage: View {
     let item: Item
     @ObservedObject var session: AppSession
+    var readOnly = false
 
     private var editURL: URL? {
-        StageEdit.editableURL(item, inboxRoot: DropAgentPaths.inbox, jobsRoot: DropAgentPaths.jobs)
+        readOnly ? nil : StageEdit.editableURL(item, inboxRoot: DropAgentPaths.inbox, jobsRoot: DropAgentPaths.jobs)
     }
 
     private var folderRoot: URL {
@@ -17,59 +18,66 @@ struct ContentStage: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Text(session.paneFocus == .result ? Copy.t("新文件", "Result") : Copy.t("预览", "Preview"))
-                    .foregroundStyle(Palette.muted)
                 Text(item.title)
-                    .fontWeight(.medium)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if !readOnly && session.paneFocus == .input && session.selectedItems.count > 1 {
+                    Text(Copy.t("等 \(session.selectedItems.count) 份材料", "of \(session.selectedItems.count) selected"))
+                        .foregroundStyle(Palette.muted).lineLimit(1)
+                }
                 Spacer(minLength: 8)
+                Text("\(readOnly ? Copy.t("原文", "Source") : session.paneFocus == .result ? Copy.t("结果", "Result") : Copy.t("材料", "Material")) · \(item.displayTag)")
+                    .font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
                 if editURL != nil {
-                    Button(session.stageEditing ? Copy.t("完成编辑", "Done editing") : Copy.t("编辑副本", "Edit copy")) {
+                    Button {
                         if session.stageEditing { session.stopStageEdit() } else { session.beginStageEdit() }
+                    } label: {
+                        Image(systemName: session.stageEditing ? "checkmark" : "square.and.pencil")
                     }
-                    .buttonStyle(QuietButtonStyle(subtle: true))
+                    .buttonStyle(IconButtonStyle(size: 24))
+                    .disabled(item.status == .confirm || item.status == .running)
+                    .help(session.stageEditing ? Copy.t("完成编辑", "Done editing") : Copy.t("编辑副本", "Edit copy"))
+                    .accessibilityLabel(session.stageEditing ? Copy.t("完成编辑", "Done editing") : Copy.t("编辑副本", "Edit copy"))
                     .accessibilityIdentifier("stage-edit")
                 }
             }
-            .font(.system(size: 11.5))
+            .font(.system(size: 12))
             .foregroundStyle(Palette.text)
-            .padding(.horizontal, 14)
-            .frame(height: 36)
+            .padding(.horizontal, 20)
+            .frame(height: 41)
             Divider().overlay(Palette.line)
             if item.kind == .folder {
-                FolderStage(root: folderRoot)
+                FolderFileStage(root: folderRoot, selected: readOnly ? nil : session.folderPreviewURL)
             } else if item.kind == .pdf {
-                PDFContentView(url: item.parts.first?.url ?? item.sourceURL)
+                let url = item.parts.first?.url ?? item.sourceURL
+                if FileManager.default.fileExists(atPath: url.path) {
+                    PDFContentView(url: url)
+                } else {
+                    Text(Copy.t("这份 PDF 已经不在了，请重新添加。", "This PDF is no longer available. Add it again."))
+                        .font(.system(size: 12)).foregroundStyle(Palette.warning).padding(20)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             } else if let url = editURL, session.stageEditing {
                 editor(url)
             } else {
                 reading
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: session.guidedSample != nil ? 220 : LivePanelChrome.previewStageHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.panel)
-        .clipShape(RoundedRectangle(cornerRadius: LivePanelChrome.cardRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: LivePanelChrome.cardRadius, style: .continuous)
-                .stroke(Palette.line)
-        )
-        .padding(.horizontal, 16)
-        .padding(.bottom, 10)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.t("内容 \(item.title)", "Content \(item.title)"))
         .background(AccessibleID(identifier: "content-stage").frame(width: 0, height: 0).allowsHitTesting(false))
         .accessibilityIdentifier("content-stage")
         .onChange(of: item.id) { _, _ in
-            session.stopStageEdit()
+            if !readOnly { session.stopStageEdit() }
         }
         .onChange(of: item.status) { _, status in
-            if status == .confirm || status == .running {
+            if !readOnly && (status == .confirm || status == .running) {
                 session.stopStageEdit()
             }
         }
-        .onDisappear { session.stopStageEdit() }
+        .onDisappear { if !readOnly { session.stopStageEdit() } }
     }
 
     @ViewBuilder
@@ -77,18 +85,11 @@ struct ContentStage: View {
         let preview = ScrollView {
             ResultPreview(item: item, expanded: true)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(16)
+                .padding(.horizontal, session.comparingResult ? 22 : 42)
+                .padding(.top, session.comparingResult ? 24 : 35)
+                .padding(.bottom, 32)
         }
-        if editURL == nil {
-            preview.accessibilityIdentifier("content-stage-read")
-        } else {
-            preview
-                .textSelection(.disabled)
-                .contentShape(Rectangle())
-                .onTapGesture { session.beginStageEdit() }
-                .accessibilityHint(Copy.stageReadHint)
-                .accessibilityIdentifier("content-stage-read-editable")
-        }
+        preview.accessibilityIdentifier("content-stage-read")
     }
 
     private func editor(_ url: URL) -> some View {

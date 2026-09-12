@@ -7,6 +7,10 @@ import Foundation
 extension AppSession {
     func copySelected() {
         flushStageEdit()
+        if paneFocus == .clipboard {
+            if let record = selectedClipboard { makeClipCurrent(record.id) }
+            return
+        }
         if paneFocus == .result, let record = selectedResult {
             guard record.output != nil else { return }
             copyItem(record.takeawayItem())
@@ -19,7 +23,7 @@ extension AppSession {
             return
         }
         PasteboardService.copy(group)
-        notePasteboard()
+        notePasteboard(stageFiles: false)
         copiedID = group[0].id
         Task {
             try? await Task.sleep(nanoseconds: 1_200_000_000)
@@ -30,7 +34,7 @@ extension AppSession {
     func copyItem(_ item: Item, to pasteboard: NSPasteboard = .general) {
         PasteboardService.copy(item, to: pasteboard)
         if pasteboard.name == .general {
-            notePasteboard(pasteboard)
+            notePasteboard(pasteboard, stageFiles: false)
         }
         copiedID = item.id
         Task {

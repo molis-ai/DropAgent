@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HeaderSearchField: View {
     @ObservedObject var session: AppSession
+    var autofocus = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -22,6 +23,7 @@ struct HeaderSearchField: View {
             .font(.system(size: 12))
             .foregroundStyle(Palette.text)
             .accessibilityIdentifier("shelf-search")
+            .background(AccessibleID(identifier: "shelf-search").frame(width: 0, height: 0).allowsHitTesting(false))
             if session.spotlight.text.isEmpty == false {
                 Button {
                     session.spotlight.setText("")
@@ -34,13 +36,14 @@ struct HeaderSearchField: View {
             }
         }
         .padding(.horizontal, 8)
-        .frame(height: 32)
+        .frame(height: 28)
         .background(Palette.field)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(focused ? Palette.accent : Color.clear)
         )
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .onAppear { if autofocus { focused = true } }
     }
 }
 

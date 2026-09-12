@@ -16,11 +16,8 @@ public enum CLICommand {
     public static func line(executable: URL, prompt: String, help: String) -> String {
         let command = posixQuote(executable.path)
         let quoted = posixQuote(prompt)
-        let name = executable.lastPathComponent.lowercased()
         let args: String
-        if name == "llm" || name == "aichat" || name == "sgpt" {
-            args = quoted
-        } else if HeadlessCLI.containsFlag(help, "--print") {
+        if HeadlessCLI.containsFlag(help, "--print") {
             args = "--print \(quoted)"
         } else if help.contains("-p,") || help.contains("-p ") {
             args = "-p \(quoted)"

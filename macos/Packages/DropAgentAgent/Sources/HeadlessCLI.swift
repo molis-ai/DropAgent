@@ -7,14 +7,14 @@ public enum HeadlessCLI {
             return help.range(of: #"\bexec\b"#, options: .regularExpression) != nil
         case .grok:
             return containsFlag(help, "--prompt-file") || containsFlag(help, "--single")
-        case .claude, .cursor:
+        case .claude, .cursor, .codebuddy:
             return containsFlag(help, "--print") || help.contains("-p,") || help.contains("-p ")
         case .gemini:
             return containsFlag(help, "--prompt")
+        case .kimi, .qwen:
+            return containsFlag(help, "--prompt") || help.contains("-p,") || help.contains("-p ")
         case .opencode:
             return hasRunCommand(help)
-        case .llm, .aichat, .sgpt:
-            return true
         }
     }
 
@@ -50,10 +50,10 @@ public enum HeadlessCLI {
             return geminiArguments(help: help, request: request, prompt: prompt)
         case .opencode:
             return opencodeArguments(help: help, request: request, prompt: prompt)
-        case .cursor:
+        case .cursor, .codebuddy:
             return cursorArguments(help: help, prompt: prompt)
-        case .llm, .aichat, .sgpt:
-            return [prompt]
+        case .kimi, .qwen:
+            return geminiArguments(help: help, request: request, prompt: prompt)
         }
     }
 

@@ -17,7 +17,7 @@ struct AIPane: View {
                             .lineLimit(1)
                     }
                     Button { session.toggleOther() } label: {
-                        Image(systemName: "chevron.up")
+                        Image(systemName: "chevron.down")
                     }
                     .buttonStyle(IconButtonStyle())
                     .accessibilityLabel(Copy.t("收起对话", "Collapse chat"))
@@ -29,8 +29,8 @@ struct AIPane: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 6)
                     .padding(.bottom, 10)
-                    .frame(minHeight: 148, maxHeight: LivePanelChrome.floatMaxHeight - 120)
-                    .background(Palette.panel2)
+                    .frame(minHeight: 80, maxHeight: .infinity)
+                    .background(Palette.panel)
             }
             if session.showsComposer {
                 ComposerBar(session: session)
@@ -43,7 +43,6 @@ struct AIPane: View {
             }
         }
         .background(Palette.panel)
-        .dropAgentPaper()
         .overlay {
             DropZoneOverlay(
                 title: session.hasAgent
@@ -74,7 +73,7 @@ struct AIPane: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Palette.panel)
             .clipShape(RoundedRectangle(cornerRadius: LivePanelChrome.cardRadius, style: .continuous))
-            .shadow(color: Color.black.opacity(0.05), radius: 8, y: 4)
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Palette.line))
         } else {
             ZStack {
                 TerminalHostView(session: session)
@@ -94,7 +93,7 @@ struct AIPane: View {
                         .allowsHitTesting(false)
                 }
             }
-            .shadow(color: Color.black.opacity(0.12), radius: 8, y: 4)
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Palette.line))
         }
     }
 

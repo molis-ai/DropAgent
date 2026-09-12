@@ -51,10 +51,10 @@ public enum InteractiveLaunch {
             return ["--prompt", injection]
         case .opencode:
             return [cwd.path, "--prompt", injection]
-        case .cursor:
+        case .cursor, .kimi, .codebuddy:
             return [injection]
-        case .llm, .aichat, .sgpt:
-            return []
+        case .qwen:
+            return ["--prompt", injection]
         }
     }
 
@@ -90,7 +90,7 @@ public enum InteractiveLaunch {
             env.append("OPENCODE_CONFIG_DIR=\(isolatedHome.path)")
             env.append("OPENCODE_DISABLE_DEFAULT_PLUGINS=1")
             env.append("OPENCODE_DISABLE_CLAUDE_CODE=1")
-        case .cursor, .llm, .aichat, .sgpt:
+        case .cursor, .kimi, .codebuddy, .qwen:
             break
         }
         return env
@@ -106,6 +106,11 @@ public enum InteractiveLaunch {
             "\(home)/.local/bin",
             "\(home)/.opencode/bin",
             "\(home)/.cursor/bin",
+            "\(home)/.kimi-code/bin",
+            "\(home)/.codebuddy/bin",
+            "\(home)/.qwen/bin",
+            "/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin",
+            "\(home)/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin",
             "/opt/homebrew/bin",
             "/usr/local/bin",
             "/usr/bin",

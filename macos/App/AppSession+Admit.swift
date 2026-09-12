@@ -183,6 +183,9 @@ extension AppSession {
 
     func follow(_ result: AdmitResult) {
         if result.admitted.isEmpty == false {
+            stopStageEdit()
+            folderPreviewURL = nil
+            comparingResult = false
             paneFocus = .input
             errorText = nil
         }

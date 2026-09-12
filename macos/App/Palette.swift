@@ -4,38 +4,66 @@ import SwiftUI
 enum Palette {
     @MainActor static var isDark = false
 
-    static var panel: Color { gray(light: 252, dark: 25) }
-    static var panel2: Color { gray(light: 243, dark: 35) }
-    static var panelHover: Color { gray(light: 233, dark: 43) }
-    static var panelPress: Color { gray(light: 229, dark: 54) }
-    static var text: Color { gray(light: 26, dark: 245) }
-    static var muted: Color { gray(light: 91, dark: 189) }
-    static var faint: Color { gray(light: 98, dark: 183) }
-    static var line: Color {
+    static var panel: Color { color(light: 0xFCFCFB, dark: 0x19191B) }
+    static var panel2: Color { color(light: 0xF5F5F4, dark: 0x111112) }
+    static var panelHover: Color { color(light: 0xEEEEEE, dark: 0x242427) }
+    static var panelPress: Color { color(light: 0xE8E9EE, dark: 0x28282F) }
+    static var text: Color { color(light: 0x292A2E, dark: 0xE9E9ED) }
+    static var muted: Color { color(light: 0x74757D, dark: 0x96969F) }
+    static var faint: Color { muted }
+    static var line: Color { color(light: 0xE8E8E6, dark: 0x2B2B2F) }
+    static var accent: Color { color(light: 0x66709E, dark: 0xA6AFD5) }
+    static var accentPressed: Color { color(light: 0x4B5874, dark: 0xC5CDE6) }
+    static var onAccent: Color { color(light: 0xFAF9F6, dark: 0x2B3142) }
+    static var danger: Color { color(light: 0x8C594B, dark: 0xE0B5A5) }
+    static var warning: Color { IconTone.ochre.ink }
+    static var ice: Color { IconTone.blue.ink }
+    static var run: Color { accent }
+    static var tty: Color { IconTone.plum.ink }
+    static var ttyWell: Color { color(light: 0xF8F7F4, dark: 0x222329) }
+    static var ttyMuted: Color { faint }
+    static var field: Color { color(light: 0xEEEEED, dark: 0x202023) }
+    static var tagFill: Color { IconTone.slate.fill }
+    static var tagInk: Color { IconTone.slate.ink }
+
+    enum IconTone {
+        case slate, blue, ochre, plum, clay
+
+        var ink: Color {
+            switch self {
+            case .slate: return Palette.color(light: 0x647DB5, dark: 0x91A8DC)
+            case .blue: return Palette.color(light: 0x5684AA, dark: 0x8AB2D5)
+            case .ochre: return Palette.color(light: 0xA7803E, dark: 0xC9A566)
+            case .plum: return Palette.color(light: 0x9270B1, dark: 0xBC9ADA)
+            case .clay: return Palette.color(light: 0xB27460, dark: 0xD29C87)
+            }
+        }
+
+        var fill: Color {
+            switch self {
+            case .slate: return Palette.color(light: 0xE7EAF2, dark: 0x3A4155)
+            case .blue: return Palette.color(light: 0xE6ECF3, dark: 0x354454)
+            case .ochre: return Palette.color(light: 0xF2EBDF, dark: 0x4B4133)
+            case .plum: return Palette.color(light: 0xEFE6EF, dark: 0x4C3C4D)
+            case .clay: return Palette.color(light: 0xF2E7E1, dark: 0x4D3D37)
+            }
+        }
+    }
+
+    private static func color(light: UInt32, dark: UInt32) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
-            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-                ? NSColor.white.withAlphaComponent(0.12) : NSColor.black.withAlphaComponent(0.1)
+            rgb(appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light)
         })
     }
-    static var accent: Color { gray(light: 23, dark: 245) }
-    static var accentPressed: Color { gray(light: 48, dark: 222) }
-    static var onAccent: Color { gray(light: 255, dark: 23) }
-    static var danger: Color { text }
-    static var warning: Color { text }
-    static var ice: Color { muted }
-    static var run: Color { text }
-    static var tty: Color { text }
-    static var ttyWell: Color { gray(light: 252, dark: 23) }
-    static var ttyMuted: Color { gray(light: 98, dark: 183) }
-    static var field: Color { gray(light: 241, dark: 21) }
-    static var tagFill: Color { gray(light: 235, dark: 48) }
-    static var tagInk: Color { gray(light: 80, dark: 212) }
 
-    private static func gray(light: CGFloat, dark: CGFloat) -> Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            let value = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
-            return NSColor(calibratedWhite: value / 255, alpha: 1)
-        })
+    private static func rgb(_ hex: UInt32) -> NSColor {
+        NSColor(srgbRed: CGFloat((hex >> 16) & 255) / 255,
+                green: CGFloat((hex >> 8) & 255) / 255,
+                blue: CGFloat(hex & 255) / 255, alpha: 1)
+    }
+
+    static func current(light: UInt32, dark: UInt32) -> NSColor {
+        MainActor.assumeIsolated { rgb(isDark ? dark : light) }
     }
 
     static var motion: Animation { .easeOut(duration: 0.18) }
@@ -44,68 +72,28 @@ enum Palette {
     static var floatExpand: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: LivePanelChrome.floatExpandDuration) }
     static var onboardingStep: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: 0.3) }
 
-    static var paperNS: NSColor {
-        MainActor.assumeIsolated {
-            isDark
-                ? NSColor(calibratedWhite: 25 / 255, alpha: 1)
-                : NSColor(calibratedWhite: 252 / 255, alpha: 1)
-        }
-    }
-    static var paper2NS: NSColor {
-        MainActor.assumeIsolated {
-            isDark
-                ? NSColor(calibratedWhite: 35 / 255, alpha: 1)
-                : NSColor(calibratedWhite: 243 / 255, alpha: 1)
-        }
-    }
-    static var ttyWellNS: NSColor {
-        MainActor.assumeIsolated {
-            isDark
-                ? NSColor(calibratedWhite: 23 / 255, alpha: 1)
-                : NSColor(calibratedWhite: 252 / 255, alpha: 1)
-        }
-    }
-    static var ttyInkNS: NSColor {
-        MainActor.assumeIsolated {
-            isDark
-                ? NSColor(calibratedWhite: 232 / 255, alpha: 1)
-                : NSColor(calibratedWhite: 26 / 255, alpha: 1)
-        }
-    }
+    static var paperNS: NSColor { current(light: 0xFCFCFB, dark: 0x19191B) }
+    static var paper2NS: NSColor { current(light: 0xF5F5F4, dark: 0x111112) }
+    static var ttyWellNS: NSColor { current(light: 0xF8F7F4, dark: 0x222329) }
+    static var ttyInkNS: NSColor { current(light: 0x383A43, dark: 0xE2E3E9) }
+    static var textNS: NSColor { current(light: 0x292A2E, dark: 0xE9E9ED) }
+    static var selectionNS: NSColor { current(light: 0xD6DCEB, dark: 0x4D5874) }
+    static var mutedNS: NSColor { current(light: 0x74757D, dark: 0x96969F) }
+    static var faintNS: NSColor { mutedNS }
 
     static var ttyOSCDefaults: String {
         MainActor.assumeIsolated {
             isDark
-                ? "\u{1b}]10;#e8e8e8\u{07}\u{1b}]11;#171717\u{07}"
-                : "\u{1b}]10;#1a1a1a\u{07}\u{1b}]11;#fcfcfc\u{07}"
+                ? "\u{1b}]10;#e2e3e9\u{07}\u{1b}]11;#222329\u{07}"
+                : "\u{1b}]10;#383a43\u{07}\u{1b}]11;#f8f7f4\u{07}"
         }
     }
 
     static var ttyIdleFill: String {
         MainActor.assumeIsolated {
             isDark
-                ? ttyOSCDefaults + "\u{1b}[48;2;23;23;23m\u{1b}[2J\u{1b}[H"
-                : ttyOSCDefaults + "\u{1b}[48;2;252;252;252m\u{1b}[2J\u{1b}[H"
-        }
-    }
-    static var textNS: NSColor {
-        MainActor.assumeIsolated {
-            isDark ? NSColor(calibratedWhite: 245 / 255, alpha: 1) : NSColor(calibratedWhite: 26 / 255, alpha: 1)
-        }
-    }
-    static var selectionNS: NSColor {
-        MainActor.assumeIsolated {
-            NSColor(calibratedWhite: (isDark ? 70 : 215) / 255, alpha: 1)
-        }
-    }
-    static var mutedNS: NSColor {
-        MainActor.assumeIsolated {
-            isDark ? NSColor(calibratedWhite: 189 / 255, alpha: 1) : NSColor(calibratedWhite: 91 / 255, alpha: 1)
-        }
-    }
-    static var faintNS: NSColor {
-        MainActor.assumeIsolated {
-            isDark ? NSColor(calibratedWhite: 183 / 255, alpha: 1) : NSColor(calibratedWhite: 98 / 255, alpha: 1)
+                ? ttyOSCDefaults + "\u{1b}[48;2;34;35;41m\u{1b}[2J\u{1b}[H"
+                : ttyOSCDefaults + "\u{1b}[48;2;248;247;244m\u{1b}[2J\u{1b}[H"
         }
     }
 

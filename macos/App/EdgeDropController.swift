@@ -67,8 +67,7 @@ final class EdgeDropController {
             guard let self else { return false }
             let live = ClipboardPayload.from(pasteboard: pasteboard)
             let payload = WheelRelease.admitPayload(live: live, snapshot: self.snapshot)
-            self.admit(payload, action: action)
-            return self.didAdmit
+            return self.admit(payload, action: action)
         }
         view.onReleased = { [weak self] in
             self?.finishFromMouseUp()
@@ -79,18 +78,19 @@ final class EdgeDropController {
         consumedChangeCount = EdgePlacement.consumeDragPasteboard(clearCargo: true)
     }
 
-    func handleDrag(type: NSEvent.EventType) {
+    func handleDrag(type: NSEvent.EventType, at mouse: NSPoint = NSEvent.mouseLocation, now: Date = Date()) {
         if type == .leftMouseDragged {
             hideWork?.cancel()
             hideWork = nil
-            guard EdgePlacement.dragPasteboardHasPayload(consumedChangeCount: consumedChangeCount) else {
+            // Validate new drags once. Finder can temporarily empty the shared board
+            // while a recognized drag is still moving; release ends that drag.
+            guard dragOrigin != nil || EdgePlacement.dragPasteboardHasPayload(consumedChangeCount: consumedChangeCount) else {
                 if session.systemDragActive || catcherArmed {
                     session.finishExternalDrag()
                 }
                 return
             }
-            let mouse = NSEvent.mouseLocation
-            if panelVisible(), let frame = panelFrame(), PanelIdle.dragApproachingPanel(mouse: mouse, frame: frame) {
+            if !wheelOwns(mouse), panelVisible(), let frame = panelFrame(), PanelIdle.dragApproachingPanel(mouse: mouse, frame: frame) {
                 onDragOverPanel()
             } else if session.systemDragActive == false {
                 onDragAwayFromPanel()
@@ -99,17 +99,17 @@ final class EdgeDropController {
             pokeDragWatchdog()
             if dragOrigin == nil {
                 dragOrigin = mouse
-                dragStartedAt = Date()
+                dragStartedAt = now
             }
             let live = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
             if live != .empty {
                 snapshot = live
             }
             armRevealTimer()
-            updateWheel(at: mouse)
+            updateWheel(at: mouse, now: now)
             return
         }
-        finishFromMouseUp()
+        finishFromMouseUp(at: mouse)
     }
 
     func hide() {
@@ -135,13 +135,15 @@ final class EdgeDropController {
         window?.level = .statusBar
     }
 
-    private func updateWheel(at mouse: NSPoint) {
+    private func updateWheel(at mouse: NSPoint, now: Date = Date()) {
         guard session.prefs.showDropWheel else {
             if catcherArmed { concealWheel() }
             lastMouse = mouse
             return
         }
-        if isApproachingPanel(mouse) {
+        // Once revealed, the wheel owns the route through its center to a petal,
+        // even when that route crosses the main panel. Leaving its range yields.
+        if isOverPanel(mouse) && !revealed {
             if catcherArmed { concealWheel() }
             lastMouse = mouse
             return
@@ -156,8 +158,8 @@ final class EdgeDropController {
             return
         }
         if revealed == false {
-            let started = dragStartedAt ?? Date()
-            let due = Date().timeIntervalSince(started) >= EdgePlacement.revealDelay
+            let started = dragStartedAt ?? now
+            let due = now.timeIntervalSince(started) >= EdgePlacement.revealDelay
             if due == false || EdgePlacement.inTabSafeZone(mouse: mouse, screen: screen) {
                 lastMouse = mouse
                 return
@@ -185,13 +187,12 @@ final class EdgeDropController {
         showWheel(center: center, hot: hot)
     }
 
-    private func finishFromMouseUp() {
+    private func finishFromMouseUp(at mouse: NSPoint = NSEvent.mouseLocation) {
         dragWatchdog?.cancel()
         dragWatchdog = nil
         revealWork?.cancel()
         revealWork = nil
-        let mouse = NSEvent.mouseLocation
-        if WheelRelease.panelTakesDrop(overPanel: isOverPanel(mouse)) == false,
+        if WheelRelease.panelTakesDrop(overPanel: isOverPanel(mouse), wheelOwnsDrop: wheelOwns(mouse)) == false,
            catcherArmed, let center, case .slice(let index) = EdgePlacement.band(mouse: mouse, center: center) {
             let slices = WheelLayout.slices(hasAgent: session.hasAgent, hasRecipe: session.hasRecipe)
             if slices.indices.contains(index), slices[index].enabled {
@@ -233,7 +234,7 @@ final class EdgeDropController {
     }
 
     private func checkButtonReleased() {
-        guard session.systemDragActive || catcherArmed else { return }
+        guard dragOrigin != nil || catcherArmed else { return }
         if NSEvent.pressedMouseButtons & 1 != 0 {
             pokeDragWatchdog()
             return
@@ -249,11 +250,12 @@ final class EdgeDropController {
     }
 
     private func isOverPanel(_ mouse: NSPoint) -> Bool {
-        panelVisible() && (panelFrame().map { PanelIdle.dragHitsPanel(mouse: mouse, frame: $0) } ?? false)
+        panelVisible() && (panelFrame()?.contains(mouse) ?? false)
     }
 
-    private func isApproachingPanel(_ mouse: NSPoint) -> Bool {
-        panelVisible() && (panelFrame().map { PanelIdle.dragApproachingPanel(mouse: mouse, frame: $0) } ?? false)
+    private func wheelOwns(_ mouse: NSPoint) -> Bool {
+        guard catcherArmed, let center else { return false }
+        return !EdgePlacement.leftRange(mouse: mouse, center: center)
     }
 
     private func showWheel(center: NSPoint, hot: Int?) {
@@ -292,11 +294,14 @@ final class EdgeDropController {
         window?.orderOut(nil)
     }
 
-    private func admit(_ payload: ClipboardPayload, action: WheelAction) {
-        guard didAdmit == false else { return }
-        guard payload != .empty else { return }
+    @discardableResult
+    private func admit(_ payload: ClipboardPayload, action: WheelAction) -> Bool {
+        guard didAdmit == false else { return true }
+        guard payload != .empty else { return false }
         didAdmit = true
         session.admitFromWheel(payload, action: action)
+        // Admission synchronously calls hide(), which resets didAdmit.
+        return true
     }
 
     private func scheduleHide() {

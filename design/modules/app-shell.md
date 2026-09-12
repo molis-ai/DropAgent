@@ -4,7 +4,7 @@
 
 ## 做什么
 
-菜单栏图标、面板窗口、全局快捷键、把系统拖入事件判到「文件行 / 对话浮窗 / 图标」、把用户点击接到内核。
+菜单栏图标、面板窗口、全局快捷键、把系统拖入事件判到「文件行 / 对话区 / 图标」、把用户点击接到内核。
 
 ## 不做什么
 
@@ -19,6 +19,7 @@
 | 轮盘·Recipe | `Ingest.admit` 然后立刻 `Job.start`（默认选项，不确认、不弹面板） |
 | AI 区 drop | `Ingest.admit(..., capturePages: false)` 然后立刻 `TUI.send` |
 | 粘贴 | `Ingest.admitClipboard()` |
+| 别处复制的本地文件 | 盯系统剪贴板，`ClipboardStaging.filesToAdmit` 后 `Ingest.admit(urls:)` |
 | 抓页快捷键 | `PageAdmit.snapshot` / `decide`，通过后 `Ingest.admitCurrentPage` |
 | 加入选中文件 | 先钉死前台，再 `FrontAdmit.collect` → `Ingest.admit(urls:)` |
 | 就绪卡 / 去授权 | `PageAdmit.setupStatus` / `requestTrustIfNeeded` / `requestAutomation`。第一次打开不自动出卡；人点「去准备」或设置里要权。 |
@@ -28,15 +29,17 @@
 | 隐藏 | `Shelf.remove` / `removeResults`（列表拿掉，文件还在） |
 | 删除 | `Ingest.deleteOwnedCopy` / `Job.deleteOwnedOutput`（只清 Inbox / Jobs 里自己的文件） |
 
+轮盘出现后，其中心到六瓣的路径、上方按钮与主面板重叠时仍由轮盘拥有；不唤醒或避让重叠面板，松手按轮盘动作处理。离开既有外圈容差范围后轮盘取消，主面板正常接货。从主面板内开始的拖动不呼出轮盘。见 `specs/wheel-finder-route/spec.md`。
+
 ## 窗口
 
-- `NSStatusItem` 靠右。
-- 面板默认约 1040pt 宽，高度随内容，贴图标下方。上面是「文件」横向卡，选中才出动作；再点取消选中；双击用系统默认方式打开。有结果才出「结果区」。点「对话」才在下方弹出「对话」浮窗，中间露出桌面。点文件或结果后，内容台出现在文件列表和动作栏之间：Markdown 可读渲染，HTML 抽正文，不嵌网页；取消选中则收起。不把预览挂在面板外侧。文件行粘贴按钮在按钮旁展开面板风格的剪贴板下拉；⌘V 仍直接贴当前。顶栏：字标左、搜索中、芯片 / 设置 / 窗口按钮右。搜索下拉加入架子。头上关闭左边是最小化，都是藏面板。
+- `NSStatusItem` 靠右。启动和激活时钉住显示，不允许 Command 拖走；授权弹窗不藏 extra。挤满的菜单栏仍可能进系统折叠。
+- 固定高度文件工作台：左目录分材料／结果／剪贴板，右侧预览，指令常驻下方。原文对照按需展开。状态变化不改变外窗大小，遵循 `specs/linear-workbench/spec.md` 与 `specs/sidebar-tree-actions/spec.md`。顶栏拖动、Agent、设置和窗口行为保留；搜索框固定在目录顶部，文件相对目录名缩进，行尾按钮代替右键。
 - 人离开后面板闲时：变淡并降到普通窗口层级，让开底下的 App。点还露着的面板、把文件拖进面板区域、图标或开合快捷键会醒；闲时点图标是唤醒不是关。从面板拖出时不闲时。点 + 选文件时面板不收起，选择窗在前面。诊断启动不闲时。
 - 面板挂在当前桌面打开：用 `moveToActiveSpace`，不粘所有 Space，也不钉在第一次出现的桌面。切走后窗口留在原桌面；新桌面再打开会把窗口挂过来。
 - 第一次打开显示空架子与欢迎区，直接通过示例 PDF 进入本机提取流程；授权在按需设置里。设置导航是权限与连接、快捷动作、快捷键、使用指南、Agent 与存储、外观。示例生成属于 App；仍走 Ingest → Job → Pasteboard，不新增业务调用链。
-- 内容台使用原生 PDFKit 显示 PDF；确认／运行中收起预览，结果聚焦时隐藏原材料动作栏。抓取错误的授权和重试入口由 WorkPane 显式展示。
-- 内嵌 PTY 在对话浮窗里，不开独立桌面窗口。
+- 内容台使用原生 PDFKit；确认与运行保留预览，结果与剪贴板聚焦时禁用材料动作。错误恢复入口仍可见。
+- 内嵌 PTY 在对话区里，不开独立桌面窗口。
 - 评审用场景按钮只存在于 HTML 原型，正式 App **不带**。
 
 ## 扩展
@@ -61,4 +64,4 @@
 | `AppSession+Setup.swift` | 授权门禁（挂在 A 上，不是第五条链） |
 | `AppSession+Settings.swift` | 设置、快捷键、工作区 |
 
-面板：`PanelRootView` 拼装 `PanelHeader` / `ShelfColumn` / 动作栏 / `ResultStack` / 对话浮窗（`AIPane`）。
+面板：`PanelRootView` 拼 `PanelHeader` / `WorkbenchSidebar` / `WorkbenchDetail`；详情挂 `ContentStage` / `RecipeChooser` / `WorkPane` / `AIPane`。

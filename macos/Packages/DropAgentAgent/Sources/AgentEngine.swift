@@ -26,18 +26,13 @@ public enum AgentEngine: String, Codable, CaseIterable, Sendable, Identifiable {
     case opencode
     case cursor
     case codex
-    case llm
-    case aichat
-    case sgpt
+    case kimi
+    case codebuddy
+    case qwen
 
     public var id: String { rawValue }
 
-    public var kind: RuntimeKind {
-        switch self {
-        case .llm, .aichat, .sgpt: return .cli
-        default: return .tui
-        }
-    }
+    public var kind: RuntimeKind { .tui }
 
     public static var tuiCases: [AgentEngine] { allCases.filter { $0.kind == .tui } }
     public static var cliCases: [AgentEngine] { allCases.filter { $0.kind == .cli } }
@@ -50,15 +45,17 @@ public enum AgentEngine: String, Codable, CaseIterable, Sendable, Identifiable {
         case .opencode: return "OpenCode"
         case .cursor: return "Cursor CLI"
         case .codex: return "Codex"
-        case .llm: return "LLM"
-        case .aichat: return "AIChat"
-        case .sgpt: return "ShellGPT"
+        case .kimi: return "Kimi Code"
+        case .codebuddy: return "CodeBuddy"
+        case .qwen: return "Qwen Code"
         }
     }
 
     public var binaryNames: [String] {
         switch self {
         case .cursor: return ["cursor-agent"]
+        case .kimi: return ["kimi", "kimi-code"]
+        case .codebuddy: return ["codebuddy", "cbc"]
         default: return [rawValue]
         }
     }
@@ -79,12 +76,12 @@ public enum AgentEngine: String, Codable, CaseIterable, Sendable, Identifiable {
             return URL(string: "https://cursor.com/docs/cli/overview")!
         case .codex:
             return URL(string: "https://github.com/openai/codex")!
-        case .llm:
-            return URL(string: "https://llm.datasette.io")!
-        case .aichat:
-            return URL(string: "https://github.com/sigoden/aichat")!
-        case .sgpt:
-            return URL(string: "https://github.com/TheR1D/shell_gpt")!
+        case .kimi:
+            return URL(string: "https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started")!
+        case .codebuddy:
+            return URL(string: "https://www.workbuddy.ai/docs/cli/overview")!
+        case .qwen:
+            return URL(string: "https://github.com/QwenLM/qwen-code")!
         }
     }
 
@@ -118,14 +115,14 @@ public enum AgentEngine: String, Codable, CaseIterable, Sendable, Identifiable {
         if name == "codex" {
             return .codex
         }
-        if name == "llm" {
-            return .llm
+        if name == "kimi" || name == "kimi-code" {
+            return .kimi
         }
-        if name == "aichat" {
-            return .aichat
+        if name == "qwen" {
+            return .qwen
         }
-        if name == "sgpt" {
-            return .sgpt
+        if name == "codebuddy" || name == "cbc" || lower.contains("codebuddy") {
+            return .codebuddy
         }
         return nil
     }
@@ -137,9 +134,6 @@ public enum AgentEngine: String, Codable, CaseIterable, Sendable, Identifiable {
         let lower = help.lowercased()
         if lower.contains("terminal user interface") || lower.contains(" tui") || lower.contains("interactive session") {
             return .tui
-        }
-        if ["llm", "aichat", "sgpt"].contains(binaryName.lowercased()) {
-            return .cli
         }
         return .tui
     }

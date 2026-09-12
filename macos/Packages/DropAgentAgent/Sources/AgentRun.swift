@@ -32,7 +32,11 @@ public struct AgentSettings: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         executableOverride = try container.decodeIfPresent(String.self, forKey: .executableOverride)
-        tuiEngine = try container.decodeIfPresent(TUIEnginePreference.self, forKey: .tuiEngine) ?? .auto
+        if let raw = try container.decodeIfPresent(String.self, forKey: .tuiEngine) {
+            tuiEngine = TUIEnginePreference(rawValue: raw) ?? .auto
+        } else {
+            tuiEngine = .auto
+        }
         tuiOverrides = try container.decodeIfPresent([String: String].self, forKey: .tuiOverrides) ?? [:]
         customRuntimes = try container.decodeIfPresent([CustomRuntime].self, forKey: .customRuntimes) ?? []
         selectedCustomID = try container.decodeIfPresent(String.self, forKey: .selectedCustomID)

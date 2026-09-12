@@ -194,6 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if StatusChrome.restoresOnActivate {
             StatusChrome.restore()
         }
+        pinStatusItem()
         session.refreshSetup()
     }
 

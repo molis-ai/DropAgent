@@ -21,6 +21,7 @@ extension AppDelegate {
         cancelRecess()
         panelRecessed = false
         StatusChrome.restore()
+        pinStatusItem()
         session.refreshPresence()
         session.refreshSetup()
         NSApp.activate(ignoringOtherApps: true)

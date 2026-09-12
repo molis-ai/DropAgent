@@ -7,11 +7,11 @@
 
 A macOS menu bar shelf for the coding agent you already have. Stage first, run on a copy, drag the new file out.
 
-![深色主题：首次体验、操作路径与示例入口](docs/readme/panel-dark.png)
+![深色工作台：左侧目录、右侧文件预览、下方常驻指令](docs/readme/workbench-dark.png)
 
-点一张卡，中间出现正文；下面是动作栏。取消选中则收起内容台。不把预览挂在面板外面。
+左侧选材料，右侧看内容，指令常驻下方。结果可一键展开原文对照。剪贴板历史默认可见，点选只预览，需要处理时再加入材料。
 
-当前版本 **0.1.0**。[下载 macOS 安装包](https://github.com/molis-ai/DropAgent/releases/tag/v0.1.0)（macOS 14+，Apple Silicon）。也可从源码打包。截图来自当前界面预览。
+已发布版本 **0.1.0**。[下载 macOS 安装包](https://github.com/molis-ai/DropAgent/releases/tag/v0.1.0)（macOS 14+，Apple Silicon）。本文截图来自当前源码工作台；v0.1.0 下载包仍为此前布局，新界面可从源码打包。
 
 ## 它解决什么
 
@@ -19,15 +19,15 @@ A macOS menu bar shelf for the coding agent you already have. Stage first, run o
 
 1. 拖到菜单栏，或打开面板放到文件架。此时还不跑。
 2. 点开看内容。要跑动作时，先看到读什么、写哪里、是否联网、隔离是哪一档。
-3. 结果区出现新文件。上面的材料还在。把产出拖到桌面、Finder 或上传框。
+3. 左侧结果组出现新文件，材料仍在。把产出拖到桌面、Finder 或上传框。
 
-![选中结果后：上面仍是原 PDF，中间是 summary.md，下面是结果卡](docs/readme/result.png)
+![剪贴板历史预览：复制或加入材料后继续处理](docs/readme/workbench-clipboard.png)
 
-成功时你看到的是：**原件还在上面，新文件在结果区，中间可以读。** 不是 Agent 启动了就算完。
+成功时你看到的是：**原件不动，材料与结果都在，内容可以直接读。**
 
 拖文件时，指针旁可出现六瓣轮盘：加入架子、发给终端、总结、抽取、翻译、转 MD。圆心是空的；拖出外圈即消失。
 
-![拖着 artifact-v1.json 时出现的六瓣轮盘](docs/readme/wheel.png)
+![彩色图标与中性底色的六瓣轮盘](docs/readme/workbench-wheel.png)
 
 ## 和现有做法差在哪
 
@@ -81,16 +81,12 @@ open macos/dist/DropAgent.app
 
 打开后面板在菜单栏图标下方。第一次可以点「试用示例 PDF」，或选择自己的文件。示例从提取文字到拿走新文件，无需 Agent 或权限。设置 → 使用指南可以再次试用。
 
-![首次打开：放入材料，生成新文件](docs/readme/onboard.png)
-
 **不依赖 Agent 的最短路径：**
 
 1. 拖一张截图或一份可选中文字的 PDF 到文件架（或点 `+`）。
-2. 点那张卡，中间出现内容。
+2. 点左侧文件，右侧出现内容。
 3. 点「提取文字」，确认处理范围，再点「开始提取」。
-4. 结果区出现 `ocr.md` 或 `pdf.md`。上面的原件还在，可以拖走结果。
-
-![运行前的权限条：读副本、写任务目录、网络、隔离档](docs/readme/confirm.png)
+4. 左侧结果组出现 `ocr.md` 或 `pdf.md`。原材料仍在，可以拖走结果。
 
 CLI 动作的隔离按探测结果写。Codex / Gemini 在官方能力支持时显示 Workspace Sandbox；Claude 和自定义 CLI 是 Safe Copy（原件不被 DropAgent 覆盖，宿主进程仍可能访问其他位置）。探测不到就写「未确认」，不会把未验证的限制说成严格沙箱。第一版没有容器级 Strict Isolation。
 
@@ -119,10 +115,8 @@ CLI 动作的隔离按探测结果写。Codex / Gemini 在官方能力支持时�
 
 把示例换成自己的文件即可。
 
-- 拖 PDF、图片、文件夹、文本或链接到**文件架**，或点 `+`、搜索本机文件。
-- 点「对话」打开对话浮窗。拖到浮窗是发给当前终端，不是加入架子。
-
-![拖到文件架时高亮「加入架子」](docs/readme/drop-zones.png)
+- 拖 PDF、图片、文件夹、文本或链接到**文件架**，或点 `+`、搜索本机文件。在 Finder 里复制文件，也会直接出现在文件架上（原件不动）。
+- 点「对话」打开对话区。拖到对话区是发给当前终端，不是加入架子。
 
 - 浏览器最前时按 ⌃⌥W 抓当前页。拖入或粘贴网址也会去抓正文；登录墙后的正文不承诺能拿到。
 - 多选后用「整合」得到一份 `brief.md`。
@@ -130,7 +124,7 @@ CLI 动作的隔离按探测结果写。Codex / Gemini 在官方能力支持时�
 
 轮盘可在设置 → 外观关掉。关掉后，菜单栏图标和文件架仍接拖入。
 
-预置 TUI：Grok、Claude、Gemini、OpenCode、Cursor CLI、Codex。预置纯 CLI：llm、aichat、sgpt。设置里可以加自定义 Runtime。
+预置 TUI：Grok、Claude、Gemini、OpenCode、Cursor CLI、Codex、Kimi Code、CodeBuddy、Qwen Code。设置里可以输入命令名或选择可执行文件，添加自定义 Runtime。
 
 ## 现在不会做的
 
@@ -156,3 +150,5 @@ DROPAGENT_ROOT=/tmp/dropagent-preview-root macos/.build/debug/DropAgent --previe
 ```
 
 `--preview` 把当前界面各状态写到 `/tmp/dropagent-preview/`。
+
+工作台定向验证：`DROPAGENT_ROOT=/tmp/dropagent-workbench-check macos/.build/debug/DropAgent --e2e --workbench-only`，截图写到该根目录的 `ui/`。

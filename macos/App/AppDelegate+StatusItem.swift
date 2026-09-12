@@ -5,6 +5,9 @@ import SwiftUI
 extension AppDelegate {
     func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.autosaveName = "DropAgentStatusItem"
+        item.behavior = []
+        item.isVisible = true
         if let button = item.button {
             button.image = StatusIcon.image()
             button.imagePosition = .imageOnly
@@ -24,6 +27,13 @@ extension AppDelegate {
             button.registerForDraggedTypes(IncomingDrop.draggedTypes)
         }
         statusItem = item
+        pinStatusItem()
+    }
+
+    func pinStatusItem() {
+        guard let item = statusItem else { return }
+        item.behavior = []
+        item.isVisible = true
     }
 
     @objc func statusClicked(_ sender: Any?) {

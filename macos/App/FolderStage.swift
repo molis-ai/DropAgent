@@ -200,7 +200,7 @@ struct FolderTreeRows: View {
     }
 
     private func glyph(_ entry: FolderListing.Entry) -> String {
-        if entry.isDirectory { return "folder.fill" }
+        if entry.isDirectory { return "folder" }
         let kind = IngestService.kind(for: entry.url, isDirectory: false)
         let tag = Item(
             kind: kind,
@@ -209,5 +209,34 @@ struct FolderTreeRows: View {
             parts: [ItemPart(name: entry.name, url: entry.url)]
         ).displayTag
         return FileKindGlyph.symbol(kind: kind, tag: tag)
+    }
+}
+
+struct FolderFileStage: View {
+    let root: URL
+    let selected: URL?
+
+    var body: some View {
+        let target = selected ?? FolderListing.firstFile(in: root, stayingInside: root)
+        Group {
+            if let target, FileManager.default.fileExists(atPath: target.path) {
+                let isDirectory = (try? target.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                if isDirectory {
+                    Text(Copy.t("选择左侧文件查看内容。", "Select a file on the left to preview it.")).foregroundStyle(Palette.muted)
+                } else if target.pathExtension.lowercased() == "pdf" {
+                    PDFContentView(url: target)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text(target.lastPathComponent).font(.system(size: 12, weight: .medium)).foregroundStyle(Palette.muted)
+                            ResultPreview(item: Item(kind: IngestService.kind(for: target, isDirectory: false), title: target.lastPathComponent,
+                                                     sourceURL: target, parts: [ItemPart(name: target.lastPathComponent, url: target)]), expanded: true)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 42).padding(.vertical, 35)
+                    }
+                }
+            } else {
+                Text(Copy.t("文件夹为空，或选中的文件已经不在了。", "This folder is empty, or the selected file is no longer available.")).foregroundStyle(Palette.muted).padding(20)
+            }
+        }.frame(maxWidth: .infinity, maxHeight: .infinity).accessibilityIdentifier("folder-file-preview")
     }
 }

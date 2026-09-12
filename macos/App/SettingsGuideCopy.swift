@@ -12,16 +12,16 @@ enum SettingsGuideCopy {
     static var filesTitle: String { Copy.t("从其他应用添加", "Add from another app") }
     static var files: String {
         Copy.t(
-            "「加入选中的文件」可读取 Finder 或桌面的选中项，支持多选。在 VS Code 等编辑器中，会尝试获取选中文件或当前本地文件，并还原剪贴板。浏览器页面请用「抓取当前页」。",
-            "Add Selected Files imports the selection from Finder or Desktop, including multiple files. In editors such as VS Code, it tries the selected files or current local file and restores the clipboard. For browser pages, use Capture Current Page."
+            "「加入选中的文件」可读取 Finder 或桌面的选中项，支持多选。在 VS Code 等编辑器中，会尝试获取选中文件或当前本地文件，并还原剪贴板。在别处复制本地文件也会直接加入架子。浏览器页面请用「抓取当前页」。",
+            "Add Selected Files imports the selection from Finder or Desktop, including multiple files. In editors such as VS Code, it tries the selected files or current local file and restores the clipboard. Copying local files also adds them to the shelf. For browser pages, use Capture Current Page."
         )
     }
 
     static var acceptsTitle: String { Copy.t("支持的内容", "Supported content") }
     static var accepts: String {
         Copy.t(
-            "支持文件、文件夹、PDF、图片、文本、Markdown 和链接。点击「添加文件」或搜索本机文件。剪贴板按钮可查看最近十条记录；⌘V 直接粘贴当前内容。",
-            "Files, folders, PDFs, images, text, Markdown, and links are supported. Choose Add files or search your Mac. The clipboard button shows the ten most recent entries; ⌘V pastes the current content."
+            "支持文件、文件夹、PDF、图片、文本、Markdown 和链接。点击「添加文件」或搜索本机文件。复制本地文件会直接加入架子。剪贴板按钮可查看最近十条文字或图片；⌘V 直接粘贴当前内容。",
+            "Files, folders, PDFs, images, text, Markdown, and links are supported. Choose Add files or search your Mac. Copying local files adds them to the shelf. The clipboard button shows the ten most recent text or image entries; ⌘V pastes the current content."
         )
     }
 

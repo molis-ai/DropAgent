@@ -48,6 +48,17 @@ struct QuietButtonStyle: ButtonStyle {
     }
 }
 
+struct ActionButtonStyle: ButtonStyle {
+    var selected = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        PaperButtonChrome(pressed: configuration.isPressed, height: 30, hug: true,
+                          compact: true, kind: .quiet, selected: selected) {
+            configuration.label
+        }
+    }
+}
+
 struct IconButtonStyle: ButtonStyle {
     var selected = false
     var size: CGFloat = 30
@@ -123,9 +134,9 @@ private struct PaperButtonChrome<Label: View>: View {
         let down = pressed && isEnabled
         label()
             .labelStyle(.titleAndIcon)
-            .font(.system(size: 12, weight: (semibold || selected) ? .semibold : .medium))
+            .font(.system(size: 12, weight: (semibold || selected) ? .semibold : .regular))
             .foregroundStyle(foreground)
-            .padding(.horizontal, square == nil ? (compact ? 10 : 12) : 0)
+            .padding(.horizontal, square == nil ? (compact ? 8 : 12) : 0)
             .frame(width: square, height: square ?? height)
             .frame(maxWidth: hug || square != nil ? nil : .infinity)
             .background(fill)

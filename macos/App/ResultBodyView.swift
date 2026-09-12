@@ -31,7 +31,7 @@ enum ResultBodyView {
         compact: Bool = false,
         wrapWidth: CGFloat? = nil
     ) -> some View {
-        VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+        VStack(alignment: .leading, spacing: compact ? 6 : 13) {
             ForEach(Array(ResultMarkdown.blocks(body).enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .heading(let level, let text):
@@ -40,7 +40,8 @@ enum ResultBodyView {
                             .font(headingFont(level, compact: compact))
                             .foregroundStyle(Palette.text)
                             .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true),
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, compact || level == 1 ? 0 : 10),
                         width: wrapWidth
                     )
                 case .item(let text):
@@ -52,7 +53,7 @@ enum ResultBodyView {
                         Text(inlineMarkdown(text))
                             .font(.system(size: compact ? 12 : 13))
                             .foregroundStyle(Palette.text)
-                            .lineSpacing(compact ? 2 : 4)
+                            .lineSpacing(compact ? 2 : 6)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true),
                         width: wrapWidth
@@ -145,8 +146,8 @@ enum ResultBodyView {
             }
         }
         switch level {
-        case 1: return .system(size: 21, weight: .semibold)
-        case 2: return .system(size: 16, weight: .semibold)
+        case 1: return .system(size: 22, weight: .semibold)
+        case 2: return .system(size: 14, weight: .semibold)
         case 3: return .system(size: 14, weight: .semibold)
         default: return .system(size: 12, weight: .medium)
         }

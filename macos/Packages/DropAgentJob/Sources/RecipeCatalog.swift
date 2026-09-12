@@ -127,7 +127,7 @@ public enum RecipeCatalog {
             return RecipeSpec(
                 id: id,
                 acceptedKinds: [.pdf, .image, .markdown, .clip, .url, .web, .folder],
-                outputFileName: "summary.md",
+                outputFileName: outputFileName(for: id),
                 needsNetwork: false,
                 prompt: prompt(for: id)
             )
@@ -135,7 +135,7 @@ public enum RecipeCatalog {
             return RecipeSpec(
                 id: id,
                 acceptedKinds: [.pdf, .image, .markdown, .clip, .web],
-                outputFileName: "extracted.json",
+                outputFileName: outputFileName(for: id),
                 needsNetwork: false,
                 prompt: prompt(for: id)
             )
@@ -143,7 +143,7 @@ public enum RecipeCatalog {
             return RecipeSpec(
                 id: id,
                 acceptedKinds: [.image],
-                outputFileName: "ocr.md",
+                outputFileName: outputFileName(for: id),
                 needsNetwork: false,
                 requiresAgent: false,
                 prompt: prompt(for: id)
@@ -152,7 +152,7 @@ public enum RecipeCatalog {
             return RecipeSpec(
                 id: id,
                 acceptedKinds: [.pdf],
-                outputFileName: "pdf.md",
+                outputFileName: outputFileName(for: id),
                 needsNetwork: false,
                 requiresAgent: false,
                 prompt: prompt(for: id)
@@ -161,7 +161,7 @@ public enum RecipeCatalog {
             return RecipeSpec(
                 id: id,
                 acceptedKinds: [.markdown, .clip, .pdf, .web],
-                outputFileName: "translated.md",
+                outputFileName: outputFileName(for: id),
                 needsNetwork: true,
                 prompt: prompt(for: id)
             )
@@ -169,7 +169,7 @@ public enum RecipeCatalog {
             return RecipeSpec(
                 id: id,
                 acceptedKinds: [.markdown, .clip, .pdf, .web],
-                outputFileName: "redacted.md",
+                outputFileName: outputFileName(for: id),
                 needsNetwork: false,
                 prompt: prompt(for: id)
             )
@@ -177,7 +177,7 @@ public enum RecipeCatalog {
             return RecipeSpec(
                 id: id,
                 acceptedKinds: [.pdf, .image, .url, .markdown, .clip, .web],
-                outputFileName: "converted.md",
+                outputFileName: outputFileName(for: id),
                 needsNetwork: false,
                 prompt: prompt(for: id)
             )
@@ -185,7 +185,7 @@ public enum RecipeCatalog {
             return RecipeSpec(
                 id: id,
                 acceptedKinds: [.pdf, .image, .markdown, .clip, .url, .web, .folder, .file],
-                outputFileName: "brief.md",
+                outputFileName: outputFileName(for: id),
                 needsNetwork: false,
                 prompt: prompt(for: id)
             )
@@ -193,10 +193,24 @@ public enum RecipeCatalog {
             return RecipeSpec(
                 id: id,
                 acceptedKinds: Set(ItemKind.allCases),
-                outputFileName: "output.md",
+                outputFileName: outputFileName(for: id),
                 needsNetwork: false,
                 prompt: prompt(for: id)
             )
+        }
+    }
+
+    public static func outputFileName(for id: RecipeID) -> String {
+        switch id {
+        case .summarize: return "summary.md"
+        case .extract: return "extracted.json"
+        case .imageText: return "ocr.md"
+        case .pdfText: return "pdf.md"
+        case .translate: return "translated.md"
+        case .redact: return "redacted.md"
+        case .toMarkdown: return "converted.md"
+        case .brief: return "brief.md"
+        case .shortcut: return "output.md"
         }
     }
 }
