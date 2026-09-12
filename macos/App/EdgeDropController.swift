@@ -1,5 +1,6 @@
 import AppKit
 import DropAgentIngest
+import DropAgentPasteboard
 
 @MainActor
 final class EdgeDropController {
@@ -96,6 +97,7 @@ final class EdgeDropController {
                 onDragAwayFromPanel()
             }
             noteExternalDrag(at: mouse)
+            updatePanelDropOffer(at: mouse)
             pokeDragWatchdog()
             if dragOrigin == nil {
                 dragOrigin = mouse
@@ -131,6 +133,7 @@ final class EdgeDropController {
         didAdmit = false
         consumedChangeCount = EdgePlacement.consumeDragPasteboard(clearCargo: shouldClear)
         concealWheel()
+        session.panelDropOffered = false
         window?.alphaValue = 1
         window?.level = .statusBar
     }
@@ -192,8 +195,19 @@ final class EdgeDropController {
         dragWatchdog = nil
         revealWork?.cancel()
         revealWork = nil
-        if WheelRelease.panelTakesDrop(overPanel: isOverPanel(mouse), wheelOwnsDrop: wheelOwns(mouse)) == false,
-           catcherArmed, let center, case .slice(let index) = EdgePlacement.band(mouse: mouse, center: center) {
+        if WheelRelease.panelTakesDrop(overPanel: isOverPanel(mouse), wheelOwnsDrop: wheelOwns(mouse)) {
+            if session.isExternalPanelDrop {
+                let live = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
+                let payload = WheelRelease.admitPayload(live: live, snapshot: snapshot)
+                if payload != .empty {
+                    admit(payload, action: .shelf)
+                    return
+                }
+            }
+            session.finishExternalDrag()
+            return
+        }
+        if catcherArmed, let center, case .slice(let index) = EdgePlacement.band(mouse: mouse, center: center) {
             let slices = WheelLayout.slices(hasAgent: session.hasAgent, hasRecipe: session.hasRecipe)
             if slices.indices.contains(index), slices[index].enabled {
                 let live = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
@@ -243,10 +257,15 @@ final class EdgeDropController {
     }
 
     private func noteExternalDrag(at mouse: NSPoint) {
-        guard session.systemDragActive == false else { return }
-        if isOverPanel(mouse) == false {
-            session.systemDragActive = true
-        }
+        if session.isShelfDrag || session.clipDragging || PasteboardService.isShelfDrag() { return }
+        session.beginExternalDrag()
+    }
+
+    private func updatePanelDropOffer(at mouse: NSPoint) {
+        session.panelDropOffered = session.isExternalPanelDrop
+            && isOverPanel(mouse)
+            && wheelOwns(mouse) == false
+            && (session.systemDragActive || snapshot != .empty)
     }
 
     private func isOverPanel(_ mouse: NSPoint) -> Bool {
@@ -273,7 +292,7 @@ final class EdgeDropController {
             window.setFrame(frame, display: true)
         }
         if window.isVisible == false {
-            let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            let reduce = skipWheelMotion
             window.alphaValue = reduce ? 1 : 0
             window.orderFrontRegardless()
             if reduce == false {
@@ -288,10 +307,33 @@ final class EdgeDropController {
         }
     }
 
+    private var skipWheelMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            || ProcessInfo.processInfo.arguments.contains("--e2e")
+            || ProcessInfo.processInfo.arguments.contains("--preview")
+            || ProcessInfo.processInfo.arguments.contains("--capture")
+    }
+
     private func concealWheel() {
         catcherArmed = false
         edgeView?.setHot(nil)
-        window?.orderOut(nil)
+        guard let window, window.isVisible else { return }
+        if skipWheelMotion {
+            window.orderOut(nil)
+            window.alphaValue = 1
+            return
+        }
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = EdgePlacement.concealDuration
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+            window.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            Task { @MainActor in
+                guard let self, self.catcherArmed == false else { return }
+                self.window?.orderOut(nil)
+                self.window?.alphaValue = 1
+            }
+        })
     }
 
     @discardableResult

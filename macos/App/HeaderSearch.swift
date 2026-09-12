@@ -12,7 +12,7 @@ struct HeaderSearchField: View {
                 .foregroundStyle(Palette.faint)
                 .accessibilityHidden(true)
             TextField(
-                Copy.t("搜索本机文件", "Search this Mac"),
+                Copy.t("搜索或添加文件", "Filter or add files"),
                 text: Binding(
                     get: { session.spotlight.text },
                     set: { session.spotlight.setText($0) }

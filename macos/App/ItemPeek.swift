@@ -1,20 +1,10 @@
-import AppKit
 import DropAgentIngest
 import DropAgentShelf
 import Foundation
 import PDFKit
 
 enum ItemPeek {
-    private static let cardLimit = 88
     private static let maxBytes = 64 * 1024
-
-    static func cardText(for item: Item) -> String? {
-        clipped(rawText(for: item), limit: cardLimit)
-    }
-
-    static func showsTextCard(_ item: Item) -> Bool {
-        item.kind != .image && item.kind != .clip && cardText(for: item) != nil
-    }
 
     static func clipLines(for item: Item) -> (title: String, body: String)? {
         guard item.kind == .clip, let raw = rawText(for: item) else { return nil }
@@ -28,14 +18,6 @@ enum ItemPeek {
         let body = lines.dropFirst(index + 1).joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return (title, body)
-    }
-
-    static func image(for item: Item) -> NSImage? {
-        if item.kind == .image { return raster(from: item) }
-        if item.kind == .web, let png = item.parts.first(where: { $0.name.lowercased().hasSuffix(".png") }) {
-            return NSImage(contentsOf: png.url)
-        }
-        return nil
     }
 
     private static func folderNames(for item: Item) -> [String] {
@@ -121,18 +103,6 @@ enum ItemPeek {
         return item.sourceURL.isFileURL ? item.sourceURL : nil
     }
 
-    private static func raster(from item: Item) -> NSImage? {
-        let part = item.parts.first { part in
-            let name = part.name.lowercased()
-            return name.hasSuffix(".png") || name.hasSuffix(".jpg") || name.hasSuffix(".jpeg")
-                || name.hasSuffix(".gif") || name.hasSuffix(".webp") || name.hasSuffix(".tif")
-                || name.hasSuffix(".tiff") || name.hasSuffix(".heic")
-        }
-        if let part { return NSImage(contentsOf: part.url) }
-        if item.sourceURL.isFileURL { return NSImage(contentsOf: item.sourceURL) }
-        return nil
-    }
-
     private static func readableText(url: URL) -> String? {
         if ReadableHTML.isHTMLFile(url), let raw = utf8(url: url) {
             let markdown = ReadableHTML.markdown(from: raw, baseURL: url)
@@ -154,15 +124,5 @@ enum ItemPeek {
         url.absoluteString
             .replacingOccurrences(of: "https://", with: "")
             .replacingOccurrences(of: "http://", with: "")
-    }
-
-    private static func clipped(_ text: String?, limit: Int) -> String? {
-        guard let text else { return nil }
-        let collapsed = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard collapsed.isEmpty == false else { return nil }
-        if collapsed.count <= limit { return collapsed }
-        return String(collapsed.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
     }
 }

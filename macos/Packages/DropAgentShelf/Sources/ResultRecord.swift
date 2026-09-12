@@ -59,6 +59,18 @@ public struct ResultRecord: Codable, Equatable, Sendable, Identifiable {
         return formatter.string(from: createdAt)
     }
 
+    public static func uniqueTitle(_ base: String, among titles: [String]) -> String {
+        if titles.contains(base) == false { return base }
+        let ext = URL(fileURLWithPath: base).pathExtension
+        let stem = ext.isEmpty ? base : String(base.dropLast(ext.count + 1))
+        var n = 2
+        while true {
+            let candidate = ext.isEmpty ? "\(stem) \(n)" : "\(stem) \(n).\(ext)"
+            if titles.contains(candidate) == false { return candidate }
+            n += 1
+        }
+    }
+
     public func takeawayItem() -> Item {
         let url = output ?? URL(fileURLWithPath: "/tmp/\(title)")
         return Item(

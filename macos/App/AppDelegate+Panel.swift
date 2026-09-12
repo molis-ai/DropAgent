@@ -229,10 +229,12 @@ extension AppDelegate {
         }
         let hide: () -> Void = { [weak self] in self?.hidePanel() }
         let host = PaperHostView(rootView: PanelRootView(session: session, onClose: hide, onMinimize: hide))
+        host.dropSession = session
         // This panel owns its frame. Hosting constraints can otherwise enlarge
         // the window beyond the screen as the SwiftUI content changes.
         host.sizingOptions = []
         host.frame = NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
+        panel.sharingType = .readWrite
         panel.contentView = host
         Palette.applyPaperChrome(to: panel, host: host)
         hosting = host

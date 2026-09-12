@@ -58,6 +58,7 @@ enum AppE2E {
             window.title = "DropAgent Workbench QA"
             window.hasShadow = true
             let host = PaperHostView(rootView: PanelRootView(session: session, onClose: {}, onMinimize: {}))
+            host.dropSession = session
             host.frame = NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
             window.contentView = host
             Palette.applyPaperChrome(to: window, host: host)
@@ -98,9 +99,11 @@ enum AppE2E {
                 return
             }
             session.systemDragActive = true
+            session.panelDropOffered = true
             await settle()
             snapshot("e2e-drag-empty")
             session.systemDragActive = false
+            session.panelDropOffered = false
             verifyEdgePlacement()
             WheelE2E.run()
             verifyLivePanelChrome()
@@ -306,6 +309,26 @@ enum AppE2E {
             guard session.items.first(where: { $0.id == second.id })?.status == .idle else {
                 fail("cancel confirmation did not refresh immediately")
             }
+            session.shelf.setSelection([first.id, second.id])
+            session.chooseRecipe(.summarize)
+            session.selectResult(r2.id)
+            guard session.shelf.item(id: first.id)?.status == .idle,
+                  session.shelf.item(id: second.id)?.status == .idle else {
+                fail("leaving confirm left orphan drafts")
+            }
+            session.selectMaterial(first.id)
+            session.chooseRecipe(.summarize)
+            session.selectMaterial(second.id)
+            guard session.shelf.item(id: first.id)?.status == .idle,
+                  session.shelf.item(id: second.id)?.status == .idle else {
+                fail("switching materials left a confirm draft")
+            }
+            session.cancelConfirm()
+            session.shelf.setSelection([first.id])
+            guard session.barSlots(organizing: false).contains(.recipe(.brief)) == false else {
+                fail("combine stayed on the bar for one file")
+            }
+            session.selectMaterial(second.id)
             session.otherOpen = true
             session.promptText = "Keep this draft"
             session.presentJobResult(sourceIDs: [first.id])
@@ -519,7 +542,7 @@ enum AppE2E {
                 captureOK: true,
                 hasItems: false
             )
-            guard empty.contains("加入架子") else {
+            guard empty.contains("加入材料") else {
                 fail("empty work hint \(empty)")
             }
             guard empty.contains("发给 Grok") else {
@@ -2020,7 +2043,7 @@ enum AppE2E {
             guard FileKindGlyph.symbol(kind: .clip, tag: "CLIP") == "doc.on.clipboard" else {
                 fail("clip glyph")
             }
-            guard FileKindGlyph.symbol(kind: .folder, tag: "DIR") == "folder.fill" else {
+            guard FileKindGlyph.symbol(kind: .folder, tag: "DIR") == "folder" else {
                 fail("folder glyph")
             }
             guard FileKindGlyph.symbol(kind: .file, tag: "ZIP") == "archivebox" else {
@@ -2153,10 +2176,10 @@ enum AppE2E {
             guard settingsShows("How It Works") else {
                 fail("settings guide title not english \(settingsTree())")
             }
-            guard settingsShows("Drop onto the menu bar icon") else {
+            guard settingsShows("Drop onto the open panel") else {
                 fail("settings guide body not english \(settingsTree())")
             }
-            guard settingsShows("Copying local files adds them to the shelf") else {
+            guard settingsShows("Copying local files also adds them as materials") else {
                 fail("settings english copy-files guide \(settingsTree())")
             }
             guard settingsShows("Actions use job copies"),
@@ -2186,7 +2209,7 @@ enum AppE2E {
             guard settingsShows("轮盘") else {
                 fail("settings guide body not chinese \(settingsTree())")
             }
-            guard settingsShows("复制本地文件会直接加入架子") else {
+            guard settingsShows("复制本地文件会直接加入材料") else {
                 fail("settings chinese copy-files guide \(settingsTree())")
             }
             guard settingsShows("动作使用任务副本"),
@@ -2408,11 +2431,8 @@ enum AppE2E {
             guard clamped.minX >= visible.minX else {
                 fail("clamp left \(clamped.minX)")
             }
-            guard LivePanelChrome.panelWidth == 1040 else {
+            guard LivePanelChrome.panelWidth == 1160 else {
                 fail("panel width \(LivePanelChrome.panelWidth)")
-            }
-            guard LivePanelChrome.dockGap >= 10 else {
-                fail("dock gap \(LivePanelChrome.dockGap)")
             }
             guard LivePanelChrome.scrollGutter >= 12 else {
                 fail("scroll gutter \(LivePanelChrome.scrollGutter)")
@@ -3004,10 +3024,10 @@ enum AppE2E {
             guard session.prefs.showDropWheel else {
                 fail("drop wheel should default on")
             }
-            guard abs(LivePanelChrome.panelWidth - 1040) < 0.5 else {
+            guard abs(LivePanelChrome.panelWidth - 1160) < 0.5 else {
                 fail("full panel width \(LivePanelChrome.panelWidth)")
             }
-            guard settingsShows("shelf-column") else {
+            guard settingsShows("workbench-sidebar") else {
                 fail("shelf missing \(settingsTree())")
             }
             guard settingsShows("pane-menu") == false else {
@@ -3026,8 +3046,8 @@ enum AppE2E {
             )
             session.adoptNewestResult()
             await settle()
-            guard settingsShows("result-stack") else {
-                fail("result strip missing after job \(settingsTree())")
+            guard settingsShows("compare-result") else {
+                fail("result tools missing after job \(settingsTree())")
             }
             guard settingsShows("import-result") else {
                 fail("import action missing \(settingsTree())")

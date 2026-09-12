@@ -6,15 +6,30 @@ import DropAgentShelf
 extension AppSession {
     var selectedClipboard: ClipRecord? { clipRecords.first { clipSelection.contains($0.id) } }
 
+    var shelfQuery: String {
+        spotlight.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func matchesShelfQuery(_ title: String) -> Bool {
+        let query = shelfQuery
+        if query.isEmpty { return true }
+        return title.localizedStandardContains(query)
+    }
+
+    var visibleItems: [Item] { items.filter { matchesShelfQuery($0.title) } }
+    var visibleResults: [ResultRecord] { results.filter { matchesShelfQuery($0.title) } }
+    var visibleClips: [ClipRecord] { clipRecords.filter { matchesShelfQuery($0.title) } }
+
     func selectClipboard(_ id: ClipID, extending: Bool = false) {
         onPanelInteraction?()
-        stopStageEdit()
-        NSApp.keyWindow?.makeFirstResponder(nil)
+        resignStageEditor()
         let wasClipboard = paneFocus == .clipboard
         paneFocus = .clipboard
         comparingResult = false
         if extending && wasClipboard { toggleClipSelect(id: id, command: true) }
         else { clipSelection = [id] }
+        syncConfirmDrafts()
+        refresh()
     }
 
     func admitSelectedClips() {

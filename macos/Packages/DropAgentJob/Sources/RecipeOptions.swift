@@ -125,6 +125,7 @@ extension RecipeCatalog {
         阅读当前工作目录里的材料。只使用相对路径，不要访问目录之外的文件。
         不要修改已有材料文件。
         把完整结果写成文件：\(outputFileName)
+        该文件里必须是交付正文，不要写「已完成」「已写入 \(outputFileName)」这类说明。
         不要只在对话里口头回复；结果区只会收取这一份文件。
         """
     }
@@ -185,12 +186,15 @@ extension RecipeCatalog {
                 return "转成尽量保留原有结构的 Markdown。"
             }
         case .brief:
-            switch choiceID {
-            case "page":
-                return "把这些材料整合成一页 Markdown。"
-            default:
-                return "把这些材料整合成一份完整 Markdown。"
-            }
+            let length = choiceID == "page"
+                ? "大约一页。"
+                : "完整一份，把各份材料里该保留的内容都写进去。"
+            return """
+            用中文把这些材料写成一份合成稿（Markdown）。
+            正文必须来自材料：保留结论、数字、日期、人名、待办和关键原话；重复的合并，说法冲突的并列并标明来源。
+            不要只交代「已整合」或「已生成 \(outputFileName(for: .brief))」。
+            篇幅：\(length)
+            """
         case .shortcut:
             return "按用户给出的说明处理当前工作目录里的材料，写成 Markdown。"
         }

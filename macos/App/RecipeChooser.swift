@@ -118,13 +118,17 @@ struct RecipeChooser: View {
         }
         .scrollDisabled(draggingID != nil)
         .accessibilityIdentifier("acts")
+                Divider()
+                    .overlay(Palette.line)
+                    .frame(height: 18)
+                    .padding(.horizontal, 4)
                 recipeButton(
                     title: Copy.t("对话", "Chat"),
                     symbol: "terminal",
                     tone: .plum,
                     enabled: session.hasAgent,
                     selected: session.otherOpen,
-                    help: Copy.t("展开对话，发给当前终端", "Expand chat and send to the current terminal"),
+                    help: Copy.t("打开终端会话。不会生成新文件。发给终端请用轮盘。", "Open the terminal session. This does not create a new file. Send files from the wheel."),
                     identifier: "recipe-other"
                 ) {
                     session.setActionBarEditing(false)

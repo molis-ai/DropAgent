@@ -22,10 +22,7 @@ extension AppSession {
     func slotFitsSelection(_ slot: ActionSlot) -> Bool {
         switch slot {
         case .recipe(let recipe):
-            if RecipeCatalog.spec(recipe).requiresAgent == false {
-                return recipeFitsSelection(recipe)
-            }
-            return true
+            return recipeFitsSelection(recipe)
         case .shortcut(let id):
             guard let action = shortcut(id: id) else { return false }
             let batch = recipeBatch

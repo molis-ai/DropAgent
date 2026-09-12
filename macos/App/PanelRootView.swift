@@ -4,6 +4,7 @@ struct PanelRootView: View {
     @ObservedObject var session: AppSession
     var onClose: () -> Void
     var onMinimize: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,7 +13,7 @@ struct PanelRootView: View {
                 GeometryReader { _ in
                     HStack(spacing: 0) {
                         WorkbenchSidebar(session: session)
-                            .frame(width: 213)
+                            .frame(width: LivePanelChrome.sidebarWidth)
                         WorkbenchDetail(session: session)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(Palette.panel)
@@ -25,14 +26,25 @@ struct PanelRootView: View {
                 .allowsHitTesting(!coversBody)
                 .accessibilityHidden(coversBody)
                 if session.spotlight.isActive && !coversBody {
-                    Color.clear.contentShape(Rectangle()).onTapGesture { session.spotlight.setText("") }.padding(.leading, 213)
-                    HeaderSearchMenu(session: session).padding(.leading, 213).padding(.top, 6)
+                    Color.clear.contentShape(Rectangle()).onTapGesture { session.spotlight.setText("") }.padding(.leading, LivePanelChrome.sidebarWidth)
+                    HeaderSearchMenu(session: session).padding(.leading, LivePanelChrome.sidebarWidth).padding(.top, 6)
                 }
                 if session.settingsOpen { SettingsPane(session: session) }
                 else if session.showsSetupCard { SetupCard(session: session) }
             }
         }
         .background(Palette.panel2)
+        .overlay {
+            DropZoneOverlay(
+                title: Copy.t("加入材料", "Add to materials"),
+                subtitle: Copy.t("发给终端请拖到轮盘", "Send to the terminal from the wheel"),
+                offered: session.panelDropOffered,
+                hot: session.panelDropOffered,
+                reduceMotion: reduceMotion
+            )
+            .accessibilityIdentifier("panel-drop-zone")
+            .accessibilityHidden(!session.panelDropOffered)
+        }
         .overlay(RoundedRectangle(cornerRadius: LivePanelChrome.cardRadius).strokeBorder(Palette.line))
         .dropAgentPaper()
         .padding(LivePanelChrome.dockShadowPad)

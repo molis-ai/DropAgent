@@ -20,7 +20,7 @@ struct PanelHeader: View {
                 .accessibilityAddTraits(.isHeader)
                 WindowDragHandle().frame(maxWidth: .infinity, maxHeight: .infinity).accessibilityHidden(true)
             }
-            .padding(.leading, 19).frame(width: 213)
+            .padding(.leading, 19).frame(width: LivePanelChrome.sidebarWidth)
             HStack(spacing: 12) {
                 Text(location).foregroundStyle(Palette.muted).fixedSize()
                 Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(Palette.muted)

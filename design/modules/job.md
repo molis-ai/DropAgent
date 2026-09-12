@@ -32,9 +32,9 @@ Application Support/DropAgent/Jobs/<id>/
   events.jsonl
 ```
 
-复制，不用 symlink。Prompt 只含 `work/` 相对路径，并要求把完整结果写成约定文件名，不要只口头回复。
+复制，不用 symlink。Prompt 只含 `work/` 相对路径，并要求把完整结果写成约定文件名；文件里必须是交付正文，不要只口头回复，也不要写「已写入某某文件」。
 
-Agent 退出后 `RecipeOutput.collect` 按这个顺序收取：`output/` 里已有可用正文 → `work/` 里同名新文件 → `work/` 里非材料的新文本 → 看起来像交付的 stdout。进度句（如「工具调用完成」「在写结果」）不当交付。收不到文件则 `JobError.missingOutput`，结果区失败卡不挂空文件。本机 `imageText` / `pdfText` 仍写 `ocr.md` / `pdf.md`，走同一收取。
+Agent 退出后 `RecipeOutput.collect` 按这个顺序收取：`output/` 里已有可用正文 → `work/` 里同名新文件 → `work/` 里非材料的新文本 → 看起来像交付的 stdout。进度句（如「工具调用完成」「在写结果」）和短的完成口播（如「已整合三份材料。」或「已把材料整合成 brief.md」）不当交付。收不到文件则 `JobError.missingOutput`，结果区失败卡不挂空文件。本机 `imageText` / `pdfText` 仍写 `ocr.md` / `pdf.md`，走同一收取。侧栏结果标题对重名编号，磁盘文件名仍是约定产出名。
 
 ## Recipe（第一版六个 CLI 名字 + 本机文字提取）
 

@@ -14,7 +14,7 @@ struct SettingsShortcuts: View {
             .foregroundStyle(Palette.faint)
             SettingsForm.shortcutRow(session: session, slot: .toggle, title: Copy.t("打开 / 收起面板", "Show / Hide Panel"), caption: Copy.t("全局。被占用时点菜单栏图标。", "Global. If already in use, click the menu bar icon."))
             SettingsForm.shortcutRow(session: session, slot: .capture, title: Copy.t("抓取当前页", "Capture Current Page"), caption: Copy.t(
-                "全局。Safari / Chrome / Edge 在最前时，把网址、正文和截图加入架子。",
+            "全局。Safari / Chrome / Edge 在最前时，把网址、正文和截图加入材料。",
                 "Global. With Safari, Chrome, or Edge frontmost, adds the URL, body, and a screenshot."
             ))
             SettingsForm.shortcutRow(session: session, slot: .files, title: Copy.t("加入选中的文件", "Add Selected Files"), caption: Copy.t(

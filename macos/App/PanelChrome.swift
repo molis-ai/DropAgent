@@ -1,4 +1,5 @@
 import AppKit
+import DropAgentPasteboard
 import Foundation
 import SwiftUI
 
@@ -87,26 +88,15 @@ enum LivePanelChrome {
     static let panelWidth: CGFloat = 1160
     static let panelHeight: CGFloat = 568
     static let dockMinHeight: CGFloat = 168
-    static let dockGap: CGFloat = 10
     static let dockShadowPad: CGFloat = 36
     static let paperShadowRadius: CGFloat = 16
     static let paperShadowY: CGFloat = 8
     static let cardRadius: CGFloat = 12
-    static let fileCardWidth: CGFloat = 168
-    static let fileCardHeight: CGFloat = 80
-    static let previewStageHeight: CGFloat = 280
-    static let floatMaxHeight: CGFloat = 360
+    static let sidebarWidth: CGFloat = 213
     static let floatExpandDuration: TimeInterval = 0.28
     static let scrollGutter: CGFloat = 12
     static let columnHeadHeight: CGFloat = 32
     static let shelfOnlyMin: CGFloat = 260
-}
-
-struct DockHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = LivePanelChrome.dockMinHeight
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
 }
 
 enum FirstOpen {
@@ -134,7 +124,10 @@ private final class HitThroughIDView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
+@MainActor
 final class PaperHostView<Content: View>: NSHostingView<Content> {
+    var dropSession: AppSession?
+
     override var isOpaque: Bool { false }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -145,6 +138,42 @@ final class PaperHostView<Content: View>: NSHostingView<Content> {
         wantsLayer = true
         layer?.isOpaque = false
         layer?.backgroundColor = NSColor.clear.cgColor
+        registerForDraggedTypes(IncomingDrop.draggedTypes)
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        panelDragOperation(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        panelDragOperation(sender)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        dropSession?.panelDropOffered = false
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        dropSession?.panelDropOffered = false
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        panelDragOperation(sender) == .copy
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        dropSession?.admitPasteboard(sender.draggingPasteboard) ?? false
+    }
+
+    private func panelDragOperation(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard let session = dropSession else { return [] }
+        if session.isShelfDrag || PasteboardService.isShelfDrag(sender.draggingPasteboard) {
+            session.panelDropOffered = false
+            return []
+        }
+        session.beginExternalDrag()
+        session.panelDropOffered = true
+        return .copy
     }
 }
 

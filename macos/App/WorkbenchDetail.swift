@@ -1,6 +1,4 @@
 import AppKit
-import DropAgentPasteboard
-import DropAgentIngest
 import DropAgentShelf
 import SwiftUI
 
@@ -33,7 +31,7 @@ struct WorkbenchDetail: View {
                     .layoutPriority(1)
                 if session.otherOpen || session.canOpenTerminalTab {
                     AIPane(session: session)
-                        .frame(height: session.showsFloat ? min(280, geometry.size.height * 0.48) : 0)
+                        .frame(height: session.showsFloat ? chatHeight(in: geometry.size.height) : 0)
                         .clipped().opacity(session.showsFloat ? 1 : 0)
                         .allowsHitTesting(session.showsFloat).accessibilityHidden(!session.showsFloat)
                         .background(AccessibleID(identifier: "ai-pane").frame(width: 0, height: 0))
@@ -61,6 +59,10 @@ struct WorkbenchDetail: View {
     private var showsTaskDrawer: Bool {
         session.shortcutDraft != nil || session.isCapturing || session.errorText != nil
             || session.paneFocus == .input && session.selectedItems.contains { $0.status == .confirm || $0.status == .running || $0.status == .failed }
+    }
+
+    private func chatHeight(in total: CGFloat) -> CGFloat {
+        showsTaskDrawer ? min(160, total * 0.28) : min(280, total * 0.48)
     }
 
     @ViewBuilder private var preview: some View {
@@ -118,7 +120,9 @@ struct WorkbenchDetail: View {
         HStack(spacing: 6) {
             Button { session.toggleComparison() } label: {
                 Label(Copy.t("对照原文", "Compare source"), systemImage: "rectangle.split.2x1")
-            }.buttonStyle(QuietButtonStyle(selected: session.comparingResult, subtle: true)).accessibilityIdentifier("compare-result")
+            }.buttonStyle(QuietButtonStyle(selected: session.comparingResult))
+            .accessibilityIdentifier("compare-result")
+            .background(AccessibleID(identifier: "compare-result").frame(width: 0, height: 0))
             Spacer(minLength: 0)
             Button { session.copySelected() } label: { Label(session.copiedID?.rawValue == result.id.rawValue ? Copy.t("已复制", "Copied") : Copy.t("复制文件", "Copy file"), systemImage: "doc.on.doc") }
                 .accessibilityIdentifier("take-copy")
@@ -126,7 +130,7 @@ struct WorkbenchDetail: View {
                 .accessibilityIdentifier("import-result")
                 .background(AccessibleID(identifier: "import-result").frame(width: 0, height: 0))
         }
-        .buttonStyle(QuietButtonStyle(subtle: true)).disabled(result.output == nil)
+        .buttonStyle(QuietButtonStyle()).disabled(result.output == nil)
         .padding(.horizontal, 10).frame(height: 42)
     }
 }
@@ -147,7 +151,7 @@ struct ClipboardStage: View {
                     Button(session.clipSelection.count > 1 ? Copy.t("加入 \(session.clipSelection.count) 条材料", "Add \(session.clipSelection.count) clips") : Copy.t("加入材料", "Add to materials")) { session.admitSelectedClips() }
                         .disabled(session.clipRecords.filter { session.clipSelection.contains($0.id) }.allSatisfy { session.clipboardPayload(for: $0) == nil })
                         .accessibilityIdentifier("clip-admit")
-                }.buttonStyle(QuietButtonStyle(subtle: true)).font(.system(size: 12)).padding(.horizontal, 14).frame(height: 44)
+                }.buttonStyle(QuietButtonStyle()).font(.system(size: 12)).padding(.horizontal, 14).frame(height: 44)
                 Divider().overlay(Palette.line)
                 if session.clipboardPayload(for: record) == nil {
                     Text(Copy.t("文件或图片已丢失，可以删除这条记录后重新复制。", "The file or image is missing. Delete this clip and copy it again."))

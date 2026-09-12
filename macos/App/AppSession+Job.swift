@@ -44,13 +44,22 @@ extension AppSession {
 
     func cancelConfirm() {
         onPanelInteraction?()
-        for item in selectedItems where item.status == .confirm {
+        clearConfirmDrafts()
+        refresh()
+    }
+
+    func clearConfirmDrafts(keeping: Set<ItemID> = []) {
+        for item in shelf.items() where item.status == .confirm && keeping.contains(item.id) == false {
             try? shelf.patch(id: item.id) { live in
                 live.status = .idle
                 live.recipe = nil
             }
         }
-        refresh()
+    }
+
+    func syncConfirmDrafts() {
+        let keep: Set<ItemID> = paneFocus == .input ? Set(selectedItems.map(\.id)) : []
+        clearConfirmDrafts(keeping: keep)
     }
 
     func confirmRun() async {

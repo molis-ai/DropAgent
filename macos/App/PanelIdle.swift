@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 enum PanelIdle {
     static let delay: TimeInterval = 0.7
-    static let alpha: CGFloat = 0.4
+    static let alpha: CGFloat = 0.72
     static let halo: CGFloat = 12
     static let approachHalo: CGFloat = 64
     static let fadeDuration: TimeInterval = 0.2

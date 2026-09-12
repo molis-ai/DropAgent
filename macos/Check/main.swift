@@ -2165,6 +2165,69 @@ private func job() async throws {
     expect(RecipeOutput.looksLikeDeliverable("这是总结"), "stdout summary is a deliverable")
     expect(RecipeOutput.looksLikeDeliverable("工具调用完成") == false, "progress is not a deliverable")
     expect(RecipeOutput.looksLikeDeliverable("在写结果") == false, "codex progress is not a deliverable")
+    expect(
+        RecipeOutput.looksLikeDeliverable("已把三份材料整合成 brief.md。") == false,
+        "completion report is not a deliverable"
+    )
+    expect(
+        RecipeOutput.looksLikeDeliverable("I've written the result to brief.md") == false,
+        "english completion report is not a deliverable"
+    )
+    expect(
+        RecipeOutput.looksLikeDeliverable("已整合三份材料。") == false,
+        "completion report without a filename is not a deliverable"
+    )
+    expectEqual(ResultRecord.uniqueTitle("brief.md", among: []), "brief.md")
+    expectEqual(ResultRecord.uniqueTitle("brief.md", among: ["brief.md"]), "brief 2.md")
+    expectEqual(ResultRecord.uniqueTitle("brief.md", among: ["brief.md", "brief 2.md"]), "brief 3.md")
+
+    let reportRoot = try tempDir()
+    let reportInput = reportRoot.appendingPathComponent("input", isDirectory: true)
+    let reportWork = reportRoot.appendingPathComponent("work", isDirectory: true)
+    let reportOutDir = reportRoot.appendingPathComponent("output", isDirectory: true)
+    try FileManager.default.createDirectory(at: reportInput, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: reportWork, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: reportOutDir, withIntermediateDirectories: true)
+    try Data("notes".utf8).write(to: reportInput.appendingPathComponent("a.md"))
+    try Data("notes".utf8).write(to: reportWork.appendingPathComponent("a.md"))
+    let reportOutput = reportOutDir.appendingPathComponent("brief.md")
+    let reportTalk = "已把三份材料整合成 brief.md。"
+    let reportBody = "# 合成稿\n调价从下周一开始。\n"
+    try Data(reportTalk.utf8).write(to: reportOutput)
+    try Data(reportBody.utf8).write(to: reportWork.appendingPathComponent("brief.md"))
+    try RecipeOutput.collect(
+        into: reportOutput,
+        work: reportWork,
+        lastMessage: reportTalk,
+        inputNames: ["a.md"],
+        input: reportInput
+    )
+    expectEqual(try String(contentsOf: reportOutput, encoding: .utf8), reportBody)
+
+    let talkOnly = try tempDir()
+    let talkInput = talkOnly.appendingPathComponent("input", isDirectory: true)
+    let talkWork = talkOnly.appendingPathComponent("work", isDirectory: true)
+    let talkOutDir = talkOnly.appendingPathComponent("output", isDirectory: true)
+    try FileManager.default.createDirectory(at: talkInput, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: talkWork, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: talkOutDir, withIntermediateDirectories: true)
+    try Data("notes".utf8).write(to: talkInput.appendingPathComponent("a.md"))
+    try Data("notes".utf8).write(to: talkWork.appendingPathComponent("a.md"))
+    let talkOutput = talkOutDir.appendingPathComponent("brief.md")
+    try Data(reportTalk.utf8).write(to: talkOutput)
+    do {
+        try RecipeOutput.collect(
+            into: talkOutput,
+            work: talkWork,
+            lastMessage: reportTalk,
+            inputNames: ["a.md"],
+            input: talkInput
+        )
+        fail("completion-only output must fail")
+    } catch let error as JobError {
+        expectEqual(error, .missingOutput)
+    }
+    expect(FileManager.default.fileExists(atPath: talkOutput.path) == false, "completion report is not kept as output")
 
     let harvestEnv = try setup()
     let harvestAgent = FakeAgent(presence: .codex(path: URL(fileURLWithPath: "/usr/bin/true"), isolation: .workspace))
@@ -2225,6 +2288,13 @@ private func job() async throws {
     expect(!translateEN.contains("翻译成中文"), "translate en not 中文 target")
     let outline = RecipeCatalog.prompt(for: .summarize, choiceID: "outline")
     expect(outline.contains("提纲"), "summarize outline")
+    let briefFull = RecipeCatalog.prompt(for: .brief)
+    expect(briefFull.contains("brief.md"), "brief names output")
+    expect(briefFull.contains("合成稿"), "brief asks for a draft")
+    expect(briefFull.contains("已生成 brief.md"), "brief forbids completion report")
+    expect(briefFull.contains("完整一份"), "brief default length")
+    let briefPage = RecipeCatalog.prompt(for: .brief, choiceID: "page")
+    expect(briefPage.contains("一页"), "brief page length")
     expectEqual(RecipeCatalog.resolvedChoiceID(.translate, optionID: "nope"), "zh")
 
     let optEnv = try setup()
@@ -2403,6 +2473,8 @@ private func job() async throws {
     expectEqual(briefAgent.lastRequest?.network, false)
     expect(briefAgent.lastPrompt.contains("a.md"), "brief lists first")
     expect(briefAgent.lastPrompt.contains("b.md"), "brief lists second")
+    expect(briefAgent.lastPrompt.contains("合成稿"), "brief job prompt is a draft")
+    expect(briefAgent.lastPrompt.contains("已生成 brief.md"), "brief job prompt forbids a completion report")
     expectEqual(try Data(contentsOf: originalA), Data("alpha-source".utf8))
     expectEqual(try Data(contentsOf: originalB), Data("beta-source".utf8))
     expectEqual(briefShelf.item(id: itemA.id)?.status, .idle)

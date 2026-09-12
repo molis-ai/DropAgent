@@ -37,7 +37,6 @@ final class AppSession: ObservableObject {
     let spotlight = SpotlightSearch()
     let jobRunner: (any AgentRunning)?
     var applyChrome: (() -> Void)?
-    var applyLayout: (() -> Void)?
     var onPanelInteraction: (() -> Void)?
     var onFinishExternalDrag: (() -> Void)?
     var onApplyHotKeys: (() -> Void)?
@@ -68,7 +67,6 @@ final class AppSession: ObservableObject {
     @Published var recipePresence: AgentPresence = .none
     @Published var installedEngines: [AgentPresence] = []
     @Published var aiTab: AITab = .work
-    @Published var dockHeight: CGFloat = LivePanelChrome.dockMinHeight
     @Published var otherOpen = false
     @Published var actionBarEditing = false
     @Published var draggingActionID: String?
@@ -105,6 +103,9 @@ final class AppSession: ObservableObject {
     var lastFrontPID: pid_t = 0
     var hasFrozenFront = false
     @Published var systemDragActive = false
+    @Published var panelDropOffered = false
+    private var externalDropTaken = false
+    private var externalDropChangeCount = Int.min
     var shelfDragIDs: [ItemID] = []
     @Published var hotKeyToggleOK = true
     @Published var hotKeyCaptureOK = true
@@ -236,8 +237,39 @@ final class AppSession: ObservableObject {
         refreshPresence()
     }
 
+    func beginExternalDrag() {
+        let count = NSPasteboard(name: .drag).changeCount
+        if externalDropChangeCount == count {
+            systemDragActive = true
+            return
+        }
+        systemDragActive = true
+        externalDropChangeCount = count
+        externalDropTaken = false
+    }
+
+    func consumeExternalDrop() -> Bool {
+        if externalDropTaken { return false }
+        externalDropTaken = true
+        return true
+    }
+
+    func finishIfAlreadyAdmitted() -> Bool {
+        guard externalDropTaken else { return false }
+        finishExternalDrag()
+        return true
+    }
+
+    var isExternalPanelDrop: Bool {
+        isShelfDrag == false
+            && clipDragging == false
+            && draggingActionID == nil
+            && PasteboardService.isShelfDrag() == false
+    }
+
     func finishExternalDrag() {
         systemDragActive = false
+        panelDropOffered = false
         onFinishExternalDrag?()
     }
 
@@ -256,10 +288,6 @@ final class AppSession: ObservableObject {
     var showsFloat: Bool {
         if settingsOpen || showsSetupCard { return false }
         return otherOpen
-    }
-
-    var showsResultStrip: Bool {
-        results.isEmpty == false && settingsOpen == false && showsSetupCard == false
     }
 
     var showsActionBar: Bool {
@@ -306,13 +334,10 @@ final class AppSession: ObservableObject {
         if stageEditing { stageEditing = false }
     }
 
-    func setDockHeight(_ height: CGFloat) {
-        if settingsOpen || showsSetupCard { return }
-        let rounded = height.rounded()
-        guard rounded >= LivePanelChrome.dockMinHeight else { return }
-        guard abs(dockHeight - rounded) > 1 else { return }
-        dockHeight = rounded
-        applyLayout?()
+    func resignStageEditor() {
+        stopStageEdit()
+        guard let window = NSApp.keyWindow, window.firstResponder is StageTextView else { return }
+        window.makeFirstResponder(nil)
     }
 
     func setMultiSelect(_ on: Bool) {

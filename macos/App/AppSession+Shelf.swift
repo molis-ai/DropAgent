@@ -9,7 +9,7 @@ extension AppSession {
 
     func openTab(_ tab: AITab) {
         onPanelInteraction?()
-        NSApp.keyWindow?.makeFirstResponder(nil)
+        resignStageEditor()
         if tab == .work { paneFocus = .input }
         if tab == .result, currentResult() == nil, let first = results.first {
             selectResult(first.id)
@@ -30,8 +30,7 @@ extension AppSession {
 
     func selectMaterial(_ id: ItemID, extending: Bool = false) {
         onPanelInteraction?()
-        stopStageEdit()
-        NSApp.keyWindow?.makeFirstResponder(nil)
+        resignStageEditor()
         let wasInput = paneFocus == .input
         paneFocus = .input
         comparingResult = false
@@ -39,6 +38,7 @@ extension AppSession {
         if extending && wasInput { shelf.toggleSelect(id: id, command: true) }
         else { shelf.setSelection([id]) }
         aiTab = .work
+        syncConfirmDrafts()
         refresh()
     }
 
@@ -46,11 +46,12 @@ extension AppSession {
         comparingResult = false
         folderPreviewURL = nil
         onPanelInteraction?()
-        stopStageEdit()
-        NSApp.keyWindow?.makeFirstResponder(nil)
+        resignStageEditor()
         if command {
             paneFocus = .input
             shelf.toggleSelect(id: id, command: true)
+            syncConfirmDrafts()
+            refresh()
             return
         }
         if paneFocus != .input {
@@ -59,7 +60,11 @@ extension AppSession {
         } else {
             paneFocus = .input
             shelf.toggleSelect(id: id, command: false)
-            if selectedItems.isEmpty { return }
+            if selectedItems.isEmpty {
+                syncConfirmDrafts()
+                refresh()
+                return
+            }
         }
         if let item = shelf.item(id: id) {
             if item.status == .done || item.status == .failed { aiTab = .work }
@@ -68,31 +73,37 @@ extension AppSession {
                 if canOpenTerminalTab { otherOpen = true }
             } else { aiTab = .work }
         }
+        syncConfirmDrafts()
+        refresh()
     }
 
     func selectResult(_ id: ResultID) {
         onPanelInteraction?()
-        stopStageEdit()
-        NSApp.keyWindow?.makeFirstResponder(nil)
+        resignStageEditor()
         if selectedResultID != id { comparisonSourceID = nil }
         selectedResultID = id
         paneFocus = .result
         aiTab = .work
+        syncConfirmDrafts()
+        refresh()
     }
 
     func toggleResult(_ id: ResultID) {
         onPanelInteraction?()
-        stopStageEdit()
-        NSApp.keyWindow?.makeFirstResponder(nil)
+        resignStageEditor()
         if paneFocus == .result, selectedResultID == id {
             selectedResultID = nil
             paneFocus = .input
+            syncConfirmDrafts()
+            refresh()
             return
         }
         if selectedResultID != id { comparisonSourceID = nil }
         selectedResultID = id
         paneFocus = .result
         aiTab = .work
+        syncConfirmDrafts()
+        refresh()
     }
 
     func openItem(_ item: Item) {

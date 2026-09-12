@@ -135,7 +135,7 @@ enum SetupCopy {
 
     static var finderNeed: String {
         Copy.t(
-            "把 Finder 里选中的文件加入架子，需要允许控制 Finder。",
+            "把 Finder 里选中的文件加入材料，需要允许控制 Finder。",
             "Adding Finder selection needs control of Finder."
         )
     }

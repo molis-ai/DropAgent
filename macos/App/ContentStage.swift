@@ -29,22 +29,18 @@ struct ContentStage: View {
                 Text("\(readOnly ? Copy.t("原文", "Source") : session.paneFocus == .result ? Copy.t("结果", "Result") : Copy.t("材料", "Material")) · \(item.displayTag)")
                     .font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
                 if editURL != nil {
-                    Button {
+                    Button(session.stageEditing ? Copy.t("完成编辑", "Done editing") : Copy.t("编辑副本", "Edit copy")) {
                         if session.stageEditing { session.stopStageEdit() } else { session.beginStageEdit() }
-                    } label: {
-                        Image(systemName: session.stageEditing ? "checkmark" : "square.and.pencil")
                     }
-                    .buttonStyle(IconButtonStyle(size: 24))
+                    .buttonStyle(QuietButtonStyle())
                     .disabled(item.status == .confirm || item.status == .running)
-                    .help(session.stageEditing ? Copy.t("完成编辑", "Done editing") : Copy.t("编辑副本", "Edit copy"))
-                    .accessibilityLabel(session.stageEditing ? Copy.t("完成编辑", "Done editing") : Copy.t("编辑副本", "Edit copy"))
                     .accessibilityIdentifier("stage-edit")
                 }
             }
             .font(.system(size: 12))
             .foregroundStyle(Palette.text)
             .padding(.horizontal, 20)
-            .frame(height: 41)
+            .frame(height: 44)
             Divider().overlay(Palette.line)
             if item.kind == .folder {
                 FolderFileStage(root: folderRoot, selected: readOnly ? nil : session.folderPreviewURL)

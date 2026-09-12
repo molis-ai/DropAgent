@@ -179,7 +179,7 @@ public struct JobService: Sendable {
                 ResultRecord(
                     sourceItemIDs: items.map(\.id),
                     recipe: displayTitle,
-                    title: outputName,
+                    title: ResultRecord.uniqueTitle(outputName, among: shelf.results().map(\.title)),
                     kind: spec.outputKind,
                     output: outputFile,
                     isolationShown: shown,
@@ -198,7 +198,7 @@ public struct JobService: Sendable {
                 ResultRecord(
                     sourceItemIDs: items.map(\.id),
                     recipe: displayTitle,
-                    title: outputName,
+                    title: ResultRecord.uniqueTitle(outputName, among: shelf.results().map(\.title)),
                     kind: spec.outputKind,
                     output: existing,
                     isolationShown: shown,

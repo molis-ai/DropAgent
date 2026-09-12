@@ -2,8 +2,6 @@ import SwiftUI
 
 struct AIPane: View {
     @ObservedObject var session: AppSession
-    @State private var aiHot = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,20 +41,7 @@ struct AIPane: View {
             }
         }
         .background(Palette.panel)
-        .overlay {
-            DropZoneOverlay(
-                title: session.hasAgent
-                    ? Copy.t("发给 \(session.tuiTitle)", "Send to \(session.tuiTitle)")
-                    : Copy.t("加入架子", "Add to shelf"),
-                offered: session.systemDragActive,
-                hot: aiHot,
-                reduceMotion: reduceMotion
-            )
-        }
         .accessibilityElement(children: .contain)
-        .onDrop(of: IncomingDrop.contentTypes, delegate: AdmitDropDelegate(targeted: $aiHot) { providers in
-            session.admitToTUI(providers: providers)
-        })
     }
 
     private var showsLog: Bool {

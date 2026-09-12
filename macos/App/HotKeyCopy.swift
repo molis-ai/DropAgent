@@ -96,13 +96,13 @@ enum HotKeyCopy {
         if hasAgent && hasRecipe {
             if hasItems {
                 return Copy.t(
-                    "点列表里的文件，或拖到左侧加入、拖到这一区发给 \(tuiTitle)。",
-                    "Click a file in the list, drop left to stage, or drop here to send to \(tuiTitle)."
+                    "点列表里的文件，或把文件拖进面板加入材料。发给 \(tuiTitle) 请用轮盘。",
+                    "Click a file in the list, or drop files onto the panel to add them. Use the wheel to send to \(tuiTitle)."
                 )
             }
             return Copy.t(
-                "拖到左侧加入架子，或拖到这一区发给 \(tuiTitle)。",
-                "Drop left to stage, or drop here to send to \(tuiTitle)."
+                "把文件拖进面板加入材料。发给 \(tuiTitle) 请用轮盘。",
+                "Drop files onto the panel to add them. Use the wheel to send to \(tuiTitle)."
             )
         }
         if hasAgent {

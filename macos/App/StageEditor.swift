@@ -128,7 +128,7 @@ struct StageEditor: NSViewRepresentable {
     }
 }
 
-private final class StageTextView: NSTextView {
+final class StageTextView: NSTextView {
     var onCancel: (() -> Void)?
     var focusRequested = false {
         didSet { if focusRequested { requestFocus() } }

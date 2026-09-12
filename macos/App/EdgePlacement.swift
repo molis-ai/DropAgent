@@ -26,8 +26,10 @@ enum EdgePlacement {
     static let petalGap: CGFloat = 8
     static let tabSafe: CGFloat = 80
     static let revealDelay: TimeInterval = 0.18
+    static let concealDuration: TimeInterval = 0.12
+    static let bounceDuration: TimeInterval = 0.22
     static let windowPadding: CGFloat = 44
-    static let bounceScale: CGFloat = 1.12
+    static let bounceScale: CGFloat = 1.06
 
     static var windowSize: CGFloat { outerRadius * 2 + windowPadding * 2 }
     static var midRadius: CGFloat { (innerRadius + outerRadius) / 2 }

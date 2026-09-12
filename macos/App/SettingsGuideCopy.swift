@@ -4,24 +4,24 @@ enum SettingsGuideCopy {
     static var dropInTitle: String { Copy.t("添加材料", "Add files") }
     static var dropIn: String {
         Copy.t(
-            "拖到菜单栏图标、材料区或轮盘的「加入架子」，即可添加副本。轮盘还可选择总结、提取信息、翻译和转为 Markdown。拖到「对话」浮窗或轮盘的「发给终端」，会发送给当前 Agent。",
-            "Drop onto the menu bar icon, Materials, or the wheel’s Add to shelf option to add a copy. The wheel also offers summaries, data extraction, translation, and Markdown conversion. Drop onto Chat or Send to terminal to send to the current agent."
+            "拖到打开的面板任意处、菜单栏图标或轮盘的「加入材料」，即可添加副本。轮盘还可选择总结、提取信息、翻译和转为 Markdown。发给当前 Agent 请用轮盘的「发给终端」。",
+            "Drop onto the open panel, the menu bar icon, or the wheel’s Add files option to add a copy. The wheel also offers summaries, data extraction, translation, and Markdown conversion. To send to the current agent, use the wheel’s Send to terminal option."
         )
     }
 
     static var filesTitle: String { Copy.t("从其他应用添加", "Add from another app") }
     static var files: String {
         Copy.t(
-            "「加入选中的文件」可读取 Finder 或桌面的选中项，支持多选。在 VS Code 等编辑器中，会尝试获取选中文件或当前本地文件，并还原剪贴板。在别处复制本地文件也会直接加入架子。浏览器页面请用「抓取当前页」。",
-            "Add Selected Files imports the selection from Finder or Desktop, including multiple files. In editors such as VS Code, it tries the selected files or current local file and restores the clipboard. Copying local files also adds them to the shelf. For browser pages, use Capture Current Page."
+            "「加入选中的文件」可读取 Finder 或桌面的选中项，支持多选。在 VS Code 等编辑器中，会尝试获取选中文件或当前本地文件，并还原剪贴板。在别处复制本地文件也会直接加入材料。浏览器页面请用「抓取当前页」。",
+            "Add Selected Files imports the selection from Finder or Desktop, including multiple files. In editors such as VS Code, it tries the selected files or current local file and restores the clipboard. Copying local files also adds them as materials. For browser pages, use Capture Current Page."
         )
     }
 
     static var acceptsTitle: String { Copy.t("支持的内容", "Supported content") }
     static var accepts: String {
         Copy.t(
-            "支持文件、文件夹、PDF、图片、文本、Markdown 和链接。点击「添加文件」或搜索本机文件。复制本地文件会直接加入架子。剪贴板按钮可查看最近十条文字或图片；⌘V 直接粘贴当前内容。",
-            "Files, folders, PDFs, images, text, Markdown, and links are supported. Choose Add files or search your Mac. Copying local files adds them to the shelf. The clipboard button shows the ten most recent text or image entries; ⌘V pastes the current content."
+            "支持文件、文件夹、PDF、图片、文本、Markdown 和链接。点击「添加文件」或搜索框。复制本地文件会直接加入材料。剪贴板点选只预览；加入材料是明确操作。⌘V 粘贴当前剪贴板，不是选中的历史。",
+            "Files, folders, PDFs, images, text, Markdown, and links are supported. Choose Add files or use search. Copying local files adds them as materials. Clicking clipboard history only previews; Add to materials is explicit. ⌘V pastes the current clipboard, not the selected history row."
         )
     }
 

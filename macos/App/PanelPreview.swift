@@ -37,6 +37,7 @@ enum PanelPreview {
             )
             window.hasShadow = true
             let host = PaperHostView(rootView: PanelRootView(session: session, onClose: {}, onMinimize: {}))
+            host.dropSession = session
             host.frame = NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
             window.contentView = host
             Palette.applyPaperChrome(to: window, host: host)
@@ -96,9 +97,11 @@ enum PanelPreview {
             await settle()
             snapshot(host, name: "01-empty")
             session.systemDragActive = true
+            session.panelDropOffered = true
             await settle()
             snapshot(host, name: "01-drag")
             session.systemDragActive = false
+            session.panelDropOffered = false
 
             let hadAgent = session.hasAgent
             session.presence = .none
@@ -118,9 +121,11 @@ enum PanelPreview {
             session.setAppearance(.light)
             await settle()
             session.systemDragActive = true
+            session.panelDropOffered = true
             await settle()
             snapshot(host, name: "03-drag")
             session.systemDragActive = false
+            session.panelDropOffered = false
             session.aiTab = .result
             await settle()
             snapshot(host, name: "03d-pdf-result")

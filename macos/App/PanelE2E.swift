@@ -10,7 +10,6 @@ enum PanelE2E {
         let delegate = AppDelegate()
         delegate.setupStatusItem()
         delegate.setupPanel()
-        delegate.session.applyLayout = { [weak delegate] in delegate?.positionPanel() }
         defer {
             delegate.panel?.orderOut(nil)
             if let item = delegate.statusItem { NSStatusBar.system.removeStatusItem(item) }

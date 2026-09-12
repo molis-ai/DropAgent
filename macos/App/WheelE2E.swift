@@ -1,5 +1,6 @@
 import AppKit
 import DropAgentShelf
+import SwiftUI
 
 /// Drives the production drag controller and AppKit destination with explicit event coordinates.
 /// It does not synthesize OS mouse input or stand in for a Finder gesture test.
@@ -95,9 +96,11 @@ enum WheelE2E {
         let inside = NSPoint(x: center.x, y: panelFrame.minY + 20)
         edge.handleDrag(type: .leftMouseDragged, at: inside, now: startTime.addingTimeInterval(3.6))
         check(!window.isVisible, "wheel did not yield inside the panel")
+        check(session.panelDropOffered, "panel drop offer missing over the panel")
         let count = session.items.count
         edge.handleDrag(type: .leftMouseUp, at: inside)
-        check(session.items.count == count, "wheel stole the panel drop")
+        check(session.items.count == count + 1, "panel release did not admit")
+        check(session.panelDropOffered == false, "panel drop offer stayed after release")
 
         // Finder trace: the panel starts 49pt above the wheel center, before the
         // shelf petal. The visible wheel must own that route and the release.
@@ -138,7 +141,74 @@ enum WheelE2E {
         check(!window.isVisible, "wheel appeared over a drag that started in the panel")
         let beforeDirectPanel = session.items.count
         edge.handleDrag(type: .leftMouseUp, at: top)
-        check(session.items.count == beforeDirectPanel, "wheel stole a direct panel drop")
+        check(session.items.count == beforeDirectPanel + 1, "direct panel drop did not admit")
+
+        let left = NSPoint(x: panelFrame.minX + 12, y: panelFrame.minY + 24)
+        let leftSource = DropAgentPaths.root.appendingPathComponent("panel-left-drop.txt")
+        let leftBody = "Finder drop on the left of the panel\n"
+        try? Data(leftBody.utf8).write(to: leftSource)
+        defer {
+            for item in session.items where item.title == leftSource.lastPathComponent { session.remove(id: item.id) }
+        }
+        board.clearContents()
+        board.writeObjects([leftSource as NSURL])
+        edge.handleDrag(type: .leftMouseDragged, at: left, now: startTime.addingTimeInterval(5.1))
+        edge.handleDrag(type: .leftMouseDragged, at: left, now: startTime.addingTimeInterval(5.4))
+        check(session.panelDropOffered, "left panel drop offer missing")
+        let beforeLeft = session.items.count
+        edge.handleDrag(type: .leftMouseUp, at: left)
+        check(session.items.count == beforeLeft + 1, "left panel release did not admit")
+        check(session.items.filter { $0.title == leftSource.lastPathComponent }.count == 1, "left panel drop admitted more than once")
+
+        let bounceSource = DropAgentPaths.root.appendingPathComponent("panel-bounce-drop.txt")
+        let bounceBody = "mouse-up before destination callback\n"
+        try? Data(bounceBody.utf8).write(to: bounceSource)
+        defer {
+            for item in session.items where item.title == bounceSource.lastPathComponent { session.remove(id: item.id) }
+        }
+        board.clearContents()
+        board.writeObjects([bounceSource as NSURL])
+        edge.handleDrag(type: .leftMouseDragged, at: left, now: startTime.addingTimeInterval(5.42))
+        edge.handleDrag(type: .leftMouseDragged, at: left, now: startTime.addingTimeInterval(5.45))
+        let bounceHost = PaperHostView(rootView: Color.clear.frame(width: 40, height: 40))
+        bounceHost.dropSession = session
+        let bounceInfo = WheelDragInfo(window: window, pasteboard: board, screenPoint: left, sequence: 5)
+        check(bounceHost.draggingEntered(bounceInfo) == .copy, "bounce host refused Finder drag")
+        let beforeBounce = session.items.count
+        edge.handleDrag(type: .leftMouseUp, at: left)
+        check(session.items.count == beforeBounce + 1, "mouse-up before destination did not admit")
+        check(bounceHost.performDragOperation(bounceInfo), "already-admitted drop reported failure")
+        check(session.items.count == beforeBounce + 1, "already-admitted drop duplicated")
+        bounceHost.draggingEnded(bounceInfo)
+
+        let hostSource = DropAgentPaths.root.appendingPathComponent("panel-host-drop.txt")
+        let hostBody = "AppKit destination then mouse-up\n"
+        try? Data(hostBody.utf8).write(to: hostSource)
+        defer {
+            for item in session.items where item.title == hostSource.lastPathComponent { session.remove(id: item.id) }
+        }
+        board.clearContents()
+        board.writeObjects([hostSource as NSURL])
+        edge.handleDrag(type: .leftMouseDragged, at: left, now: startTime.addingTimeInterval(5.5))
+        edge.handleDrag(type: .leftMouseDragged, at: left, now: startTime.addingTimeInterval(5.8))
+        let host = PaperHostView(rootView: Color.clear.frame(width: 40, height: 40))
+        host.dropSession = session
+        let hostInfo = WheelDragInfo(window: window, pasteboard: board, screenPoint: left, sequence: 4)
+        check(host.draggingEntered(hostInfo) == .copy, "panel host refused Finder drag")
+        check(host.performDragOperation(hostInfo), "panel host did not admit")
+        let afterHost = session.items.count
+        edge.handleDrag(type: .leftMouseUp, at: left)
+        host.draggingEnded(hostInfo)
+        check(session.items.count == afterHost, "panel host plus mouse-up admitted twice")
+        check(session.items.filter { $0.title == hostSource.lastPathComponent }.count == 1, "panel host drop duplicated")
+
+        if let first = session.items.first {
+            session.beginShelfDrag(ids: [first.id])
+            edge.handleDrag(type: .leftMouseDragged, at: inside, now: startTime.addingTimeInterval(6.1))
+            check(session.panelDropOffered == false, "shelf drag offered panel drop")
+            edge.handleDrag(type: .leftMouseUp, at: inside)
+            session.endShelfDrag()
+        }
 
         panelVisible = false
         let countAfterOverlap = session.items.count
@@ -162,7 +232,7 @@ enum WheelE2E {
         edge.handleDrag(type: .leftMouseDragged, at: center, now: startTime.addingTimeInterval(8.3))
         check(!window.isVisible && !session.systemDragActive, "empty drag reused old cargo")
         if !failures.isEmpty { fail(failures) }
-        fputs("e2e: wheel ok — consecutive drops, temporary empty board, AppKit acceptance, persisted copies, overlapping panel route/release, direct panel drop, cancellation\n", stdout)
+        fputs("e2e: wheel ok — consecutive drops, temporary empty board, AppKit acceptance, persisted copies, overlapping panel route/release, direct panel drop, left panel drop, cancellation\n", stdout)
     }
 
     private static func fail(_ failures: [String]) -> Never {

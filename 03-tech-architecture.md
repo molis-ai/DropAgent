@@ -82,7 +82,7 @@ B. 副本 Recipe
      → 面板切到「结果」
 
 C. 发给 TUI
-   发送 / 拖到 AI 区
+   发送 / 轮盘「发给」
      → TUI.send(itemIDs, text)
      → Agent.ensureSession()（没有就拉起）
      → 把副本路径和文本打进会话
@@ -97,7 +97,7 @@ D. 拿走
 
 禁止：
 
-- Ingest 直接调 Job 或 TUI（「放下就跑」不是默认；拖到 AI 区由 App 把 drop 判给 C，不是 Ingest 自己跑）。
+- Ingest 直接调 Job 或 TUI（「放下就跑」不是默认；轮盘「发给」由 App 判给 C，不是 Ingest 自己跑。拖进面板走 A）。
 - Job 写原路径；Pasteboard 改 Item 状态为删除（第一版是复制）。
 - TUI 去 OCR 终端画面。
 - Shelf 自己访问磁盘上的原件路径去做 Hash（Hash 只在 Job 里）。

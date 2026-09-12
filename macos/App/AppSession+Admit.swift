@@ -58,6 +58,10 @@ extension AppSession {
             finishExternalDrag()
             return
         }
+        guard consumeExternalDrop() else {
+            finishExternalDrag()
+            return
+        }
         let fallback = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
         Task {
             var result = await ingest.admitProviders(providers)
@@ -70,12 +74,21 @@ extension AppSession {
         }
     }
 
-    func admitPasteboard(_ pasteboard: NSPasteboard) {
+    @discardableResult
+    func admitPasteboard(_ pasteboard: NSPasteboard) -> Bool {
         if isShelfDrag || PasteboardService.isShelfDrag(pasteboard) {
             finishExternalDrag()
-            return
+            return false
         }
-        admitPayload(ClipboardPayload.from(pasteboard: pasteboard))
+        if finishIfAlreadyAdmitted() { return true }
+        let payload = ClipboardPayload.from(pasteboard: pasteboard)
+        guard payload != .empty else { return false }
+        guard consumeExternalDrop() else {
+            finishExternalDrag()
+            return true
+        }
+        admitPayload(payload)
+        return true
     }
 
     func admitPayload(_ payload: ClipboardPayload) {
@@ -85,6 +98,10 @@ extension AppSession {
     }
 
     func admitFromWheel(_ payload: ClipboardPayload, action: WheelAction) {
+        guard consumeExternalDrop() else {
+            finishExternalDrag()
+            return
+        }
         if isShelfDrag {
             let ids = shelfDragIDs
             finishExternalDrag()
@@ -120,36 +137,6 @@ extension AppSession {
             }
         case .recipe(let recipe):
             Task { await startWheelRecipe(ids: ids, recipe: recipe) }
-        }
-    }
-
-    func admitToTUI(providers: [NSItemProvider]) {
-        if isShelfDrag {
-            let ids = shelfDragIDs
-            finishExternalDrag()
-            guard ids.isEmpty == false else { return }
-            if hasAgent {
-                sendToTUI(itemIDs: ids)
-            }
-            return
-        }
-        let fallback = ClipboardPayload.from(pasteboard: NSPasteboard(name: .drag))
-        Task {
-            var result = await ingest.admitProviders(providers, capturePages: false)
-            if result.admitted.isEmpty, fallback != .empty {
-                result = ingest.admitPayload(fallback, capturePages: false)
-            }
-            follow(result)
-            let ids = result.admitted.map(\.id)
-            shelf.setSelection(Set(ids))
-            finishExternalDrag()
-            if ids.isEmpty { return }
-            if hasAgent {
-                sendToTUI(itemIDs: ids)
-            } else {
-                errorText = Copy.t("未发现终端 Agent。文件已留在架子上。", "No terminal agent found. Files stayed on the shelf.")
-                aiTab = .work
-            }
         }
     }
 

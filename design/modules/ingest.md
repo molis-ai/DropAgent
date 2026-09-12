@@ -8,7 +8,7 @@
 
 ## 不做什么
 
-不决定跑 Recipe 还是 TUI（拖到 AI 区由 AppShell 二次调用 TUI）。不跑 Agent。不写 Jobs。
+不决定跑 Recipe 还是 TUI（发给终端由 AppShell 在轮盘「发给」二次调用 TUI）。不跑 Agent。不写 Jobs。
 
 ## Public
 
@@ -44,7 +44,7 @@ PageAdmit.setupStatus / requestTrustIfNeeded / requestAutomation / privacyTarget
 | 其他本地文件 | file | 该文件 |
 | 文件夹 | folder | 目录本身（第一版按一个条目） |
 | `http(s)` / 可读 webloc / 整段网址（架子进货） | web | 立刻 `url.txt`，后台补 `page.md?` + `snapshot.png?` |
-| 同上，但拖到 AI 区（`capturePages: false`） | url | 只有链接，送给终端 |
+| 同上，但轮盘「发给」（`capturePages: false`） | url | 只有链接，送给终端 |
 | 剪贴板纯文本（非整段 URL） | clip | 写入 Application Support 下的 clip 文件 |
 | 剪贴板图 | image | 写成 png |
 | 当前页 | web | Capture 产出的 url.txt + page.md? + snapshot.png? |
@@ -55,4 +55,4 @@ PageAdmit.setupStatus / requestTrustIfNeeded / requestAutomation / privacyTarget
 
 ## 调用
 
-`Shelf.add`；架子上的 http(s) 先 `add` 一条 WEB stub，再 `captureDroppedPages` → `Capture.captureURL`。热键抓页仍 `admitCurrentPage` → `Capture.captureFrontBrowser()`。授权门禁与前台冻结走 `PageAdmit`，不让 App 直接 import Capture。就绪清单的 AX / 自动化状态也走 `PageAdmit`。AI 区进货传 `capturePages: false`。
+`Shelf.add`；架子上的 http(s) 先 `add` 一条 WEB stub，再 `captureDroppedPages` → `Capture.captureURL`。热键抓页仍 `admitCurrentPage` → `Capture.captureFrontBrowser()`。授权门禁与前台冻结走 `PageAdmit`，不让 App 直接 import Capture。就绪清单的 AX / 自动化状态也走 `PageAdmit`。轮盘「发给」传 `capturePages: false`。面板任意处进货走默认抓页。

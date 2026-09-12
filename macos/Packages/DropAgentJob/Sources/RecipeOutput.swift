@@ -26,6 +26,7 @@ public enum RecipeOutput {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return false }
         if isProgress(trimmed) { return false }
+        if isCompletionReport(trimmed) { return false }
         return true
     }
 
@@ -167,6 +168,29 @@ public enum RecipeOutput {
             try fileManager.removeItem(at: destination)
         }
         try fileManager.copyItem(at: source, to: destination)
+    }
+
+    private static func isCompletionReport(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lines = trimmed.split(omittingEmptySubsequences: true, whereSeparator: \.isNewline)
+        guard trimmed.count <= 180, lines.count <= 3 else { return false }
+        let lower = trimmed.lowercased()
+        let talksAboutFile = lower.contains(".md")
+            || lower.contains(".json")
+            || lower.contains("文件")
+            || lower.contains("file")
+        let zh = trimmed.contains("已把")
+            || trimmed.contains("已将")
+            || trimmed.contains("已写入")
+            || trimmed.contains("已生成")
+            || trimmed.contains("已整合")
+        let zhDone = trimmed.contains("已完成") && talksAboutFile
+        let en = lower.contains("wrote ")
+            || lower.contains("written ")
+            || lower.contains("created ")
+            || lower.contains("saved ")
+            || lower.contains("combined ")
+        return zh || zhDone || en
     }
 
     private static func isProgress(_ text: String) -> Bool {

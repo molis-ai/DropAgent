@@ -195,7 +195,7 @@ private final class WheelSliceView: NSView {
             spring.mass = 0.45
             spring.stiffness = 420
             spring.damping = 22
-            spring.duration = min(spring.settlingDuration, 0.6)
+            spring.duration = min(spring.settlingDuration, EdgePlacement.bounceDuration)
             layer?.add(spring, forKey: "bounce")
         }
         CATransaction.begin()
