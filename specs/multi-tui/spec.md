@@ -25,7 +25,7 @@
 ## 非目标
 
 - 用没有可收口入口的 CLI 假装跑六个 Recipe。
-- 解析 TUI 画面、模拟按键点菜单、`--dangerously-skip-permissions` / `--always-approve` / `bypassPermissions`。
+- 解析 TUI 画面、模拟按键点菜单。TUI 自动批准见 `specs/tui-always-approve/spec.md`。Recipe 仍不加 skip/yolo。
 - 加载用户 `~/.codex`、`~/.grok/config.toml` MCP、Claude 用户 MCP。
 - Developer ID、Safari 真机抓页。
 
@@ -39,9 +39,9 @@
 ## 方案与关键决策
 
 - `discover()` / `recipePresence` = Codex，给 Job。`tuiPresence` / `installedEngines` 给终端。禁止 TUI 和 Job 各猜一套 PATH。
-- Grok：`GROK_HOME` 指向任务隔离目录，拷 `auth.json`。首次写种子 `config.toml`（无 `mcp_servers` / 无 `always-approve`）；用户已有 `privacy_banner_acked` 则只抄这一行。已存在的隔离配置不覆盖。参数：`--no-alt-screen --cwd <副本> <injection>`。
-- Claude：`CLAUDE_CONFIG_DIR` 隔离目录 + `--strict-mcp-config` + 空 `mcp.json`。不用 `--bare`（会丢掉 OAuth），不用 skip-permissions。`--setting-sources` 不含 user。
-- Gemini：探测常见路径；有二进制则 `--prompt` 不用 yolo。无二进制则设置里未安装。
+- Grok：`GROK_HOME` 指向任务隔离目录，拷 `auth.json`。首次写种子 `config.toml`（无 `mcp_servers`；不拷用户 always-approve）；用户已有 `privacy_banner_acked` 则只抄这一行。已存在的隔离配置不覆盖。参数：`--no-alt-screen --always-approve --cwd <副本> <injection>`。
+- Claude：`CLAUDE_CONFIG_DIR` 隔离目录 + `--strict-mcp-config` + 空 `mcp.json`。不用 `--bare`（会丢掉 OAuth）。`--setting-sources` 不含 user。TUI 加 `--permission-mode bypassPermissions`。
+- Gemini：探测常见路径；有二进制则 `--yolo --prompt`。无二进制则设置里未安装。
 - 文案：终端区用引擎名；「未发现 Codex」只出现在 Recipe 语境。
 
 ## 输入输出与依赖
@@ -62,8 +62,8 @@
 
 1. 同时存在 Grok 与 Codex、`tuiEngine=auto`，且 Grok `--help` 有单轮入口：`tuiPresence` 与 `recipePresence` 都是 Grok。
 2. `tuiEngine=codex`：终端和动作都是 Codex，即使 Grok 在。
-3. Grok 会话环境有 `GROK_HOME=` 隔离目录；隔离 `config.toml` 无 `mcp_servers`；不出现 `--always-approve` / `bypassPermissions`。
-4. Claude 会话无 `--dangerously-skip-permissions`；有 `CLAUDE_CONFIG_DIR` 与 `--strict-mcp-config`。
+3. Grok 会话环境有 `GROK_HOME=` 隔离目录；隔离 `config.toml` 无 `mcp_servers`；TUI 参数含 `--always-approve`。
+4. Claude 会话有 `CLAUDE_CONFIG_DIR`、`--strict-mcp-config`、`--permission-mode bypassPermissions`。
 5. 芯片 CLI 没有无界面入口：Recipe 禁用，发送可用。
 6. 选未装 Gemini：发送禁用，不假装成功。
 7. injection 仍不含原件绝对路径。

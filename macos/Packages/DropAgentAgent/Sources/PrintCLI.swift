@@ -24,7 +24,7 @@ public final class PrintCLI: @unchecked Sendable {
         process.executableURL = executable
         process.arguments = arguments
         process.currentDirectoryURL = request.workdir
-        process.environment = CodexCLI.recipeEnvironment(executable: executable)
+        process.environment = InteractiveLaunch.processEnvironmentMap(executable: executable)
         let out = Pipe()
         let err = Pipe()
         process.standardOutput = out

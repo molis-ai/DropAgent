@@ -1559,6 +1559,9 @@ private func agent() throws {
     expect(!service.isolationCopy(for: grokUnknown).contains("Workspace"), "grok no workspace")
     let grokTUI = AgentPresence.grok(path: URL(fileURLWithPath: "/opt/homebrew/bin/grok"), isolation: .tui)
     expectEqual(service.isolationCopy(for: grokTUI), "在终端执行，不是副本沙箱")
+    expectEqual(IsolationShown.tui.spokenFact, service.isolationCopy(for: grokTUI))
+    expectEqual(IsolationGrade.tui.spokenFact, service.isolationCopy(for: grokTUI))
+    expectEqual(IsolationShown.none.spokenFact, nil)
 
     let request = AgentRunRequest(
         workdir: URL(fileURLWithPath: "/tmp/work"),
@@ -1636,6 +1639,12 @@ private func agent() throws {
     let recipeEnv = CodexCLI.recipeEnvironment(executable: URL(fileURLWithPath: "/usr/local/bin/codex"))
     expect(recipeEnv["CODEX_HOME"] == nil, "recipe does not inherit CODEX_HOME")
     expectEqual(recipeEnv["HOME"], FileManager.default.homeDirectoryForCurrentUser.path)
+    let printEnv = InteractiveLaunch.processEnvironmentMap(
+        executable: URL(fileURLWithPath: "/usr/local/bin/grok")
+    )
+    expect(printEnv["PATH"]?.contains("/usr/local/bin") == true, "printcli path has binary dir")
+    expect(printEnv["PATH"]?.contains(".local/bin") == true, "printcli path has local bin")
+    expect(printEnv["TERM"] == "xterm-256color", "printcli term")
 
     let session = try found.ensureInteractiveSession()
     expectEqual(session.executable, binary)
@@ -2996,6 +3005,8 @@ private func tui() throws {
     expect(prepared.session.arguments.contains("--disable"), "tui disable features")
     expect(prepared.session.arguments.contains("apps"), "tui no bundled apps mcp")
     expect(prepared.session.arguments.contains("hooks"), "tui no hooks feature")
+    expect(prepared.session.arguments.contains("--ask-for-approval"), "codex tui auto approve")
+    expect(prepared.session.arguments.contains("never"), "codex tui never ask")
     expect(!prepared.session.arguments.contains("--dangerously-bypass-approvals-and-sandbox"), "tui no bypass")
     expect(prepared.session.environment.contains { $0 == "CODEX_HOME=\(prepared.isolatedHome.path)" }, "tui isolated home")
     expect(prepared.isolatedHome.lastPathComponent == "codex-home", "codex home dir")
@@ -3060,7 +3071,7 @@ private func tui() throws {
     ).send(itemIDs: [item2.id], text: "用 Grok 看")
     expect(grokPrepared.session.arguments.contains("--cwd"), "grok cwd")
     expect(grokPrepared.session.arguments.contains("--no-alt-screen"), "grok no alt")
-    expect(!grokPrepared.session.arguments.contains("--always-approve"), "grok no auto approve")
+    expect(grokPrepared.session.arguments.contains("--always-approve"), "grok tui auto approve")
     expect(!grokPrepared.session.arguments.contains("bypassPermissions"), "grok no bypass")
     expect(grokPrepared.session.environment.contains { $0.hasPrefix("GROK_HOME=") }, "grok home")
     expectEqual(grokPrepared.isolatedHome.lastPathComponent, "grok-home")
@@ -3107,7 +3118,9 @@ private func tui() throws {
     ).send(itemIDs: [item2.id], text: "用 Claude 看")
     expect(claudePrepared.session.arguments.contains("--strict-mcp-config"), "claude strict mcp")
     expect(claudePrepared.session.arguments.contains("--setting-sources"), "claude skip user settings")
-    expect(!claudePrepared.session.arguments.contains("--dangerously-skip-permissions"), "claude no skip")
+    expect(claudePrepared.session.arguments.contains("--permission-mode"), "claude tui permission mode")
+    expect(claudePrepared.session.arguments.contains("bypassPermissions"), "claude tui auto approve")
+    expect(!claudePrepared.session.arguments.contains("--dangerously-skip-permissions"), "claude uses permission-mode not skip flag")
     expect(!claudePrepared.session.arguments.contains("--bare"), "claude keeps auth")
     expect(claudePrepared.session.environment.contains { $0.hasPrefix("CLAUDE_CONFIG_DIR=") }, "claude config dir")
 
@@ -3117,7 +3130,7 @@ private func tui() throws {
         inboxRoot: root.appendingPathComponent("GeminiInbox")
     ).send(itemIDs: [item2.id], text: "用 Gemini 看")
     expect(geminiPrepared.session.arguments.contains("--prompt"), "gemini prompt")
-    expect(!geminiPrepared.session.arguments.contains("--yolo"), "gemini no yolo")
+    expect(geminiPrepared.session.arguments.contains("--yolo"), "gemini tui yolo")
     expect(geminiPrepared.session.environment.contains { $0.hasPrefix("GEMINI_CONFIG_DIR=") }, "gemini config dir")
 
     let opencodePrepared = try TUIService(
@@ -3127,7 +3140,7 @@ private func tui() throws {
     ).send(itemIDs: [item2.id], text: "用 OpenCode 看")
     expect(opencodePrepared.session.arguments.contains("--prompt"), "opencode prompt")
     expect(opencodePrepared.session.arguments.contains(opencodePrepared.cwd.path), "opencode project")
-    expect(!opencodePrepared.session.arguments.contains("--auto"), "opencode no auto")
+    expect(opencodePrepared.session.arguments.contains("--auto"), "opencode tui auto")
     expect(opencodePrepared.session.environment.contains { $0.hasPrefix("OPENCODE_CONFIG_DIR=") }, "opencode config dir")
     expectEqual(opencodePrepared.isolatedHome.lastPathComponent, "opencode-home")
     expect(opencodePrepared.feedOnLaunch == false, "opencode is tui")
@@ -3138,7 +3151,7 @@ private func tui() throws {
         inboxRoot: root.appendingPathComponent("CursorInbox")
     ).send(itemIDs: [item2.id], text: "用 Cursor 看")
     expect(cursorPrepared.session.arguments.contains { $0.contains("用 Cursor 看") }, "cursor prompt")
-    expect(!cursorPrepared.session.arguments.contains("--yolo"), "cursor tui no yolo")
+    expect(cursorPrepared.session.arguments.contains("--yolo"), "cursor tui yolo")
     expect(!cursorPrepared.session.arguments.contains("--force"), "cursor tui no force")
 
     let kimiPrepared = try TUIService(
@@ -3149,7 +3162,7 @@ private func tui() throws {
     expect(kimiPrepared.session.arguments.contains { $0.contains("用 Kimi 看") }, "kimi prompt")
     expect(!kimiPrepared.session.arguments.contains("-p"), "kimi tui no -p")
     expect(!kimiPrepared.session.arguments.contains("--prompt"), "kimi tui no --prompt")
-    expect(!kimiPrepared.session.arguments.contains("--yolo"), "kimi tui no yolo")
+    expect(kimiPrepared.session.arguments.contains("--yolo"), "kimi tui yolo")
     expect(!kimiPrepared.session.environment.contains { $0.hasPrefix("KIMI_CODE_HOME=") }, "kimi no fake home")
 
     let codebuddyPrepared = try TUIService(
@@ -3158,7 +3171,7 @@ private func tui() throws {
         inboxRoot: root.appendingPathComponent("CodeBuddyInbox")
     ).send(itemIDs: [item2.id], text: "用 CodeBuddy 看")
     expect(codebuddyPrepared.session.arguments.contains { $0.contains("用 CodeBuddy 看") }, "codebuddy prompt")
-    expect(!codebuddyPrepared.session.arguments.contains("--dangerously-skip-permissions"), "codebuddy tui no skip")
+    expect(codebuddyPrepared.session.arguments.contains("--dangerously-skip-permissions"), "codebuddy tui skip")
 
     let qwenPrepared = try TUIService(
         shelf: shelf,
@@ -3166,7 +3179,7 @@ private func tui() throws {
         inboxRoot: root.appendingPathComponent("QwenInbox")
     ).send(itemIDs: [item2.id], text: "用 Qwen 看")
     expect(qwenPrepared.session.arguments.contains("--prompt"), "qwen prompt")
-    expect(!qwenPrepared.session.arguments.contains("--yolo"), "qwen tui no yolo")
+    expect(qwenPrepared.session.arguments.contains("--yolo"), "qwen tui yolo")
     expect(!qwenPrepared.session.environment.contains { $0.hasPrefix("GEMINI_CONFIG_DIR=") }, "qwen no gemini home")
 
     let cliPrepared = try TUIService(
@@ -4062,7 +4075,7 @@ private func liveGrok() async throws {
     expectEqual(prepared.session.executable, path)
     expect(prepared.session.arguments.contains("--cwd"), "grok cwd")
     expect(prepared.session.arguments.contains("--no-alt-screen"), "grok no alt")
-    expect(!prepared.session.arguments.contains("--always-approve"), "grok no auto approve")
+    expect(prepared.session.arguments.contains("--always-approve"), "grok tui auto approve")
     expect(prepared.session.environment.contains { $0.hasPrefix("GROK_HOME=") }, "grok home")
     expect(!prepared.injection.contains(original.path), "grok prompt original path")
     expect(prepared.injection.contains("note.md"), "grok relative")

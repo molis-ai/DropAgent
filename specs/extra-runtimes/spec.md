@@ -15,9 +15,9 @@
 - 预置 TUI：现有四家 + **OpenCode**（`opencode`）+ **Cursor CLI**（优先 `cursor-agent`；文件名 `agent` 必须用 `--help` 区分，且不要把 `~/.grok/bin/agent` 认成 Cursor）。芯片文案写 **Cursor CLI**，避免以为会弹出 Cursor 窗口。
 - 预置纯 CLI（本机有才出现）：`llm`、`aichat`、`sgpt`。自动探测顺序仍优先 TUI；只有没装 TUI 时 auto 才落到 CLI。
 - 设置里添加 / 删除自定义 Runtime（名字 + 可执行文件 + TUI / CLI）。芯片列表 = 预置 ∪ 自定义。
-- **TUI 芯片**：发送仍走链 C，内嵌 PTY 拉起该 TUI。OpenCode：`opencode <副本目录> --prompt …`，隔离配置目录，不传 `--auto`。Cursor CLI：把那句话当作交互会话的初始 prompt，不传 `--force` / `--yolo`。
+- **TUI 芯片**：发送仍走链 C，内嵌 PTY 拉起该 TUI。OpenCode：`opencode <副本目录> --auto --prompt …`。Cursor CLI：把那句话当作交互会话的初始 prompt，带 `--yolo`，不传 `--force`。TUI 自动批准见 `specs/tui-always-approve/spec.md`。
 - **CLI 芯片**：发送仍走链 C 的终端 Tab，但进程是默认 shell（`SHELL`，没有则 `/bin/zsh`）`-l`，cwd 是材料副本目录，再把译好的命令打进去。例如 `llm '…'`。不打开 Terminal.app。
-- Recipe 仍走链 B。TUI 且 `--help` 有收口入口才启用（OpenCode：`run`；Cursor：`-p` / `--print`）。纯 CLI 本身就是一发一收，动作用同一条命令在 `work/` 跑，结果写 `output/`。没有证据的 flag 不发明。不传 `--auto` / `--yolo` / `--dangerously-skip-permissions` / `--always-approve`。
+- Recipe 仍走链 B。TUI 且 `--help` 有收口入口才启用（OpenCode：`run`；Cursor：`-p` / `--print`）。纯 CLI 本身就是一发一收，动作用同一条命令在 `work/` 跑，结果写 `output/`。Job 不传 `--auto` / `--yolo` / `--dangerously-skip-permissions` / `--always-approve`。
 - 文件名 `agent` 的身份以 `--help` 为准：含 `Grok Build` → Grok；含 Cursor 且路径不在 `~/.grok/` → Cursor CLI。
 
 ## 非目标
@@ -25,7 +25,7 @@
 - 不接 Ollama / 云端 API Key。
 - 不覆盖用户原文件；Prompt 不写原件路径。
 - 不解析 TUI、不模拟按键。
-- 不把 `--auto` / `--yolo` 当跳过授权。
+- Recipe 不把 `--auto` / `--yolo` 当跳过授权。TUI 见 `specs/tui-always-approve/spec.md`。
 - 不为没装的工具造假已连接。
 - 不改四条进货链。不 `commit` / `push`。
 
@@ -34,10 +34,10 @@
 1. 装了 `opencode`，芯片选 OpenCode。选 `notes.md`，输入「哪几条不能对外说」，发送：
 
 ```
-opencode /…/TUIInbox/session --prompt "请阅读当前目录中的副本材料…"
+opencode /…/TUIInbox/session --auto --prompt "请阅读当前目录中的副本材料…"
 ```
 
-不带 `--auto`。点翻译且 `opencode --help` 有 `run`：
+带 `--auto`。点翻译且 `opencode --help` 有 `run`：
 
 ```
 opencode run --dir /…/Jobs/<id>/work $'阅读当前工作目录里的材料。…'
@@ -85,8 +85,8 @@ opencode run --dir /…/Jobs/<id>/work $'阅读当前工作目录里的材料。
 
 1. Check：同时有 `grok` 与 `opencode` 时 auto 仍是 Grok。强制 OpenCode 时 `tuiPresence` 是 OpenCode。
 2. Check：`~/.grok/bin/agent` 且 help 含 Grok Build → 不是 Cursor。`cursor-agent` 且 help 含 Cursor → Cursor CLI。
-3. Check：OpenCode TUI 参数含 `--prompt` 和副本目录，不含 `--auto`。Job 是 `run`，不含 `--auto`。
-4. Check：Cursor TUI 参数不含 `--yolo` / `--force`。Job 用 `-p` 或 `--print`。
+3. Check：OpenCode TUI 参数含 `--prompt`、副本目录和 `--auto`。Job 是 `run`，不含 `--auto`。
+4. Check：Cursor TUI 参数含 `--yolo`，不含 `--force`。Job 用 `-p` 或 `--print`。
 5. Check：CLI 发送可执行文件是 shell、参数 `-l`、injection 是引号包好的命令、不含原件路径、`feedOnLaunch` 为真。
 6. Check：自定义 Runtime 出现在 `installedEngines`，选中后 `tuiPresence` 是它。
 7. 设置页能添加 / 删除 Runtime；芯片菜单立刻出现。预览能打开设置看到这一块。

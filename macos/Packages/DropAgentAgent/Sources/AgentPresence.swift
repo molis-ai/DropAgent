@@ -29,6 +29,20 @@ public enum IsolationGrade: String, Sendable, Equatable {
     case unknown
     case none
     case tui
+
+    /// Agent 对外说的那一句。IsolationShown 重叠档必须逐字相同。
+    public var spokenFact: String {
+        switch self {
+        case .workspace:
+            return "Workspace Sandbox：Agent 只能写任务工作区"
+        case .unknown:
+            return "未确认工作区限制，仍在副本目录跑"
+        case .tui:
+            return "在终端执行，不是副本沙箱"
+        case .none:
+            return "未发现 Agent"
+        }
+    }
 }
 
 public enum AgentPresence: Equatable, Sendable {

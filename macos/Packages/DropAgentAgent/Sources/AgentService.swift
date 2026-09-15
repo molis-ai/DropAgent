@@ -92,16 +92,7 @@ public final class AgentService: AgentRunning, @unchecked Sendable {
     }
 
     public func isolationCopy(for presence: AgentPresence) -> String {
-        switch presence.isolation {
-        case .workspace:
-            return "Workspace Sandbox：Agent 只能写任务工作区"
-        case .unknown:
-            return "未确认工作区限制，仍在副本目录跑"
-        case .tui:
-            return "在终端执行，不是副本沙箱"
-        case .none:
-            return "未发现 Agent"
-        }
+        presence.isolation.spokenFact
     }
 
     public func run(_ request: AgentRunRequest, onEvent: (@Sendable (AgentEvent) -> Void)?) async throws -> AgentRunResult {

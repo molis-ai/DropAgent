@@ -157,10 +157,6 @@ public final class CodexCLI: CodexExecuting, @unchecked Sendable {
         return env
     }
 
-    public static func interactiveEnvironment(executable: URL) -> [String] {
-        InteractiveLaunch.processEnvironment(executable: executable)
-    }
-
     public static func execArguments(request: AgentRunRequest, prompt: String) -> [String] {
         var arguments = [
             "exec",

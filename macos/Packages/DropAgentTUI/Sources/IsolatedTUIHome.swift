@@ -37,16 +37,6 @@ public enum IsolatedTUIHome {
         }
     }
 
-    public static func copyLogin(engine: AgentEngine, into home: URL) throws {
-        switch engine {
-        case .codex:
-            try IsolatedCodexHome.copyLogin(into: home)
-        case .grok:
-            try IsolatedGrokHome.copyLogin(into: home)
-        case .claude, .gemini, .opencode, .cursor, .kimi, .codebuddy, .qwen:
-            break
-        }
-    }
 }
 
 public enum IsolatedGrokHome {

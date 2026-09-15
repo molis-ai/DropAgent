@@ -14,7 +14,7 @@
 ## 范围
 
 - 隔离 `GROK_HOME` 仍不加载用户 MCP / Hooks / plugins。
-- 不把用户的 `always-approve` / `yolo` / `mcp_servers` 拷进隔离配置。
+- 不把用户的 `always-approve` / `yolo` / `mcp_servers` 拷进隔离配置。Grok TUI 是否自动批准由启动参数决定，见 `specs/grok-tui-always-approve/spec.md`。
 - 首次创建隔离 `config.toml` 时：若用户配置里有 `privacy_banner_acked` 这一行，只抄这一行进 `[privacy]`。
 - 隔离 `config.toml` 已经存在时不要覆盖（Grok 自己写的确认要留下）。
 - `auth.json` 仍每次拷。

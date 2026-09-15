@@ -26,7 +26,7 @@
 - 预置 TUI 增加 **Kimi Code**（`kimi`、`kimi-code`）、**CodeBuddy**（`codebuddy`、`cbc`，含 WorkBuddy.app 内置路径）、**Qwen Code**（`qwen`）。auto 仍先原来六家：Grok → Claude → Gemini → OpenCode → Cursor CLI → Codex → Kimi Code → CodeBuddy → Qwen Code。
 - 设置 Runtime：输入命令名或可执行文件路径，回车或点添加。仍可「选择可执行文件…」。只解析第一个 token，不要 `npx foo --profile tui`。
 - 写的命令若能认出是预置，走该引擎覆盖路径；否则追加自定义 Runtime。同一路径不重复添加。找不到则在 Runtime 区块说明，不写进列表。
-- 发送 / Recipe 跟芯片。Kimi / CodeBuddy / Qwen 档位仍是「在终端执行，不是副本沙箱」。**不**设 `KIMI_CODE_HOME` 等假 home，以免丢掉登录。不传 `--yolo` / `--dangerously-skip-permissions` / `--auto`。
+- 发送 / Recipe 跟芯片。Kimi / CodeBuddy / Qwen 档位仍是「在终端执行，不是副本沙箱」。**不**设 `KIMI_CODE_HOME` 等假 home，以免丢掉登录。TUI 自动批准见 `specs/tui-always-approve/spec.md`。Recipe 不传 `--yolo` / `--dangerously-skip-permissions` / `--auto`。
 - 启动参数只按官方文档和本机 `--help`：
   - Kimi 发送：把那句话当 argv（不要 `-p`，`-p` 会关掉 TUI）。动作：`--prompt` / `-p`。
   - CodeBuddy 发送：`codebuddy "…"` 进 REPL。动作：`--print` / `-p`。
@@ -77,8 +77,8 @@
 
 1. Check：同时有 Grok 与 `kimi` 时 auto 仍是 Grok。强制 Kimi / CodeBuddy / Qwen 时 presence 对得上。
 2. Check：`identified("kimi")` / `kimi-code` → Kimi；`codebuddy` / `cbc` → CodeBuddy；`qwen` → Qwen。help 含 Kimi 的 `qwen` 仍是 Qwen。
-3. Check：Kimi Job 用 `--prompt` 或 `-p`，不含 `--yolo`。Kimi TUI argv 含那句话，不含 `-p`。
-4. Check：CodeBuddy Job 用 `--print` 或 `-p`，不含 `--dangerously-skip-permissions`。Qwen Job 用 `--prompt` 或 `-p`，不含 `--yolo`。
+3. Check：Kimi Job 用 `--prompt` 或 `-p`，不含 `--yolo`。Kimi TUI argv 含那句话和 `--yolo`，不含 `-p`。
+4. Check：CodeBuddy Job 用 `--print` 或 `-p`，不含 `--dangerously-skip-permissions`。CodeBuddy TUI 含 skip。Qwen Job 用 `--prompt` 或 `-p`，不含 `--yolo`。Qwen TUI 含 `--yolo`。
 5. Check：`RuntimeCommand.parse("kimi -p hi")` 失败；`kimi` 能在 PATH 目录解析到可执行文件。
 6. Check：旧 JSON `{"tuiEngine":"llm"}` 解码为 `auto`。
 7. Check：自定义 `kind: .cli` 发送仍是 shell `-l`、`feedOnLaunch`、injection 是命令、不含原件路径。

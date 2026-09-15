@@ -71,9 +71,11 @@ public enum IsolationShown: String, Codable, Sendable {
             return "Workspace Sandbox：Agent 只能写任务工作区"
         case .unconfirmed:
             return "未确认工作区限制，仍在副本目录跑"
+        case .tui:
+            return "在终端执行，不是副本沙箱"
         case .safeCopy:
             return "Safe Copy：原文件不会被 DropAgent 覆盖，结果另存"
-        case .tui, .none:
+        case .none:
             return nil
         }
     }

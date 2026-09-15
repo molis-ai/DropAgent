@@ -30,12 +30,14 @@ public enum InteractiveLaunch {
                 "--disable", "hooks",
                 "--disable", "computer_use",
                 "--no-alt-screen",
+                "--ask-for-approval", "never",
                 "-C", cwd.path,
                 injection,
             ]
         case .grok:
             return [
                 "--no-alt-screen",
+                "--always-approve",
                 "--cwd", cwd.path,
                 injection,
             ]
@@ -44,17 +46,20 @@ public enum InteractiveLaunch {
                 "--strict-mcp-config",
                 "--mcp-config", isolatedHome.appendingPathComponent("mcp.json").path,
                 "--setting-sources", "project,local",
+                "--permission-mode", "bypassPermissions",
                 "--add-dir", cwd.path,
                 injection,
             ]
         case .gemini:
-            return ["--prompt", injection]
+            return ["--yolo", "--prompt", injection]
         case .opencode:
-            return [cwd.path, "--prompt", injection]
-        case .cursor, .kimi, .codebuddy:
-            return [injection]
+            return [cwd.path, "--auto", "--prompt", injection]
+        case .cursor, .kimi:
+            return ["--yolo", injection]
+        case .codebuddy:
+            return ["--dangerously-skip-permissions", injection]
         case .qwen:
-            return ["--prompt", injection]
+            return ["--yolo", "--prompt", injection]
         }
     }
 
@@ -96,7 +101,7 @@ public enum InteractiveLaunch {
         return env
     }
 
-    public static func processEnvironment(executable: URL) -> [String] {
+    public static func processEnvironmentMap(executable: URL) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let bin = executable.deletingLastPathComponent().path
@@ -127,6 +132,10 @@ public enum InteractiveLaunch {
         env["LANG"] = env["LANG"] ?? "en_US.UTF-8"
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
-        return env.map { "\($0.key)=\($0.value)" }
+        return env
+    }
+
+    public static func processEnvironment(executable: URL) -> [String] {
+        processEnvironmentMap(executable: executable).map { "\($0.key)=\($0.value)" }
     }
 }

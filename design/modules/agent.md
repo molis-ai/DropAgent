@@ -23,7 +23,7 @@ tuiPresence() -> AgentPresence
 installedEngines() -> [AgentPresence]
   // 预置已装 ∪ 自定义且可执行
 
-isolationCopy(for presence) -> String   // 跟 isolation 档走，不许营销升级
+isolationCopy(for presence) -> String   // 只转述 IsolationGrade.spokenFact，不许营销升级
 
 run(workdir: URL, promptFile: URL, isolation: Isolation) async throws -> AgentRunResult
 
