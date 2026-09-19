@@ -233,6 +233,7 @@ extension AppDelegate {
         // This panel owns its frame. Hosting constraints can otherwise enlarge
         // the window beyond the screen as the SwiftUI content changes.
         host.sizingOptions = []
+        host.autoresizingMask = [.width, .height]
         host.frame = NSRect(x: 0, y: 0, width: LivePanelChrome.panelWidth, height: LivePanelChrome.panelHeight)
         panel.sharingType = .readWrite
         panel.contentView = host
@@ -259,7 +260,7 @@ extension AppDelegate {
     }
 
     func positionPanel() {
-        guard let panel, panel.userMoving == false else { return }
+        guard let panel, panel.userMoving == false, panel.userResizing == false else { return }
         let button = statusItem?.button
         let buttonScreen = button?.window?.screen
         let saved = session.prefs.savedPanelOrigin
@@ -271,7 +272,8 @@ extension AppDelegate {
         }
         guard let screen else { return }
         let visible = screen.visibleFrame
-        let size = NSSize(width: session.panelWidth, height: session.panelHeight)
+        let size = session.prefs.savedPanelSize
+            ?? NSSize(width: session.panelWidth, height: session.panelHeight)
         let frame: NSRect
         if let saved {
             frame = PanelPlacement.placed(savedX: saved.x, savedTop: saved.top, size: size, visible: visible)
@@ -296,6 +298,7 @@ extension AppDelegate {
         guard applyingPanelFrame == false, let panel, panel.isVisible else { return }
         var prefs = session.prefs
         prefs.savedPanelOrigin = (panel.frame.minX, panel.frame.maxY)
+        prefs.savedPanelSize = panel.frame.size
         prefs.save()
         session.prefs = prefs
     }

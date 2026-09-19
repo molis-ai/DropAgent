@@ -2427,6 +2427,52 @@ enum AppE2E {
             guard abs(again.minX - 120) < 0.5, abs(again.maxY - 760) < 0.5 else {
                 fail("reopen frame \(again)")
             }
+            let southEast = PanelResize.frame(
+                start: NSRect(x: 80, y: 200, width: 1160, height: 640),
+                from: NSPoint(x: 1240, y: 200),
+                to: NSPoint(x: 1320, y: 120),
+                edge: .southEast,
+                visible: visible
+            )
+            guard abs(southEast.width - 1240) < 0.5 else {
+                fail("southeast width \(southEast.width)")
+            }
+            guard abs(southEast.height - 720) < 0.5 else {
+                fail("southeast height \(southEast.height)")
+            }
+            guard abs(southEast.minX - 80) < 0.5, abs(southEast.maxY - 840) < 0.5 else {
+                fail("southeast anchored edge \(southEast)")
+            }
+            let west = PanelResize.frame(
+                start: NSRect(x: 200, y: 100, width: 1000, height: 500),
+                from: NSPoint(x: 200, y: 300),
+                to: NSPoint(x: 120, y: 300),
+                edge: .west,
+                visible: visible
+            )
+            guard abs(west.maxX - 1200) < 0.5, abs(west.width - 1080) < 0.5 else {
+                fail("west resize \(west)")
+            }
+            let minEast = PanelResize.frame(
+                start: NSRect(x: 80, y: 200, width: 1160, height: 640),
+                from: NSPoint(x: 1240, y: 200),
+                to: NSPoint(x: 200, y: 200),
+                edge: .east,
+                visible: visible
+            )
+            guard abs(minEast.width - LivePanelChrome.panelMinWidth) < 0.5 else {
+                fail("min width \(minEast.width)")
+            }
+            var sizePrefs = AppPreferences.default
+            sizePrefs.savedPanelSize = NSSize(width: 980, height: 520)
+            sizePrefs.save()
+            let loadedSize = AppPreferences.load()
+            guard let stored = loadedSize.savedPanelSize,
+                  abs(stored.width - 980) < 0.5,
+                  abs(stored.height - 520) < 0.5
+            else {
+                fail("panel size did not persist")
+            }
             let clamped = PanelPlacement.clamp(NSRect(x: -80, y: -40, width: 1040, height: 400), visible: visible)
             guard clamped.minX >= visible.minX else {
                 fail("clamp left \(clamped.minX)")
