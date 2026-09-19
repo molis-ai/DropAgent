@@ -69,6 +69,8 @@ struct AppPreferences: Codable, Equatable {
     var shortcuts: [ShortcutAction]
     var panelX: Double?
     var panelTop: Double?
+    var panelWidth: Double?
+    var panelHeight: Double?
 
     static let `default` = AppPreferences()
 
@@ -90,7 +92,9 @@ struct AppPreferences: Codable, Equatable {
         actionOrder: [String] = ActionBarLayout.defaultOrder,
         shortcuts: [ShortcutAction] = [],
         panelX: Double? = nil,
-        panelTop: Double? = nil
+        panelTop: Double? = nil,
+        panelWidth: Double? = nil,
+        panelHeight: Double? = nil
     ) {
         self.appearance = appearance
         self.language = language
@@ -110,6 +114,8 @@ struct AppPreferences: Codable, Equatable {
         self.shortcuts = shortcuts
         self.panelX = panelX
         self.panelTop = panelTop
+        self.panelWidth = panelWidth
+        self.panelHeight = panelHeight
     }
 
     init(from decoder: Decoder) throws {
@@ -133,6 +139,8 @@ struct AppPreferences: Codable, Equatable {
         shortcuts = try container.decodeIfPresent([ShortcutAction].self, forKey: .shortcuts) ?? []
         panelX = try container.decodeIfPresent(Double.self, forKey: .panelX)
         panelTop = try container.decodeIfPresent(Double.self, forKey: .panelTop)
+        panelWidth = try container.decodeIfPresent(Double.self, forKey: .panelWidth)
+        panelHeight = try container.decodeIfPresent(Double.self, forKey: .panelHeight)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -154,6 +162,8 @@ struct AppPreferences: Codable, Equatable {
         case shortcuts
         case panelX
         case panelTop
+        case panelWidth
+        case panelHeight
     }
 
     var savedPanelOrigin: (x: CGFloat, top: CGFloat)? {
@@ -164,6 +174,17 @@ struct AppPreferences: Codable, Equatable {
         set {
             panelX = newValue.map { Double($0.x) }
             panelTop = newValue.map { Double($0.top) }
+        }
+    }
+
+    var savedPanelSize: NSSize? {
+        get {
+            guard let panelWidth, let panelHeight, panelWidth > 0, panelHeight > 0 else { return nil }
+            return NSSize(width: panelWidth, height: panelHeight)
+        }
+        set {
+            panelWidth = newValue.map { Double($0.width) }
+            panelHeight = newValue.map { Double($0.height) }
         }
     }
 

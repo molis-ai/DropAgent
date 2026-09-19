@@ -13,7 +13,7 @@ struct WindowDragHandle: NSViewRepresentable {
 
 final class WindowDragView: NSView {
     override func mouseDown(with event: NSEvent) {
-        guard let panel = window as? DropAgentPanel else { return }
+        guard let panel = window as? DropAgentPanel, panel.userResizing == false else { return }
         panel.beginUserMove(at: panel.convertPoint(toScreen: event.locationInWindow))
     }
 
@@ -35,14 +35,19 @@ final class DropAgentPanel: NSPanel {
     var onMouseInsideChange: ((Bool) -> Void)?
     var onUserMoved: (() -> Void)?
     private(set) var userMoving = false
+    private(set) var userResizing = false
     private var moveStart = NSPoint.zero
     private var moveOffset = NSPoint.zero
+    private var resizeEdge: PanelResize.Edge?
+    private var resizeStart = NSRect.zero
+    private var resizePoint = NSPoint.zero
     private var tracking: NSTrackingArea?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
     func beginUserMove(at point: NSPoint) {
+        guard userResizing == false else { return }
         moveStart = frame.origin
         moveOffset = NSPoint(x: point.x - frame.minX, y: point.y - frame.minY)
         userMoving = true
@@ -57,6 +62,30 @@ final class DropAgentPanel: NSPanel {
         guard userMoving else { return }
         userMoving = false
         if frame.origin != moveStart { onUserMoved?() }
+    }
+
+    func beginUserResize(edge: PanelResize.Edge, at point: NSPoint) {
+        guard userMoving == false else { return }
+        resizeEdge = edge
+        resizeStart = frame
+        resizePoint = point
+        userResizing = true
+    }
+
+    func continueUserResize(at point: NSPoint) {
+        guard userResizing, let edge = resizeEdge else { return }
+        let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? frame
+        setFrame(
+            PanelResize.frame(start: resizeStart, from: resizePoint, to: point, edge: edge, visible: visible),
+            display: true
+        )
+    }
+
+    func endUserResize() {
+        guard userResizing else { return }
+        userResizing = false
+        resizeEdge = nil
+        if frame != resizeStart { onUserMoved?() }
     }
 
     func installMouseTracking() {
@@ -87,6 +116,8 @@ enum LivePanelChrome {
     static var styleMask: NSWindow.StyleMask { .borderless }
     static let panelWidth: CGFloat = 1160
     static let panelHeight: CGFloat = 568
+    static let panelMinWidth: CGFloat = 800
+    static let panelMinHeight: CGFloat = 480
     static let dockMinHeight: CGFloat = 168
     static let dockShadowPad: CGFloat = 36
     static let paperShadowRadius: CGFloat = 16

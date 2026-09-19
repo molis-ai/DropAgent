@@ -50,6 +50,7 @@ struct PanelRootView: View {
         .padding(LivePanelChrome.dockShadowPad)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.clear)
+        .panelResizeHandles()
         .ignoresSafeArea()
         .preferredColorScheme(session.prefs.appearance.colorScheme)
         .tint(Palette.accent)

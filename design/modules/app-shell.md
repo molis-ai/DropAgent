@@ -33,7 +33,7 @@
 ## 窗口
 
 - `NSStatusItem` 靠右。启动和激活时钉住显示，不允许 Command 拖走；授权弹窗不藏 extra。挤满的菜单栏仍可能进系统折叠。
-- 固定高度文件工作台：左目录分材料／结果／剪贴板，右侧预览，指令常驻下方。原文对照按需展开。状态变化不改变外窗大小，遵循 `specs/linear-workbench/spec.md`、`specs/sidebar-tree-actions/spec.md`、`specs/panel-drop-shelf/spec.md` 与 `specs/workbench-e2e-fixes/spec.md`。顶栏拖动、Agent、设置和窗口行为保留；搜索框固定在目录顶部，可过滤架子并添加本机文件，文件相对目录名缩进，行尾按钮代替右键。外部文件拖进面板任意处加入材料。
+- 默认尺寸文件工作台：左目录分材料／结果／剪贴板，右侧预览，指令常驻下方。原文对照按需展开。状态变化不改变外窗大小；用户可拖左右边和下边调整外窗并记住宽高，仍无系统标题栏。遵循 `specs/linear-workbench/spec.md`、`specs/panel-resize/spec.md`、`specs/sidebar-tree-actions/spec.md`、`specs/panel-drop-shelf/spec.md` 与 `specs/workbench-e2e-fixes/spec.md`。顶栏拖动、Agent、设置和窗口行为保留；搜索框固定在目录顶部，可过滤架子并添加本机文件，文件相对目录名缩进，行尾按钮代替右键。外部文件拖进面板任意处加入材料。
 - 人离开后面板闲时：透明度约 0.72 并降到普通窗口层级，让开底下的 App。点还露着的面板、把文件拖进面板区域、图标或开合快捷键会醒；闲时点图标是唤醒不是关。从面板拖出时不闲时。点 + 选文件时面板不收起，选择窗在前面。诊断启动不闲时。
 - 面板挂在当前桌面打开：用 `moveToActiveSpace`，不粘所有 Space，也不钉在第一次出现的桌面。切走后窗口留在原桌面；新桌面再打开会把窗口挂过来。
 - 第一次打开显示空架子与欢迎区，直接通过示例 PDF 进入本机提取流程；授权在按需设置里。设置导航是权限与连接、快捷动作、快捷键、使用指南、Agent 与存储、外观。示例生成属于 App；仍走 Ingest → Job → Pasteboard，不新增业务调用链。
